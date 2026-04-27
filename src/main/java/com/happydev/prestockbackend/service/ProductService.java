@@ -1,10 +1,12 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.ProductDto;
-import com.happydev.prestockbackend.entity.Product;
+import com.happydev.prestockbackend.entity.StockMovementType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,5 +27,15 @@ public interface ProductService {
     // Nuevo método para alertas de stock bajo
     List<ProductDto> findProductsBelowMinStock();
     Page<ProductDto> findProductsBelowMinStock(Pageable pageable);
+
+    void adjustStock(Long productId,
+                     int quantityChange,
+                     StockMovementType type,
+                     String reason,
+                     String batchNumber,
+                     LocalDateTime expirationDate,
+                     BigDecimal unitCost,
+                     Long sourceLocationId,
+                     Long destinationLocationId);
 
 }

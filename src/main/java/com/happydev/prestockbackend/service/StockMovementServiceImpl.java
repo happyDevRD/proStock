@@ -6,7 +6,6 @@ import com.happydev.prestockbackend.entity.StockMovementType;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.StockMovementRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,16 +30,22 @@ public class StockMovementServiceImpl implements StockMovementService {
     @Override
     @Transactional
     public StockMovement createMovement(StockMovement movement) {
-        // Calcular stockBefore y stockAfter
-        int currentStock = calculateCurrentStock(movement.getProduct().getId());
+        Product product = productRepository.findById(movement.getProduct().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", movement.getProduct().getId()));
+        int currentStock = product.getStock() != null ? product.getStock() : 0;
+        int stockAfter = currentStock + movement.getQuantityChange();
+
+        if (movement.getType() != StockMovementType.TRANSFER && stockAfter < 0) {
+            throw new IllegalStateException("Stock cannot be negative for product id: " + product.getId());
+        }
+
+        movement.setProduct(product);
         movement.setStockBefore(currentStock);
-        movement.setStockAfter(currentStock + movement.getQuantityChange());
+        movement.setStockAfter(stockAfter);
 
         // Actualizar el stock del producto (si no es una transferencia)
         if (movement.getType() != StockMovementType.TRANSFER) {
-            Product product = productRepository.findById(movement.getProduct().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", movement.getProduct().getId()));
-            product.setStock(movement.getStockAfter()); //Actualiza el stock
+            product.setStock(stockAfter);
             productRepository.save(product);
         }
 

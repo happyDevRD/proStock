@@ -168,8 +168,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
 
+    @Override
     @Transactional
-    public void adjustStock(Long productId, int quantityChange, StockMovementType type, String reason, String batchNumber, LocalDateTime expirationDate, BigDecimal unitCost, Long userId, Long sourceLocationId, Long destinationLocationId) {
+    public void adjustStock(Long productId, int quantityChange, StockMovementType type, String reason, String batchNumber, LocalDateTime expirationDate, BigDecimal unitCost, Long sourceLocationId, Long destinationLocationId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
@@ -190,11 +191,8 @@ public class ProductServiceImpl implements ProductService {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             String username = userDetails.getUsername(); //Obtenemos el username
 
-            // Buscamos el usuario por su username
-            User user = userRepository.findByUsername(username) //Usamos el repositorio y UserService
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
-
-            movement.setUser(user);
+            // Si existe el usuario en BD lo asociamos; si no, evitamos romper el ajuste.
+            userRepository.findByUsername(username).ifPresent(movement::setUser);
         }
 
 

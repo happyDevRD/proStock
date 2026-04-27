@@ -1,7 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.ProductDto;
-import com.happydev.prestockbackend.entity.Product;
+import com.happydev.prestockbackend.dto.StockAdjustmentRequestDto;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -106,5 +106,21 @@ public class ProductController {
     public ResponseEntity<Page<ProductDto>> getProductsBelowMinStock(Pageable pageable) {
         Page<ProductDto> products = productService.findProductsBelowMinStock(pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/stock-adjustments")
+    public ResponseEntity<Void> adjustStock(@PathVariable Long id, @Valid @RequestBody StockAdjustmentRequestDto request) {
+        productService.adjustStock(
+                id,
+                request.getQuantityChange(),
+                request.getType(),
+                request.getReason(),
+                request.getBatchNumber(),
+                request.getExpirationDate(),
+                request.getUnitCost(),
+                request.getSourceLocationId(),
+                request.getDestinationLocationId()
+        );
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 }

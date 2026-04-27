@@ -24,7 +24,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable()) // Deshabilita CSRF (¡solo para pruebas/desarrollo!)
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/users/**").permitAll() // Permitir acceso sin autenticación
+                        .requestMatchers("/").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated() // Requerir autenticación para el resto
                 )
                 .httpBasic(withDefaults()); //Habilitar Basic Auth.

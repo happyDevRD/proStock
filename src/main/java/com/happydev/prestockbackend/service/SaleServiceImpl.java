@@ -10,7 +10,6 @@ import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleItemRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -33,14 +32,20 @@ public class SaleServiceImpl implements SaleService {
 
     private final SaleMapper saleMapper;
 
+    private final StockMovementService stockMovementService;
 
-
-    public SaleServiceImpl(SaleRepository saleRepository, SaleItemRepository saleItemRepository, ProductRepository productRepository, CustomerRepository customerRepository, SaleMapper saleMapper) {
+    public SaleServiceImpl(SaleRepository saleRepository,
+                           SaleItemRepository saleItemRepository,
+                           ProductRepository productRepository,
+                           CustomerRepository customerRepository,
+                           SaleMapper saleMapper,
+                           StockMovementService stockMovementService) {
         this.saleRepository = saleRepository;
         this.saleItemRepository = saleItemRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
         this.saleMapper = saleMapper;
+        this.stockMovementService = stockMovementService;
     }
 
     @Override
@@ -153,7 +158,7 @@ public class SaleServiceImpl implements SaleService {
             throw new IllegalStateException("Cannot complete a sale that is not in PENDING status.");
         }
 
-        // Actualizar el stock de cada producto
+        // Registrar movimientos de stock para mantener historial consistente
         for (SaleItem item : sale.getItems()) {
             Product product = productRepository.findById(item.getProduct().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Product", "id", item.getProduct().getId()));
@@ -162,7 +167,15 @@ public class SaleServiceImpl implements SaleService {
             if(product.getStock() < item.getQuantity()){
                 throw new IllegalStateException("Not enough stock for product: " + product.getName());
             }
-            product.setStock(product.getStock() - item.getQuantity()); // Descontar del stock
+
+            StockMovement movement = new StockMovement();
+            movement.setProduct(product);
+            movement.setMovementDate(LocalDateTime.now());
+            movement.setQuantityChange(-item.getQuantity());
+            movement.setType(StockMovementType.OUT);
+            movement.setReason("Sale completed");
+            movement.setSale(sale);
+            stockMovementService.createMovement(movement);
 
         }
 

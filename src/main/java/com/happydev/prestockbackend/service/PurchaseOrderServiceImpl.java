@@ -5,6 +5,8 @@ import com.happydev.prestockbackend.entity.Product;
 import com.happydev.prestockbackend.entity.PurchaseOrder;
 import com.happydev.prestockbackend.entity.PurchaseOrderItem;
 import com.happydev.prestockbackend.entity.PurchaseOrderStatus;
+import com.happydev.prestockbackend.entity.StockMovement;
+import com.happydev.prestockbackend.entity.StockMovementType;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.PurchaseOrderMapper;
 import com.happydev.prestockbackend.repository.ProductRepository;
@@ -12,7 +14,7 @@ import com.happydev.prestockbackend.repository.PurchaseOrderItemRepository;
 import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SupplierRepository;
 import jakarta.transaction.Transactional;
- import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -34,12 +36,20 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final PurchaseOrderMapper purchaseOrderMapper;
 
-    public PurchaseOrderServiceImpl(PurchaseOrderRepository purchaseOrderRepository, PurchaseOrderItemRepository purchaseOrderItemRepository, SupplierRepository supplierRepository, ProductRepository productRepository, PurchaseOrderMapper purchaseOrderMapper) {
+    private final StockMovementService stockMovementService;
+
+    public PurchaseOrderServiceImpl(PurchaseOrderRepository purchaseOrderRepository,
+                                    PurchaseOrderItemRepository purchaseOrderItemRepository,
+                                    SupplierRepository supplierRepository,
+                                    ProductRepository productRepository,
+                                    PurchaseOrderMapper purchaseOrderMapper,
+                                    StockMovementService stockMovementService) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.purchaseOrderItemRepository = purchaseOrderItemRepository;
         this.supplierRepository = supplierRepository;
         this.productRepository = productRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
+        this.stockMovementService = stockMovementService;
     }
 
 
@@ -152,11 +162,17 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new IllegalStateException("Cannot receive a purchase order that is not in PENDING status.");
         }
 
-        // Actualizar el stock de cada producto
+        // Registrar movimientos de entrada para mantener historial consistente
         for (PurchaseOrderItem item : purchaseOrder.getItems()) {
             Product product = item.getProduct();
-            product.setStock(product.getStock() + item.getQuantity());
-            productRepository.save(product); // Actualizar el stock en la base de datos
+            StockMovement movement = new StockMovement();
+            movement.setProduct(product);
+            movement.setMovementDate(LocalDateTime.now());
+            movement.setQuantityChange(item.getQuantity());
+            movement.setType(StockMovementType.IN);
+            movement.setReason("Purchase order received");
+            movement.setPurchaseOrder(purchaseOrder);
+            stockMovementService.createMovement(movement);
         }
 
         // Cambiar el estado de la orden a RECEIVED y guardar la fecha de recepción

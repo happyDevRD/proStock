@@ -9,20 +9,19 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // Extiende ResponseEntityExceptionHandler
@@ -45,7 +44,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     // 400 Bad Request - Validation Errors
     @Override // Sobreescribe el método de ResponseEntityExceptionHandler
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+            @NonNull MethodArgumentNotValidException ex,
+            @NonNull HttpHeaders headers,
+            @NonNull HttpStatusCode status,
+            @NonNull WebRequest request) {
 
         Map<String, List<String>> errors = new HashMap<>(); // Usa un Map<String, List<String>>
 
@@ -141,17 +143,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         logger.warn("ConstraintViolationException: {}", errors);
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
-
-    // 413 - Payload too large
-    @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ErrorDetails> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex, WebRequest request) {
-        ErrorDetails errorDetails = new ErrorDetails(LocalDateTime.now(),
-                "FILE_TOO_LARGE",
-                "Maximum upload size exceeded",
-                request.getDescription(false));
-        return new ResponseEntity<>(errorDetails, HttpStatus.PAYLOAD_TOO_LARGE);
-    }
-
 
     // 500 Internal Server Error - Catch-all
     @ExceptionHandler(Exception.class)
