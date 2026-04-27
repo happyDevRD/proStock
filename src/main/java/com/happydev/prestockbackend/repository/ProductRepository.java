@@ -20,4 +20,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE p.stock < p.minStock")
     Page<Product> findProductsBelowMinStock(Pageable pageable);
 
+    boolean existsBySkuIgnoreCase(String sku);
+
+    boolean existsBySkuIgnoreCaseAndIdNot(String sku, Long id);
+
+    boolean existsByBarcodeIgnoreCase(String barcode);
+
+    boolean existsByBarcodeIgnoreCaseAndIdNot(String barcode, Long id);
+
+    @Query("""
+            SELECT p FROM Product p
+            WHERE lower(p.name) LIKE lower(concat('%', :query, '%'))
+               OR lower(p.sku) LIKE lower(concat('%', :query, '%'))
+               OR lower(coalesce(p.barcode, '')) LIKE lower(concat('%', :query, '%'))
+            """)
+    Page<Product> searchByQuery(String query, Pageable pageable);
+
 }

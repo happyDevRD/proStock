@@ -73,10 +73,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     // 400 Bad Request - Data Integrity Violation (e.g., unique constraint)
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorDetails> handleDataIntegrityViolation(DataIntegrityViolationException ex, WebRequest request) {
+        String friendlyMessage = "No se pudo guardar la información. Verifica los datos e inténtalo de nuevo.";
+        String rootMessage = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : "";
+        if (rootMessage.contains("products_sku_key")) {
+            friendlyMessage = "El SKU ya existe en el sistema.";
+        } else if (rootMessage.contains("products_barcode_key")) {
+            friendlyMessage = "El código de barras ya existe en el sistema.";
+        } else if (rootMessage.contains("file_name")) {
+            friendlyMessage = "La imagen del producto no es válida. Intenta nuevamente.";
+        }
+
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
                 "DATA_INTEGRITY_VIOLATION",
-                "Data integrity violation: " + ex.getMostSpecificCause().getMessage(), // Mensaje más específico
+                friendlyMessage,
                 request.getDescription(false)
         );
         logger.error("DataIntegrityViolationException: ", ex);  // Log completo

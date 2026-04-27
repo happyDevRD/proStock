@@ -8,15 +8,11 @@ import com.happydev.prestockbackend.entity.ProductImage;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
-import org.mapstruct.Mappings;
-import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ProductMapper {
-
-    ProductMapper INSTANCE = Mappers.getMapper(ProductMapper.class);
 
     @Mapping(source = "categoryId", target = "category.id")
     @Mapping(source = "supplierId", target = "supplier.id")
@@ -31,7 +27,12 @@ public interface ProductMapper {
     List<ProductDto> toDtoList(List<Product> products);
     List<Product> toEntityList(List<ProductDto> productDtos);
 
+    @Mapping(source = "url", target = "fileName")
+    @Mapping(target = "product", ignore = true)
+    @Mapping(target = "contentType", ignore = true)
     ProductImage toImageEntity(ProductImageDto productImageDto);
+
+    @Mapping(source = "fileName", target = "url")
     ProductImageDto toImageDto(ProductImage productImage);
     List<ProductImage> toImageEntityList(List<ProductImageDto> productImageDtos);
 

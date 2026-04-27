@@ -2,6 +2,10 @@ package com.happydev.prestockbackend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happydev.prestockbackend.dto.ProductDto;
+import com.happydev.prestockbackend.dto.ProductImageDto;
+import com.happydev.prestockbackend.entity.IndicadorFacturacion;
+import com.happydev.prestockbackend.entity.ProductStatus;
+import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.entity.Category;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
@@ -9,6 +13,7 @@ import com.happydev.prestockbackend.service.ProductService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -32,6 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ProductController.class) // Prueba solo el controlador
+@AutoConfigureMockMvc(addFilters = false)
 @SuppressWarnings("null")
 class ProductControllerTest {
 
@@ -69,6 +75,14 @@ class ProductControllerTest {
         productDto.setMinStock(5);
         productDto.setCategoryId(1L); // Usar IDs
         productDto.setSupplierId(1L); // Usar IDs
+        productDto.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        productDto.setTipoBienServicio(TipoBienServicio.BIEN);
+        productDto.setUnidadMedida(58);
+        productDto.setStatus(ProductStatus.ACTIVE);
+        productDto.setTaxRate(BigDecimal.ZERO);
+        ProductImageDto imageDto = new ProductImageDto();
+        imageDto.setUrl("producto.png");
+        productDto.setImages(Arrays.asList(imageDto));
     }
 
     @Test

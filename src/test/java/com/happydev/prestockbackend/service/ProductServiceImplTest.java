@@ -1,9 +1,11 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.ProductDto;
+import com.happydev.prestockbackend.dto.ProductImageDto;
 import com.happydev.prestockbackend.entity.Category;
 import com.happydev.prestockbackend.entity.IndicadorFacturacion;
 import com.happydev.prestockbackend.entity.Product;
+import com.happydev.prestockbackend.entity.ProductImage;
 import com.happydev.prestockbackend.entity.ProductStatus;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.entity.TipoBienServicio;
@@ -25,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -77,6 +80,7 @@ class ProductServiceImplTest {
         product.setStatus(ProductStatus.ACTIVE); // Nuevo campo
         product.setBarcode("123456789012"); // Nuevo campo
         product.setTaxRate(BigDecimal.ZERO); // Configura un valor para taxRate
+        product.setImages(new java.util.ArrayList<>());
 
         productDto = new ProductDto();
         productDto.setId(1L);
@@ -95,6 +99,9 @@ class ProductServiceImplTest {
         productDto.setStatus(ProductStatus.ACTIVE); // Nuevo campo
         productDto.setBarcode("123456789012"); // Nuevo campo
         productDto.setTaxRate(BigDecimal.ZERO);
+        ProductImageDto imageDto = new ProductImageDto();
+        imageDto.setUrl("producto.png");
+        productDto.setImages(Collections.singletonList(imageDto));
 
     }
 
@@ -147,6 +154,8 @@ class ProductServiceImplTest {
     void createProduct_ValidProduct_ReturnsCreatedProduct() {
         when(categoryRepository.existsById(1L)).thenReturn(true);
         when(supplierRepository.existsById(1L)).thenReturn(true);
+        when(productRepository.existsBySkuIgnoreCase(anyString())).thenReturn(false);
+        when(productRepository.existsByBarcodeIgnoreCase(anyString())).thenReturn(false);
         when(productMapper.toEntity(productDto)).thenReturn(product);
         when(productRepository.save(any(Product.class))).thenReturn(product);
         when(productMapper.toDto(any(Product.class))).thenReturn(productDto);
@@ -163,8 +172,13 @@ class ProductServiceImplTest {
     void updateProduct_ExistingProduct_ReturnsUpdatedProduct() {
 
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.existsBySkuIgnoreCaseAndIdNot(anyString(), anyLong())).thenReturn(false);
+        when(productRepository.existsByBarcodeIgnoreCaseAndIdNot(anyString(), anyLong())).thenReturn(false);
         when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(supplierRepository.existsById(1L)).thenReturn(true);
+        when(supplierRepository.findById(1L)).thenReturn(Optional.of(supplier));
+        when(productMapper.toImageEntityList(anyList())).thenReturn(Collections.<ProductImage>emptyList());
         when(productRepository.save(any(Product.class))).thenReturn(product);
         when(productMapper.toDto(product)).thenReturn(productDto); //Simulamos DTO
         doNothing().when(productMapper).updateProductFromDto(any(ProductDto.class), any(Product.class)); // Mock update method
@@ -191,7 +205,7 @@ class ProductServiceImplTest {
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         productService.deleteProduct(1L);
         verify(productRepository).findById(1L);
-        verify(productRepository).delete(product);
+        verify(productRepository).deleteById(1L);
     }
 
     @Test

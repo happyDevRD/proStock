@@ -94,10 +94,13 @@ public class ProductImageController {
 
     @GetMapping("/files/{filename:.+}") //Permite extensiones
     public ResponseEntity<Resource> serveFile(@PathVariable String filename) {
+        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
         try {
             Resource file = fileStorageService.loadAsResource(filename);
             // Obtener el tipo MIME del archivo
-            String contentType = Files.probeContentType(Paths.get(filename)); // Necesita try-catch
+            String contentType = Files.probeContentType(file.getFile().toPath());
 
             if(contentType == null) {
                 contentType = "application/octet-stream"; // Tipo MIME por defecto

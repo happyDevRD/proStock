@@ -7,14 +7,11 @@ import com.happydev.prestockbackend.entity.PurchaseOrderItem;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
-import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface PurchaseOrderMapper {
-
-    PurchaseOrderMapper INSTANCE = Mappers.getMapper(PurchaseOrderMapper.class);
 
     @Mappings({
             @Mapping(source = "supplierId", target = "supplier.id"),

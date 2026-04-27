@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import jakarta.validation.Valid;
 
 import java.util.List;
@@ -96,6 +97,18 @@ public class ProductController {
     public ResponseEntity<Page<ProductDto>> getProductsBelowMinStock(Pageable pageable) {
         Page<ProductDto> products = productService.findProductsBelowMinStock(pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<Page<ProductDto>> searchProducts(@RequestParam("q") String query, Pageable pageable) {
+        Page<ProductDto> products = productService.searchProducts(query, pageable);
+        return new ResponseEntity<>(products, HttpStatus.OK);
+    }
+
+    @PostMapping("/import-csv")
+    public ResponseEntity<List<ProductDto>> importProductsFromCsv(@RequestParam("file") MultipartFile file) {
+        List<ProductDto> importedProducts = productService.importProductsFromCsv(file);
+        return new ResponseEntity<>(importedProducts, HttpStatus.CREATED);
     }
 
     @PostMapping("/{id}/stock-adjustments")

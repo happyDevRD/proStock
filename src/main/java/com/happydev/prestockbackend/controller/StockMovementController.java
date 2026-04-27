@@ -4,12 +4,14 @@ import com.happydev.prestockbackend.dto.StockMovementDto;
 import com.happydev.prestockbackend.entity.StockMovement;
 import com.happydev.prestockbackend.entity.StockMovementType;
 import com.happydev.prestockbackend.service.StockMovementService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -38,6 +40,20 @@ public class StockMovementController {
     @GetMapping("/product/{productId}")
     public ResponseEntity<List<StockMovementDto>> getMovementsByProduct(@PathVariable Long productId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByProduct(productId)
+                .stream()
+                .map(this::toDto)
+                .toList();
+        return new ResponseEntity<>(movements, HttpStatus.OK);
+    }
+
+    @GetMapping("/product/{productId}/range")
+    public ResponseEntity<List<StockMovementDto>> getMovementsByProductAndDateRange(
+            @PathVariable Long productId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+    ) {
+        List<StockMovementDto> movements = stockMovementService
+                .getMovementsByProductAndDateRange(productId, startDate, endDate)
                 .stream()
                 .map(this::toDto)
                 .toList();

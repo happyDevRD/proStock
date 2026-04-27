@@ -24,13 +24,13 @@ Backend REST para gestion de inventario, compras y ventas con Spring Boot.
 
 ### 1) Base de datos
 
-Debes tener PostgreSQL accesible. Por defecto:
+Debes tener PostgreSQL accesible. Recomendado en local:
 
 - host: `localhost`
 - puerto: `5432`
 - base: `prestockdb`
 - usuario: `postgres`
-- clave: `admin`
+- clave: `postgres` (valor por defecto usado en este proyecto local)
 
 Tambien puedes usar variables de entorno:
 
@@ -50,21 +50,55 @@ En Windows:
 .\gradlew.bat bootRun
 ```
 
+### 3) Arranque rapido recomendado (Windows)
+
+Incluye script para levantar con perfil local y variables de entorno:
+
+```powershell
+.\start-dev.ps1
+```
+
+Opcionalmente puedes pasar parametros:
+
+```powershell
+.\start-dev.ps1 -DbHost localhost -DbPort 5432 -DbName prestockdb -DbUser postgres
+```
+
+Si quieres forzar que te pida clave manualmente:
+
+```powershell
+.\start-dev.ps1 -PromptPassword
+```
+
+Si quieres sembrar datos de prueba antes de arrancar:
+
+```powershell
+.\start-dev.ps1 -Seed
+```
+
 La API levanta en `http://localhost:8080`.
 
 ## Seguridad
 
-Se usa Basic Auth en memoria.
+Se usa Basic Auth con `UserDetailsService` contra tabla `users`.
 
-- `admin / adminpassword`
-- `user / password`
+Si el usuario bootstrap no existe, se crea automaticamente al iniciar con las
+variables:
+
+- `SECURITY_BOOTSTRAP_USERNAME`
+- `SECURITY_BOOTSTRAP_PASSWORD`
+- `SECURITY_BOOTSTRAP_EMAIL`
+
+Valores por defecto de bootstrap (solo desarrollo local):
+
+- `admin / admin1234`
 
 Rutas publicas:
 
 - `GET /`
 - `GET /actuator/health`
-- `/swagger-ui/**`
-- `/v3/api-docs/**`
+- `/swagger-ui/**` (si `app.security.allow-swagger=true`)
+- `/v3/api-docs/**` (si `app.security.allow-swagger=true`)
 
 CORS se configura globalmente con `app.cors.allowed-origins` (lista separada por comas).
 

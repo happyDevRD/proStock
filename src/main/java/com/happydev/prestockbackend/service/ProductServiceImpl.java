@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.ProductDto;
+import com.happydev.prestockbackend.dto.ProductImageDto;
 import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.ProductMapper;
@@ -13,15 +14,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.lang.NonNull;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -57,20 +63,24 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findAllProducts(@NonNull Pageable pageable) {
+    public Page<ProductDto> findAllProducts(Pageable pageable) {
         Page<Product> products = productRepository.findAll(pageable);
         return products.map(productMapper::toDto); // Convierte Page<Product> a Page<ProductDto>
     }
 
     @Override
-    public Optional<ProductDto> findProductById(@NonNull Long id) {
+    public Optional<ProductDto> findProductById(Long id) {
         return productRepository.findById(id).map(productMapper::toDto); //Utiliza method reference
     }
 
     @Override
-    public ProductDto saveProduct(@NonNull ProductDto productDto) {
+    public ProductDto saveProduct(ProductDto productDto) {
         Long categoryId = Objects.requireNonNull(productDto.getCategoryId(), "Category id is required");
         Long supplierId = Objects.requireNonNull(productDto.getSupplierId(), "Supplier id is required");
+
+        productDto.setSku(normalizeSku(productDto.getSku()));
+        productDto.setBarcode(normalizeBarcode(productDto.getBarcode()));
+        validateUniqueIdentifiers(productDto.getSku(), productDto.getBarcode(), null);
 
         // Validar que existan la categoría y el proveedor
         if (!categoryRepository.existsById(categoryId)) {
@@ -94,9 +104,21 @@ public class ProductServiceImpl implements ProductService {
 
     // En ProductServiceImpl, dentro de updateProduct
     @Override
-    public ProductDto updateProduct(@NonNull Long id, @NonNull ProductDto productDto) {
+    public ProductDto updateProduct(Long id, ProductDto productDto) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+
+        String skuToValidate = productDto.getSku() != null ? normalizeSku(productDto.getSku()) : product.getSku();
+        String barcodeToValidate = productDto.getBarcode() != null
+                ? normalizeBarcode(productDto.getBarcode())
+                : normalizeBarcode(product.getBarcode());
+        validateUniqueIdentifiers(skuToValidate, barcodeToValidate, id);
+        if (productDto.getSku() != null) {
+            productDto.setSku(skuToValidate);
+        }
+        if (productDto.getBarcode() != null) {
+            productDto.setBarcode(barcodeToValidate);
+        }
 
         // Validar que existan la categoría y el proveedor, si se proporcionaron
         if(productDto.getCategoryId() != null){
@@ -137,7 +159,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public void deleteProduct(@NonNull Long id) {
+    public void deleteProduct(Long id) {
         productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
         // No es necesario hacer nada especial con las imágenes, gracias a orphanRemoval=true
@@ -152,9 +174,103 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findProductsBelowMinStock(@NonNull Pageable pageable) {
+    public Page<ProductDto> findProductsBelowMinStock(Pageable pageable) {
         Page<Product> products = productRepository.findProductsBelowMinStock(pageable);
         return products.map(productMapper::toDto);
+    }
+
+    @Override
+    public Page<ProductDto> searchProducts(String query, Pageable pageable) {
+        String normalizedQuery = query.trim();
+        if (normalizedQuery.isEmpty()) {
+            return findAllProducts(pageable);
+        }
+        return productRepository.searchByQuery(normalizedQuery, pageable).map(productMapper::toDto);
+    }
+
+    @Override
+    public List<ProductDto> importProductsFromCsv(MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("El archivo CSV está vacío.");
+        }
+
+        List<ProductDto> imported = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+            String line;
+            int lineNumber = 0;
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                if (lineNumber == 1 && trimmed.toLowerCase().contains("sku")) {
+                    continue; // Salta cabecera.
+                }
+
+                String[] cols = trimmed.split(",");
+                if (cols.length < 6) {
+                    throw new IllegalArgumentException("Formato CSV inválido en línea " + lineNumber + ". Debe contener al menos: sku,name,sellingPrice,stock,minStock,category,supplier");
+                }
+
+                String sku = normalizeSku(cols[0]);
+                String name = cols[1].trim();
+                BigDecimal sellingPrice = new BigDecimal(cols[2].trim());
+                int stock = Integer.parseInt(cols[3].trim());
+                int minStock = Integer.parseInt(cols[4].trim());
+                String categoryName = cols.length > 5 ? cols[5].trim() : "General";
+                String supplierName = cols.length > 6 ? cols[6].trim() : "Suplidor General";
+                BigDecimal costPrice = cols.length > 7 && !cols[7].trim().isEmpty()
+                        ? new BigDecimal(cols[7].trim())
+                        : sellingPrice.multiply(new BigDecimal("0.70"));
+                String barcode = cols.length > 8 ? normalizeBarcode(cols[8]) : null;
+                Integer unidadMedida = cols.length > 9 && !cols[9].trim().isEmpty() ? Integer.valueOf(cols[9].trim()) : 58;
+                String description = cols.length > 10 ? cols[10].trim() : null;
+
+                Category category = categoryRepository.findByNameIgnoreCase(categoryName)
+                        .orElseGet(() -> {
+                            Category newCategory = new Category();
+                            newCategory.setName(categoryName);
+                            return categoryRepository.save(newCategory);
+                        });
+
+                Supplier supplier = supplierRepository.findByNameIgnoreCase(supplierName)
+                        .orElseGet(() -> {
+                            Supplier newSupplier = new Supplier();
+                            newSupplier.setName(supplierName);
+                            newSupplier.setContactName("N/D");
+                            return supplierRepository.save(newSupplier);
+                        });
+
+                ProductDto dto = new ProductDto();
+                dto.setSku(sku);
+                dto.setName(name);
+                dto.setDescription(description);
+                dto.setCategoryId(category.getId());
+                dto.setSupplierId(supplier.getId());
+                dto.setCostPrice(costPrice);
+                dto.setSellingPrice(sellingPrice);
+                dto.setStock(stock);
+                dto.setMinStock(minStock);
+                dto.setForSale(true);
+                dto.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+                dto.setTipoBienServicio(TipoBienServicio.BIEN);
+                dto.setUnidadMedida(unidadMedida);
+                dto.setStatus(ProductStatus.ACTIVE);
+                dto.setBarcode(barcode);
+                dto.setTaxRate(IndicadorFacturacion.ITBIS_18.getRate());
+
+                ProductImageDto imageDto = new ProductImageDto();
+                imageDto.setUrl("placeholder-product.png");
+                dto.setImages(Collections.singletonList(imageDto));
+
+                imported.add(saveProduct(dto));
+            }
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("No se pudo procesar el archivo CSV.", ex);
+        }
+
+        return imported;
     }
 
 
@@ -180,9 +296,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public void adjustStock(@NonNull Long productId,
+    public void adjustStock(Long productId,
                             int quantityChange,
-                            @NonNull StockMovementType type,
+                            StockMovementType type,
                             String reason,
                             String batchNumber,
                             LocalDateTime expirationDate,
@@ -224,6 +340,40 @@ public class ProductServiceImpl implements ProductService {
         }
 
         stockMovementService.createMovement(movement); // Guarda el movimiento, y actualiza stock
+    }
+
+    private String normalizeSku(String sku) {
+        String normalized = Objects.requireNonNull(sku, "SKU is required").trim().toUpperCase();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("El SKU no puede estar vacío.");
+        }
+        return normalized;
+    }
+
+    private String normalizeBarcode(String barcode) {
+        if (barcode == null) {
+            return null;
+        }
+        String normalized = barcode.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private void validateUniqueIdentifiers(String sku, String barcode, Long productId) {
+        boolean skuExists = productId == null
+                ? productRepository.existsBySkuIgnoreCase(sku)
+                : productRepository.existsBySkuIgnoreCaseAndIdNot(sku, productId);
+        if (skuExists) {
+            throw new IllegalArgumentException("Ya existe un producto con el SKU " + sku + ".");
+        }
+
+        if (barcode != null) {
+            boolean barcodeExists = productId == null
+                    ? productRepository.existsByBarcodeIgnoreCase(barcode)
+                    : productRepository.existsByBarcodeIgnoreCaseAndIdNot(barcode, productId);
+            if (barcodeExists) {
+                throw new IllegalArgumentException("Ya existe un producto con el código de barras " + barcode + ".");
+            }
+        }
     }
 
 }

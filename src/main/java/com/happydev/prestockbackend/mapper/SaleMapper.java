@@ -6,15 +6,11 @@ import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleItem;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface SaleMapper {
-
-    SaleMapper INSTANCE = Mappers.getMapper(SaleMapper.class);
-
     @Mapping(source = "customerId", target = "customer.id") // Mapeo de customerId a customer.id
     Sale toEntity(SaleDto saleDto);
 
@@ -23,8 +19,11 @@ public interface SaleMapper {
 
     List<SaleDto> toDtoList(List<Sale> sales);
 
-    // Mappings para SaleItem (si los necesitas)
+    @Mapping(target = "sale", ignore = true)
+    @Mapping(source = "productId", target = "product.id")
     SaleItem toItemEntity(SaleItemDto saleItemDto);
+
+    @Mapping(target = "productId", source = "product.id")
     SaleItemDto toItemDto(SaleItem saleItem);
     List<SaleItemDto> toItemDtoList(List<SaleItem> saleItems);
     List<SaleItem> toItemEntityList(List<SaleItemDto> saleItemDtos);

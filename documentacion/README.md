@@ -1,6 +1,6 @@
 # Documentacion ProStock
 
-Esta carpeta concentra la documentacion funcional y tecnica del modulo de configuracion de empresa (emisor), requerido para soportar datos fiscales de facturacion.
+Esta carpeta concentra la documentacion funcional y tecnica del modulo de configuracion de empresa (emisor), y la referencia de integracion frontend/backend del proyecto.
 
 ## Contenido
 
@@ -8,6 +8,7 @@ Esta carpeta concentra la documentacion funcional y tecnica del modulo de config
 - `company-config-api.md`: contrato de API para backend/frontend.
 - `company-config-validaciones-dgii.md`: reglas de validacion y ejemplos de errores.
 - `company-config-integracion-frontend.md`: guia practica para consumo desde UI.
+- `integracion-baseline-contratos.md`: baseline de contratos y backlog de gaps de integracion.
 
 ## Contexto
 
