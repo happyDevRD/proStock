@@ -14,6 +14,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -52,7 +53,7 @@ public class ProductImageController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProductImage> getProductImageById(@PathVariable Long id) {
+    public ResponseEntity<ProductImage> getProductImageById(@PathVariable @NonNull Long id) {
         return productImageService.findProductImageById(id)
                 .map(image -> new ResponseEntity<>(image, HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
@@ -60,14 +61,14 @@ public class ProductImageController {
 
     //Obtener imágenes por id de producto
     @GetMapping("/product/{productId}")
-    public ResponseEntity<List<ProductImage>> getProductImagesByProductId(@PathVariable Long productId) {
+    public ResponseEntity<List<ProductImage>> getProductImagesByProductId(@PathVariable @NonNull Long productId) {
         List<ProductImage> images = productImageService.findByProductId(productId);
         return new ResponseEntity<>(images, HttpStatus.OK);
     }
 
     @PostMapping
-    public ResponseEntity<ProductImageDto> uploadImage(@RequestParam("file") MultipartFile file,
-                                                       @RequestParam("productId") Long productId) { //Recibe el archivo y el productId
+    public ResponseEntity<ProductImageDto> uploadImage(@RequestParam("file") @NonNull MultipartFile file,
+                                                       @RequestParam("productId") @NonNull Long productId) { //Recibe el archivo y el productId
 
         try {
             // Guardar el archivo
@@ -111,29 +112,26 @@ public class ProductImageController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteImage(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteImage(@PathVariable @NonNull Long id) {
+        ProductImage image = productImageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
         try {
-            ProductImage image = productImageRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
-
             fileStorageService.delete(image.getFileName()); // Elimina el archivo
             productImageRepository.delete(image);          // Elimina la entidad
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 
-        } catch (IOException | ResourceNotFoundException e) {
-            // Maneja ambas excepciones (podría ser un 404 o un 500)
+        } catch (IOException e) {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ProductImageDto> updateImage(@PathVariable Long id,
-                                                       @RequestParam("file") MultipartFile file) { //Solo el archivo
+    public ResponseEntity<ProductImageDto> updateImage(@PathVariable @NonNull Long id,
+                                                       @RequestParam("file") @NonNull MultipartFile file) { //Solo el archivo
 
+        ProductImage productImage = productImageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
         try {
-            ProductImage productImage = productImageRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
-
             // Eliminar el archivo anterior
             fileStorageService.delete(productImage.getFileName());
 
@@ -145,7 +143,7 @@ public class ProductImageController {
             ProductImage updatedImage = productImageRepository.save(productImage); //Actualiza
             return new ResponseEntity<>(productImageMapper.toDto(updatedImage), HttpStatus.OK);
 
-        } catch (IOException | ResourceNotFoundException e) {
+        } catch (IOException e) {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR); // O un error más específico
 
         }

@@ -1,7 +1,6 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.entity.Category;
-import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.service.CategoryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -40,21 +39,13 @@ public class CategoryController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Category> updateCategory(@PathVariable Long id, @RequestBody Category categoryDetails) {
-        try{
-            Category updatedCategory = categoryService.updateCategory(id, categoryDetails);
-            return new ResponseEntity<>(updatedCategory, HttpStatus.OK);
-        }catch (ResourceNotFoundException e){
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        Category updatedCategory = categoryService.updateCategory(id, categoryDetails);
+        return new ResponseEntity<>(updatedCategory, HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
-        try{
-            categoryService.deleteCategory(id);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } catch (ResourceNotFoundException e){
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        categoryService.deleteCategory(id);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 }

@@ -3,6 +3,7 @@ package com.happydev.prestockbackend.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileSystemUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,10 +11,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -33,7 +36,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public String store(MultipartFile file) throws IOException {
+    public String store(@NonNull MultipartFile file) throws IOException {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Failed to store empty file.");
         }
@@ -72,14 +75,15 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public Path load(String filename) {
+    public Path load(@NonNull String filename) {
         return rootLocation.resolve(filename); // Construye la ruta completa
     }
 
     @Override
-    public Resource loadAsResource(String filename) throws IOException {
+    public Resource loadAsResource(@NonNull String filename) throws IOException {
         Path file = load(filename); //Obtiene la ruta
-        Resource resource = new UrlResource(file.toUri()); //Crea el recurso
+        URI fileUri = Objects.requireNonNull(file.toUri(), "File URI cannot be null");
+        Resource resource = new UrlResource(fileUri); //Crea el recurso
         if (resource.exists() || resource.isReadable()) { //Verifica
             return resource;
         } else {
@@ -94,7 +98,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public void delete(String filename) throws IOException {
+    public void delete(@NonNull String filename) throws IOException {
         Path file = load(filename);
         Files.deleteIfExists(file); // Elimina el archivo si existe
     }

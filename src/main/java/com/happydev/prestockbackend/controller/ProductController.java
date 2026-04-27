@@ -2,7 +2,6 @@ package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.ProductDto;
 import com.happydev.prestockbackend.dto.StockAdjustmentRequestDto;
-import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -76,22 +75,14 @@ public class ProductController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ProductDto> updateProduct(@PathVariable Long id, @RequestBody ProductDto productDetails) {
-        try {
-            ProductDto updatedProduct = productService.updateProduct(id, productDetails);
-            return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
-        } catch (ResourceNotFoundException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        ProductDto updatedProduct = productService.updateProduct(id, productDetails);
+        return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-        try{
-            productService.deleteProduct(id);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT); // 204 No Content
-        } catch (ResourceNotFoundException e){
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        productService.deleteProduct(id);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT); // 204 No Content
     }
 
 

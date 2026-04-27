@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -55,24 +57,27 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findAllProducts(Pageable pageable) {
+    public Page<ProductDto> findAllProducts(@NonNull Pageable pageable) {
         Page<Product> products = productRepository.findAll(pageable);
         return products.map(productMapper::toDto); // Convierte Page<Product> a Page<ProductDto>
     }
 
     @Override
-    public Optional<ProductDto> findProductById(Long id) {
+    public Optional<ProductDto> findProductById(@NonNull Long id) {
         return productRepository.findById(id).map(productMapper::toDto); //Utiliza method reference
     }
 
     @Override
-    public ProductDto saveProduct(ProductDto productDto) {
+    public ProductDto saveProduct(@NonNull ProductDto productDto) {
+        Long categoryId = Objects.requireNonNull(productDto.getCategoryId(), "Category id is required");
+        Long supplierId = Objects.requireNonNull(productDto.getSupplierId(), "Supplier id is required");
+
         // Validar que existan la categoría y el proveedor
-        if (!categoryRepository.existsById(productDto.getCategoryId())) {
-            throw new ResourceNotFoundException("Category", "id", productDto.getCategoryId());
+        if (!categoryRepository.existsById(categoryId)) {
+            throw new ResourceNotFoundException("Category", "id", categoryId);
         }
-        if (!supplierRepository.existsById(productDto.getSupplierId())) {
-            throw new ResourceNotFoundException("Supplier", "id", productDto.getSupplierId());
+        if (!supplierRepository.existsById(supplierId)) {
+            throw new ResourceNotFoundException("Supplier", "id", supplierId);
         }
 
         Product product = productMapper.toEntity(productDto); // DTO -> Entidad
@@ -89,23 +94,29 @@ public class ProductServiceImpl implements ProductService {
 
     // En ProductServiceImpl, dentro de updateProduct
     @Override
-    public ProductDto updateProduct(Long id, ProductDto productDto) {
+    public ProductDto updateProduct(@NonNull Long id, @NonNull ProductDto productDto) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
 
         // Validar que existan la categoría y el proveedor, si se proporcionaron
         if(productDto.getCategoryId() != null){
-            if (!categoryRepository.existsById(productDto.getCategoryId())) {
-                throw new ResourceNotFoundException("Category", "id", productDto.getCategoryId());
+            Long categoryId = Objects.requireNonNull(productDto.getCategoryId(), "Category id cannot be null");
+            if (!categoryRepository.existsById(categoryId)) {
+                throw new ResourceNotFoundException("Category", "id", categoryId);
             }
-            product.setCategory(categoryRepository.findById(productDto.getCategoryId()).get());
+            product.setCategory(categoryRepository.findById(categoryId).orElseThrow(
+                    () -> new ResourceNotFoundException("Category", "id", categoryId)
+            ));
         }
 
         if(productDto.getSupplierId() != null){
-            if (!supplierRepository.existsById(productDto.getSupplierId())) {
-                throw new ResourceNotFoundException("Supplier", "id", productDto.getSupplierId());
+            Long supplierId = Objects.requireNonNull(productDto.getSupplierId(), "Supplier id cannot be null");
+            if (!supplierRepository.existsById(supplierId)) {
+                throw new ResourceNotFoundException("Supplier", "id", supplierId);
             }
-            product.setSupplier(supplierRepository.findById(productDto.getSupplierId()).get());
+            product.setSupplier(supplierRepository.findById(supplierId).orElseThrow(
+                    () -> new ResourceNotFoundException("Supplier", "id", supplierId)
+            ));
         }
 
         //Usamos el mapper para actualizar los datos.
@@ -127,11 +138,11 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public void deleteProduct(Long id) {
-        Product product = productRepository.findById(id)
+    public void deleteProduct(@NonNull Long id) {
+        productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
         // No es necesario hacer nada especial con las imágenes, gracias a orphanRemoval=true
-        productRepository.delete(product);
+        productRepository.deleteById(id);
     }
 
 
@@ -142,7 +153,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findProductsBelowMinStock(Pageable pageable) {
+    public Page<ProductDto> findProductsBelowMinStock(@NonNull Pageable pageable) {
         Page<Product> products = productRepository.findProductsBelowMinStock(pageable);
         return products.map(productMapper::toDto);
     }
@@ -170,7 +181,15 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public void adjustStock(Long productId, int quantityChange, StockMovementType type, String reason, String batchNumber, LocalDateTime expirationDate, BigDecimal unitCost, Long sourceLocationId, Long destinationLocationId) {
+    public void adjustStock(@NonNull Long productId,
+                            int quantityChange,
+                            @NonNull StockMovementType type,
+                            String reason,
+                            String batchNumber,
+                            LocalDateTime expirationDate,
+                            BigDecimal unitCost,
+                            Long sourceLocationId,
+                            Long destinationLocationId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 

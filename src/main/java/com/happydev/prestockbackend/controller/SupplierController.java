@@ -1,7 +1,6 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.entity.Supplier;
-import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.service.SupplierService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -40,21 +39,13 @@ public class SupplierController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Supplier> updateSupplier(@PathVariable Long id, @RequestBody Supplier supplierDetails) {
-        try{
-            Supplier updatedSupplier = supplierService.updateSupplier(id, supplierDetails);
-            return new ResponseEntity<>(updatedSupplier,HttpStatus.OK);
-        } catch (ResourceNotFoundException e){
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        Supplier updatedSupplier = supplierService.updateSupplier(id, supplierDetails);
+        return new ResponseEntity<>(updatedSupplier, HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSupplier(@PathVariable Long id) {
-        try{
-            supplierService.deleteSupplier(id);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } catch(ResourceNotFoundException e){
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        supplierService.deleteSupplier(id);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 }

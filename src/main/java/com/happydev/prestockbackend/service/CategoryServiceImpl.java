@@ -4,7 +4,7 @@ import com.happydev.prestockbackend.entity.Category;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.CategoryRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,17 +26,17 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public Optional<Category> findCategoryById(Long id) {
+    public Optional<Category> findCategoryById(@NonNull Long id) {
         return categoryRepository.findById(id);
     }
 
     @Override
-    public Category saveCategory(Category category) {
+    public Category saveCategory(@NonNull Category category) {
         return categoryRepository.save(category);
     }
 
     @Override
-    public Category updateCategory(Long id, Category categoryDetails) {
+    public Category updateCategory(@NonNull Long id, @NonNull Category categoryDetails) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
 
@@ -46,9 +46,9 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public void deleteCategory(Long id) {
-        Category category = categoryRepository.findById(id)
+    public void deleteCategory(@NonNull Long id) {
+        categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
-        categoryRepository.delete(category);
+        categoryRepository.deleteById(id);
     }
 }
