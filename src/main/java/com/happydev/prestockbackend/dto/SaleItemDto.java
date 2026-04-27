@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 
 @Getter @Setter
 public class SaleItemDto {
@@ -20,5 +21,5 @@ public class SaleItemDto {
 
     @NotNull(message = "Price cannot be null")
     @Positive(message = "Price must be positive")
-    private double unitPrice; // Precio unitario al momento de la venta
+    private BigDecimal unitPrice;
 }

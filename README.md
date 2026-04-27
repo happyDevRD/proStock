@@ -142,6 +142,10 @@ Ejemplo de ajuste de stock:
 - UI: `http://localhost:8080/swagger-ui/index.html`
 - OpenAPI: `http://localhost:8080/v3/api-docs`
 
+## Documentacion
+
+- Ver `documentacion/README.md` para la documentacion del modulo de configuracion de empresa (emisor) y su integracion.
+
 ## Notas tecnicas relevantes
 
 - Al completar una venta o recibir una orden de compra se registra `StockMovement`, evitando desalineacion entre stock actual e historial.

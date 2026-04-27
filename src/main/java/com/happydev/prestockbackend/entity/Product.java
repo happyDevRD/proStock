@@ -1,13 +1,30 @@
 package com.happydev.prestockbackend.entity;
 
-
-
-import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
+import com.happydev.prestockbackend.entity.converter.IndicadorFacturacionConverter;
+import com.happydev.prestockbackend.entity.converter.TipoBienServicioConverter;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,7 +32,10 @@ import java.util.List;
 
 @Entity
 @Table(name = "products")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,28 +86,37 @@ public class Product {
     private Integer minStock;
 
     @Future
-    private LocalDate expirationDate; //Opcional
+    private LocalDate expirationDate;
 
     @NotNull
-    private Boolean forSale = false; //Por default false
+    private Boolean forSale = false;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images;
 
+    @Convert(converter = IndicadorFacturacionConverter.class)
+    @Column(name = "indicador_facturacion", nullable = false)
+    @NotNull
+    private IndicadorFacturacion indicadorFacturacion = IndicadorFacturacion.EXENTO;
 
-    // Nuevos atributos
+    @Convert(converter = TipoBienServicioConverter.class)
+    @Column(name = "tipo_bien_servicio", nullable = false)
+    @NotNull
+    private TipoBienServicio tipoBienServicio = TipoBienServicio.BIEN;
+
     @Column(name = "unit_of_measure", nullable = false)
-    @NotBlank // O podrías usar un Enum si tienes un conjunto fijo de unidades
-    private String unitOfMeasure;  // kg, litros, unidades, piezas, metros, etc.
+    @NotNull
+    @Positive
+    private Integer unidadMedida;
 
-    @Column(name = "location") // Podría ser más específico (rack, shelf, bin...)
-    private String location;  // Estante, pasillo, bodega, etc.
+    @Column(name = "location")
+    private String location;
 
     @Column(name = "weight")
     @Positive
-    private Double weight; // Peso (en kg, libras, etc.)
+    private Double weight;
 
-    @Column(name = "length") // Dimensiones (opcional, para cálculos más precisos)
+    @Column(name = "length")
     private Double length;
 
     @Column(name = "width")
@@ -96,19 +125,14 @@ public class Product {
     @Column(name = "height")
     private Double height;
 
-    @Enumerated(EnumType.STRING) // Guarda el estatus como String en la DB
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ProductStatus status = ProductStatus.ACTIVE; // Por defecto, activo
+    private ProductStatus status = ProductStatus.ACTIVE;
 
-    @Column(name = "barcode", unique = true) // Código de barras, único
+    @Column(name = "barcode", unique = true)
     private String barcode;
 
-    @Column(name = "tax_rate") //Tasa de impuesto
+    @Column(name = "tax_rate")
     @PositiveOrZero
-    private BigDecimal taxRate; // Porcentaje de impuesto (ej. 16.00 para 16%)
-
-    // Podrías tener una relación con una entidad Tax si tienes varios tipos de impuestos
-    //@ManyToOne
-    //@JoinColumn(name = "tax_id")
-    //private Tax tax;
+    private BigDecimal taxRate;
 }

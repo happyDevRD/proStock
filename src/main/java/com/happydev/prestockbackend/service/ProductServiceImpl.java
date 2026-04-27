@@ -119,18 +119,17 @@ public class ProductServiceImpl implements ProductService {
             ));
         }
 
-        //Usamos el mapper para actualizar los datos.
-        productMapper.toEntity(productDto); //No completo aun
+        // Aplicar cambios del DTO sobre la entidad existente.
+        productMapper.updateProductFromDto(productDto, product);
 
         // Limpiar imágenes antiguas y establecer el producto en las nuevas imágenes
         product.getImages().clear(); //Importante para eliminar las que ya no están
         if (productDto.getImages() != null) {
-            for(ProductImage image : product.getImages()){ //Este for no era necesario.
+            List<ProductImage> mappedImages = productMapper.toImageEntityList(productDto.getImages());
+            for (ProductImage image : mappedImages) {
                 image.setProduct(product);
             }
-
-            // Usa el método correcto del mapper: toImageEntityList
-            product.getImages().addAll(productMapper.toImageEntityList(productDto.getImages())); // AQUI ESTABA EL ERROR
+            product.getImages().addAll(mappedImages);
         }
 
         Product updatedProduct = productRepository.save(product); // Guarda los cambios

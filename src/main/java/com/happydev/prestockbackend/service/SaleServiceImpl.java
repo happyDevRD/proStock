@@ -5,15 +5,21 @@ import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.SaleMapper;
+import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleItemRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
+import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -34,18 +40,30 @@ public class SaleServiceImpl implements SaleService {
 
     private final StockMovementService stockMovementService;
 
+    private final SequenceService sequenceService;
+
+    private final CompanyConfigRepository companyConfigRepository;
+
+    private final InvoiceQrService invoiceQrService;
+
     public SaleServiceImpl(SaleRepository saleRepository,
                            SaleItemRepository saleItemRepository,
                            ProductRepository productRepository,
                            CustomerRepository customerRepository,
                            SaleMapper saleMapper,
-                           StockMovementService stockMovementService) {
+                           StockMovementService stockMovementService,
+                           SequenceService sequenceService,
+                           CompanyConfigRepository companyConfigRepository,
+                           InvoiceQrService invoiceQrService) {
         this.saleRepository = saleRepository;
         this.saleItemRepository = saleItemRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
         this.saleMapper = saleMapper;
         this.stockMovementService = stockMovementService;
+        this.sequenceService = sequenceService;
+        this.companyConfigRepository = companyConfigRepository;
+        this.invoiceQrService = invoiceQrService;
     }
 
     @Override
@@ -74,6 +92,7 @@ public class SaleServiceImpl implements SaleService {
         sale.setSaleDate(LocalDateTime.now());
         //Establecer estado inicial
         sale.setStatus(SaleStatus.PENDING);
+        sale.setTipoIngresos(TipoIngresos.OPERACIONES);
 
         //Si se cambia el customer
         if(saleDto.getCustomerId() != null){
@@ -158,7 +177,22 @@ public class SaleServiceImpl implements SaleService {
             throw new IllegalStateException("Cannot complete a sale that is not in PENDING status.");
         }
 
-        // Registrar movimientos de stock para mantener historial consistente
+        if (sale.getTipoComprobante() == null || sale.getTipoComprobante().isBlank()) {
+            throw new IllegalStateException("No se puede completar una venta sin tipoComprobante");
+        }
+
+        if (sale.getNcf() == null || sale.getNcf().isBlank()) {
+            sale.setNcf(sequenceService.getNextSequence(sale.getTipoComprobante()));
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal gravado18 = BigDecimal.ZERO;
+        BigDecimal gravado16 = BigDecimal.ZERO;
+        BigDecimal gravado0 = BigDecimal.ZERO;
+        BigDecimal montoExento = BigDecimal.ZERO;
+        BigDecimal totalItbis = BigDecimal.ZERO;
+
+        // Registrar movimientos de stock y calcular desglose tributario
         for (SaleItem item : sale.getItems()) {
             Product product = productRepository.findById(item.getProduct().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Product", "id", item.getProduct().getId()));
@@ -168,9 +202,28 @@ public class SaleServiceImpl implements SaleService {
                 throw new IllegalStateException("Not enough stock for product: " + product.getName());
             }
 
+            BigDecimal lineBase = DgiiTaxUtils.roundMoney(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+            IndicadorFacturacion indicador = product.getIndicadorFacturacion() == null
+                    ? IndicadorFacturacion.EXENTO
+                    : product.getIndicadorFacturacion();
+
+            if (indicador.isExento()) {
+                montoExento = montoExento.add(lineBase);
+            } else {
+                switch (indicador) {
+                    case ITBIS_18 -> gravado18 = gravado18.add(lineBase);
+                    case ITBIS_16 -> gravado16 = gravado16.add(lineBase);
+                    case ITBIS_0 -> gravado0 = gravado0.add(lineBase);
+                    default -> {
+                    }
+                }
+                BigDecimal lineTax = DgiiTaxUtils.roundMoney(lineBase.multiply(indicador.getRate()));
+                totalItbis = totalItbis.add(lineTax);
+            }
+
             StockMovement movement = new StockMovement();
             movement.setProduct(product);
-            movement.setMovementDate(LocalDateTime.now());
+            movement.setMovementDate(now);
             movement.setQuantityChange(-item.getQuantity());
             movement.setType(StockMovementType.OUT);
             movement.setReason("Sale completed");
@@ -178,11 +231,71 @@ public class SaleServiceImpl implements SaleService {
             stockMovementService.createMovement(movement);
 
         }
+        BigDecimal montoGravadoTotal = DgiiTaxUtils.roundMoney(gravado18.add(gravado16).add(gravado0));
+        BigDecimal montoExentoRounded = DgiiTaxUtils.roundMoney(montoExento);
+        BigDecimal totalItbisRounded = DgiiTaxUtils.roundMoney(totalItbis);
+        BigDecimal montoTotal = DgiiTaxUtils.roundMoney(montoGravadoTotal.add(montoExentoRounded).add(totalItbisRounded));
 
-        // Cambiar el estado de la venta a COMPLETED
+        String rncEmisor = companyConfigRepository.findFirstByOrderByIdAsc()
+                .map(CompanyConfig::getRnc)
+                .orElse("");
+        String rncComprador = sale.getCustomer() != null && sale.getCustomer().getRncCedula() != null
+                ? sale.getCustomer().getRncCedula()
+                : "";
+        String codigoSeguridad = createSecurityCode(rncEmisor, sale.getNcf(), rncComprador, sale.getSaleDate(), montoTotal, now);
+        String qrPayloadUrl = invoiceQrService.buildPayloadUrl(
+                rncEmisor,
+                sale.getNcf(),
+                rncComprador,
+                sale.getSaleDate(),
+                montoTotal.toPlainString(),
+                now,
+                codigoSeguridad
+        );
+
+        sale.setMontoGravadoTotal(montoGravadoTotal);
+        sale.setMontoExento(montoExentoRounded);
+        sale.setTotalItbis(totalItbisRounded);
+        sale.setMontoTotal(montoTotal);
+        sale.setTipoIngresos(TipoIngresos.OPERACIONES);
+        sale.setFechaFirma(now);
+        sale.setCodigoSeguridad(codigoSeguridad);
+        sale.setQrPayloadUrl(qrPayloadUrl);
+        sale.setQrCodeBase64(invoiceQrService.generateBase64Qr(qrPayloadUrl));
         sale.setStatus(SaleStatus.COMPLETED);
-        Sale updatedSale = saleRepository.save(sale); // Guardar los cambios
+        Sale updatedSale = saleRepository.save(sale);
 
         return saleMapper.toDto(updatedSale);
+    }
+
+    private String createSecurityCode(String rncEmisor,
+                                      String ncf,
+                                      String rncComprador,
+                                      LocalDateTime fechaEmision,
+                                      BigDecimal montoTotal,
+                                      LocalDateTime fechaFirma) {
+        String payload = String.join("|",
+                rncEmisor == null ? "" : rncEmisor,
+                ncf == null ? "" : ncf,
+                rncComprador == null ? "" : rncComprador,
+                fechaEmision == null ? "" : fechaEmision.toString(),
+                montoTotal == null ? "0.00" : montoTotal.toPlainString(),
+                fechaFirma == null ? "" : fechaFirma.toString()
+        );
+        return sha256Hex(payload).substring(0, 6).toUpperCase();
+    }
+
+    private String sha256Hex(String raw) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 no disponible", ex);
+        }
     }
 }

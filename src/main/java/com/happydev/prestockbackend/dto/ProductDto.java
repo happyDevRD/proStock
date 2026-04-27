@@ -1,5 +1,7 @@
 package com.happydev.prestockbackend.dto;
+import com.happydev.prestockbackend.entity.IndicadorFacturacion;
 import com.happydev.prestockbackend.entity.ProductStatus;
+import com.happydev.prestockbackend.entity.TipoBienServicio;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
@@ -59,8 +61,15 @@ public class ProductDto {
 
 
     // Nuevos Atributos
-    @NotBlank(message = "La unidad de medida no puede estar vacía")
-    private String unitOfMeasure;
+    @NotNull(message = "El indicador de facturacion es obligatorio")
+    private IndicadorFacturacion indicadorFacturacion;
+
+    @NotNull(message = "El tipo de bien/servicio es obligatorio")
+    private TipoBienServicio tipoBienServicio;
+
+    @NotNull(message = "La unidad de medida es obligatoria")
+    @Positive(message = "La unidad de medida debe ser un codigo positivo DGII")
+    private Integer unidadMedida;
 
     private String location;
 

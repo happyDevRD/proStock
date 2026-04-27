@@ -2,9 +2,11 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.ProductDto;
 import com.happydev.prestockbackend.entity.Category;
+import com.happydev.prestockbackend.entity.IndicadorFacturacion;
 import com.happydev.prestockbackend.entity.Product;
 import com.happydev.prestockbackend.entity.ProductStatus;
 import com.happydev.prestockbackend.entity.Supplier;
+import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.ProductMapper;
 import com.happydev.prestockbackend.repository.CategoryRepository;
@@ -69,7 +71,9 @@ class ProductServiceImplTest {
         product.setMinStock(5);
         product.setCategory(category);
         product.setSupplier(supplier);
-        product.setUnitOfMeasure("unidades"); // Nuevo campo
+        product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        product.setTipoBienServicio(TipoBienServicio.BIEN);
+        product.setUnidadMedida(43);
         product.setStatus(ProductStatus.ACTIVE); // Nuevo campo
         product.setBarcode("123456789012"); // Nuevo campo
         product.setTaxRate(BigDecimal.ZERO); // Configura un valor para taxRate
@@ -85,7 +89,9 @@ class ProductServiceImplTest {
         productDto.setMinStock(5);
         productDto.setCategoryId(1L);  // Usar ID de categoría
         productDto.setSupplierId(1L);  // Usar ID de proveedor
-        productDto.setUnitOfMeasure("unidades"); // Nuevo campo
+        productDto.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        productDto.setTipoBienServicio(TipoBienServicio.BIEN);
+        productDto.setUnidadMedida(43);
         productDto.setStatus(ProductStatus.ACTIVE); // Nuevo campo
         productDto.setBarcode("123456789012"); // Nuevo campo
         productDto.setTaxRate(BigDecimal.ZERO);

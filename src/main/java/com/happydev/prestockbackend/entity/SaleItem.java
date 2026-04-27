@@ -6,6 +6,8 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "sale_items")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
@@ -25,6 +27,6 @@ public class SaleItem {
     @Column(nullable = false)
     private int quantity;
 
-    @Column(name = "unit_price", nullable = false)
-    private double unitPrice; // Precio unitario al momento de la venta
+    @Column(name = "unit_price", nullable = false, precision = 18, scale = 2)
+    private BigDecimal unitPrice;
 }

@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Objects;
+
 @RestController
 @RequestMapping("/api/company-config")
 public class CompanyConfigController {
@@ -30,7 +32,9 @@ public class CompanyConfigController {
 
     @PutMapping
     public ResponseEntity<CompanyConfig> saveOrUpdateCompanyConfig(@Valid @RequestBody CompanyConfig companyConfig) {
-        CompanyConfig savedConfig = companyConfigService.saveOrUpdate(companyConfig);
+        CompanyConfig savedConfig = companyConfigService.saveOrUpdate(
+                Objects.requireNonNull(companyConfig, "companyConfig no puede ser null")
+        );
         return new ResponseEntity<>(savedConfig, HttpStatus.OK);
     }
 }
