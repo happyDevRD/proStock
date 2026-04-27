@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/categories")
-@CrossOrigin(origins = "*") // O la URL de tu frontend en producción
 public class CategoryController {
 
     private final CategoryService categoryService;

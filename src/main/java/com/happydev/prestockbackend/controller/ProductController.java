@@ -21,7 +21,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/products") // Ruta base para todos los endpoints de productos
-@CrossOrigin(origins = "*") // ¡OJO! En producción, restringe esto a tu dominio frontend
 @Tag(name = "Products", description = "Endpoints for managing products") // Agrupa los endpoints
 public class ProductController {
 

@@ -3,7 +3,6 @@ package com.happydev.prestockbackend.controller;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.service.SupplierService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/suppliers")
-@CrossOrigin(origins = "*") // O la URL de tu frontend
 public class SupplierController {
 
     private final SupplierService supplierService;

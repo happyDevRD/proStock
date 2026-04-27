@@ -66,6 +66,8 @@ Rutas publicas:
 - `/swagger-ui/**`
 - `/v3/api-docs/**`
 
+CORS se configura globalmente con `app.cors.allowed-origins` (lista separada por comas).
+
 ## Endpoints principales
 
 ### Home y estado
@@ -108,6 +110,15 @@ Ejemplo de ajuste de stock:
 - `PUT /api/sales/{id}`
 - `DELETE /api/sales/{id}`
 - `PUT /api/sales/{id}/complete`
+
+### Movimientos de stock
+
+- `GET /api/stock-movements` (paginado)
+- `GET /api/stock-movements/{id}`
+- `GET /api/stock-movements/product/{productId}`
+- `GET /api/stock-movements/type/{type}`
+- `GET /api/stock-movements/sale/{saleId}`
+- `GET /api/stock-movements/purchase-order/{purchaseOrderId}`
 
 ### Ordenes de compra
 

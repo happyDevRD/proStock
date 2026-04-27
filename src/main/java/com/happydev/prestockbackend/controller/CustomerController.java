@@ -3,7 +3,6 @@ package com.happydev.prestockbackend.controller;
 import com.happydev.prestockbackend.dto.CustomerDto;
 import com.happydev.prestockbackend.service.CustomerService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -14,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/customers")
-@CrossOrigin(origins = "*") // Configura CORS adecuadamente en producción
 public class CustomerController {
 
     private final CustomerService customerService;

@@ -24,7 +24,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/product-images")
-@CrossOrigin(origins = "*") // Ajusta el origen en producción
 public class ProductImageController {
 
     private final ProductImageService productImageService;
