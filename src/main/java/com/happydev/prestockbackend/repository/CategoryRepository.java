@@ -1,7 +1,6 @@
 package com.happydev.prestockbackend.repository;
 
 import com.happydev.prestockbackend.entity.Category;
-import com.happydev.prestockbackend.entity.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

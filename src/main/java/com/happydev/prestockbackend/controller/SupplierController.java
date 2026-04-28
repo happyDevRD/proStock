@@ -4,6 +4,7 @@ import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.service.SupplierService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,26 +26,26 @@ public class SupplierController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Supplier> getSupplierById(@PathVariable Long id) {
+    public ResponseEntity<Supplier> getSupplierById(@PathVariable @NonNull Long id) {
         return supplierService.findSupplierById(id)
                 .map(supplier -> new ResponseEntity<>(supplier, HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PostMapping
-    public ResponseEntity<Supplier> createSupplier(@RequestBody Supplier supplier) {
+    public ResponseEntity<Supplier> createSupplier(@RequestBody @NonNull Supplier supplier) {
         Supplier savedSupplier = supplierService.saveSupplier(supplier);
         return new ResponseEntity<>(savedSupplier, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Supplier> updateSupplier(@PathVariable Long id, @RequestBody Supplier supplierDetails) {
+    public ResponseEntity<Supplier> updateSupplier(@PathVariable @NonNull Long id, @RequestBody @NonNull Supplier supplierDetails) {
         Supplier updatedSupplier = supplierService.updateSupplier(id, supplierDetails);
         return new ResponseEntity<>(updatedSupplier, HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSupplier(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteSupplier(@PathVariable @NonNull Long id) {
         supplierService.deleteSupplier(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }

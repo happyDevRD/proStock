@@ -2,6 +2,7 @@ package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.ProductDto;
 import com.happydev.prestockbackend.dto.StockAdjustmentRequestDto;
+import com.happydev.prestockbackend.entity.StockMovementType;
 import com.happydev.prestockbackend.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,11 +14,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/products") // Ruta base para todos los endpoints de productos
@@ -38,7 +41,7 @@ public class ProductController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     @GetMapping
-    public ResponseEntity<Page<ProductDto>> getAllProducts(Pageable pageable) { //Recibe Pageable
+    public ResponseEntity<Page<ProductDto>> getAllProducts(@NonNull Pageable pageable) { //Recibe Pageable
         Page<ProductDto> products = productService.findAllProducts(pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
@@ -53,7 +56,7 @@ public class ProductController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDto> getProductById(@PathVariable Long id) {
+    public ResponseEntity<ProductDto> getProductById(@PathVariable @NonNull Long id) {
         return productService.findProductById(id)
                 .map(productDto -> new ResponseEntity<>(productDto, HttpStatus.OK)) //Ya se retorna un DTO
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
@@ -69,19 +72,19 @@ public class ProductController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     @PostMapping
-    public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody ProductDto productDto) {
+    public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody @NonNull ProductDto productDto) {
         ProductDto savedProduct = productService.saveProduct(productDto); //Guarda y retorna DTO
         return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ProductDto> updateProduct(@PathVariable Long id, @RequestBody ProductDto productDetails) {
+    public ResponseEntity<ProductDto> updateProduct(@PathVariable @NonNull Long id, @RequestBody @NonNull ProductDto productDetails) {
         ProductDto updatedProduct = productService.updateProduct(id, productDetails);
         return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteProduct(@PathVariable @NonNull Long id) {
         productService.deleteProduct(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT); // 204 No Content
     }
@@ -94,30 +97,32 @@ public class ProductController {
     }
 
     @GetMapping("/below-min-stock/paginated")
-    public ResponseEntity<Page<ProductDto>> getProductsBelowMinStock(Pageable pageable) {
+    public ResponseEntity<Page<ProductDto>> getProductsBelowMinStock(@NonNull Pageable pageable) {
         Page<ProductDto> products = productService.findProductsBelowMinStock(pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
     @GetMapping("/search")
-    public ResponseEntity<Page<ProductDto>> searchProducts(@RequestParam("q") String query, Pageable pageable) {
+    public ResponseEntity<Page<ProductDto>> searchProducts(@RequestParam("q") @NonNull String query, @NonNull Pageable pageable) {
         Page<ProductDto> products = productService.searchProducts(query, pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
     @PostMapping("/import-csv")
-    public ResponseEntity<List<ProductDto>> importProductsFromCsv(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<List<ProductDto>> importProductsFromCsv(@RequestParam("file") @NonNull MultipartFile file) {
         List<ProductDto> importedProducts = productService.importProductsFromCsv(file);
         return new ResponseEntity<>(importedProducts, HttpStatus.CREATED);
     }
 
     @PostMapping("/{id}/stock-adjustments")
-    public ResponseEntity<Void> adjustStock(@PathVariable Long id, @Valid @RequestBody StockAdjustmentRequestDto request) {
+    public ResponseEntity<Void> adjustStock(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull StockAdjustmentRequestDto request) {
+        StockMovementType type = Objects.requireNonNull(request.getType(), "Stock movement type is required");
+        String reason = Objects.requireNonNull(request.getReason(), "Stock movement reason is required");
         productService.adjustStock(
                 id,
                 request.getQuantityChange(),
-                request.getType(),
-                request.getReason(),
+                type,
+                reason,
                 request.getBatchNumber(),
                 request.getExpirationDate(),
                 request.getUnitCost(),

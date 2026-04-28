@@ -8,12 +8,12 @@ import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
-import com.happydev.prestockbackend.repository.SaleItemRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,6 +22,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -29,8 +30,6 @@ import java.util.Optional;
 public class SaleServiceImpl implements SaleService {
 
     private final SaleRepository saleRepository;
-
-    private final SaleItemRepository saleItemRepository; //Si fuera necesario.
 
     private final ProductRepository productRepository; // Para actualizar el stock
 
@@ -47,7 +46,6 @@ public class SaleServiceImpl implements SaleService {
     private final InvoiceQrService invoiceQrService;
 
     public SaleServiceImpl(SaleRepository saleRepository,
-                           SaleItemRepository saleItemRepository,
                            ProductRepository productRepository,
                            CustomerRepository customerRepository,
                            SaleMapper saleMapper,
@@ -56,7 +54,6 @@ public class SaleServiceImpl implements SaleService {
                            CompanyConfigRepository companyConfigRepository,
                            InvoiceQrService invoiceQrService) {
         this.saleRepository = saleRepository;
-        this.saleItemRepository = saleItemRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
         this.saleMapper = saleMapper;
@@ -72,18 +69,18 @@ public class SaleServiceImpl implements SaleService {
     }
 
     @Override
-    public Page<SaleDto> findAllSales(Pageable pageable) {
+    public Page<SaleDto> findAllSales(@NonNull Pageable pageable) {
         Page<Sale> sales = saleRepository.findAll(pageable);
         return sales.map(saleMapper::toDto);
     }
 
     @Override
-    public Optional<SaleDto> findSaleById(Long id) {
+    public Optional<SaleDto> findSaleById(@NonNull Long id) {
         return saleRepository.findById(id).map(saleMapper::toDto);
     }
 
     @Override
-    public SaleDto createSale(SaleDto saleDto) {
+    public SaleDto createSale(@NonNull SaleDto saleDto) {
 
         //Convertir a entidad.
         Sale sale = saleMapper.toEntity(saleDto);
@@ -96,8 +93,9 @@ public class SaleServiceImpl implements SaleService {
 
         //Si se cambia el customer
         if(saleDto.getCustomerId() != null){
-            Customer customer = customerRepository.findById(saleDto.getCustomerId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Customer", "id", saleDto.getCustomerId()));
+            Long customerId = Objects.requireNonNull(saleDto.getCustomerId());
+            Customer customer = customerRepository.findById(customerId)
+                    .orElseThrow(()-> new ResourceNotFoundException("Customer", "id", customerId));
             sale.setCustomer(customer); //Asignamos el customer.
         }
 
@@ -106,8 +104,9 @@ public class SaleServiceImpl implements SaleService {
             for (SaleItem item : sale.getItems()) {
                 item.setSale(sale); // Asigna la venta a cada ítem.
                 //Validaciones
-                if(!productRepository.existsById(item.getProduct().getId())){
-                    throw new ResourceNotFoundException("Product", "id", item.getProduct().getId());
+                Long productId = Objects.requireNonNull(item.getProduct().getId());
+                if(!productRepository.existsById(productId)){
+                    throw new ResourceNotFoundException("Product", "id", productId);
                 }
             }
         }
@@ -119,7 +118,7 @@ public class SaleServiceImpl implements SaleService {
     }
 
     @Override
-    public SaleDto updateSale(Long id, SaleDto saleDto) {
+    public SaleDto updateSale(@NonNull Long id, @NonNull SaleDto saleDto) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
 
@@ -127,8 +126,9 @@ public class SaleServiceImpl implements SaleService {
 
         // Si se cambia el customer (OBTENER EL CLIENTE)
         if (saleDto.getCustomerId() != null) {
-            Customer customer = customerRepository.findById(saleDto.getCustomerId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", saleDto.getCustomerId()));
+            Long customerId = Objects.requireNonNull(saleDto.getCustomerId());
+            Customer customer = customerRepository.findById(customerId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", customerId));
             sale.setCustomer(customer);
         }
 
@@ -146,8 +146,9 @@ public class SaleServiceImpl implements SaleService {
             List<SaleItem> newItems = saleMapper.toItemEntityList(saleDto.getItems());
             for (SaleItem item : newItems) {
                 item.setSale(sale);
-                if (!productRepository.existsById(item.getProduct().getId())) {
-                    throw new ResourceNotFoundException("Product", "id", item.getProduct().getId());
+                Long productId = Objects.requireNonNull(item.getProduct().getId());
+                if (!productRepository.existsById(productId)) {
+                    throw new ResourceNotFoundException("Product", "id", productId);
                 }
                 sale.getItems().add(item);
             }
@@ -159,16 +160,16 @@ public class SaleServiceImpl implements SaleService {
     }
 
     @Override
-    public void deleteSale(Long id) {
+    public void deleteSale(@NonNull Long id) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
-        saleRepository.delete(sale); // orphanRemoval=true se encarga de los ítems
+        saleRepository.delete(Objects.requireNonNull(sale)); // orphanRemoval=true se encarga de los ítems
     }
 
     // Método para finalizar una venta y descontar el stock
     @Override
     @Transactional // Importante para que la actualización del stock sea atómica
-    public SaleDto completeSale(Long id) {
+    public SaleDto completeSale(@NonNull Long id) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
 
@@ -194,8 +195,9 @@ public class SaleServiceImpl implements SaleService {
 
         // Registrar movimientos de stock y calcular desglose tributario
         for (SaleItem item : sale.getItems()) {
-            Product product = productRepository.findById(item.getProduct().getId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Product", "id", item.getProduct().getId()));
+            Long productId = Objects.requireNonNull(item.getProduct().getId());
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(()-> new ResourceNotFoundException("Product", "id", productId));
 
             //Verificar si hay stock
             if(product.getStock() < item.getQuantity()){

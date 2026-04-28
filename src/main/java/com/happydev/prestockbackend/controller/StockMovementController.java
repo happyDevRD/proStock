@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -25,20 +26,20 @@ public class StockMovementController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<StockMovementDto>> getAllMovements(Pageable pageable) {
+    public ResponseEntity<Page<StockMovementDto>> getAllMovements(@NonNull Pageable pageable) {
         Page<StockMovementDto> movements = stockMovementService.getAllMovements(pageable).map(this::toDto);
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<StockMovementDto> getMovementById(@PathVariable Long id) {
+    public ResponseEntity<StockMovementDto> getMovementById(@PathVariable @NonNull Long id) {
         return stockMovementService.getMovementById(id)
                 .map(movement -> new ResponseEntity<>(toDto(movement), HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @GetMapping("/product/{productId}")
-    public ResponseEntity<List<StockMovementDto>> getMovementsByProduct(@PathVariable Long productId) {
+    public ResponseEntity<List<StockMovementDto>> getMovementsByProduct(@PathVariable @NonNull Long productId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByProduct(productId)
                 .stream()
                 .map(this::toDto)
@@ -48,9 +49,9 @@ public class StockMovementController {
 
     @GetMapping("/product/{productId}/range")
     public ResponseEntity<List<StockMovementDto>> getMovementsByProductAndDateRange(
-            @PathVariable Long productId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+            @PathVariable @NonNull Long productId,
+            @RequestParam @NonNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @NonNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
     ) {
         List<StockMovementDto> movements = stockMovementService
                 .getMovementsByProductAndDateRange(productId, startDate, endDate)
@@ -61,7 +62,7 @@ public class StockMovementController {
     }
 
     @GetMapping("/type/{type}")
-    public ResponseEntity<List<StockMovementDto>> getMovementsByType(@PathVariable StockMovementType type) {
+    public ResponseEntity<List<StockMovementDto>> getMovementsByType(@PathVariable @NonNull StockMovementType type) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByType(type)
                 .stream()
                 .map(this::toDto)
@@ -70,7 +71,7 @@ public class StockMovementController {
     }
 
     @GetMapping("/sale/{saleId}")
-    public ResponseEntity<List<StockMovementDto>> getMovementsBySale(@PathVariable Long saleId) {
+    public ResponseEntity<List<StockMovementDto>> getMovementsBySale(@PathVariable @NonNull Long saleId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsBySale(saleId)
                 .stream()
                 .map(this::toDto)
@@ -79,7 +80,7 @@ public class StockMovementController {
     }
 
     @GetMapping("/purchase-order/{purchaseOrderId}")
-    public ResponseEntity<List<StockMovementDto>> getMovementsByPurchaseOrder(@PathVariable Long purchaseOrderId) {
+    public ResponseEntity<List<StockMovementDto>> getMovementsByPurchaseOrder(@PathVariable @NonNull Long purchaseOrderId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByPurchaseOrder(purchaseOrderId)
                 .stream()
                 .map(this::toDto)

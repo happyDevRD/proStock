@@ -3,10 +3,12 @@ package com.happydev.prestockbackend.service;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.SupplierRepository;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -25,17 +27,17 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     @Override
-    public Optional<Supplier> findSupplierById(Long id) {
+    public Optional<Supplier> findSupplierById(@NonNull Long id) {
         return supplierRepository.findById(id);
     }
 
     @Override
-    public Supplier saveSupplier(Supplier supplier) {
-        return supplierRepository.save(supplier);
+    public Supplier saveSupplier(@NonNull Supplier supplier) {
+        return supplierRepository.save(Objects.requireNonNull(supplier));
     }
 
     @Override
-    public Supplier updateSupplier(Long id, Supplier supplierDetails) {
+    public Supplier updateSupplier(@NonNull Long id, @NonNull Supplier supplierDetails) {
         Supplier supplier = supplierRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", id));
 
@@ -46,13 +48,13 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setAddress(supplierDetails.getAddress());
         // Actualiza otros campos si es necesario.
 
-        return supplierRepository.save(supplier);
+        return supplierRepository.save(Objects.requireNonNull(supplier));
     }
 
     @Override
-    public void deleteSupplier(Long id) {
+    public void deleteSupplier(@NonNull Long id) {
         Supplier supplier = supplierRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("Supplier", "id", id));
-        supplierRepository.delete(supplier);
+        supplierRepository.delete(Objects.requireNonNull(supplier));
     }
 }

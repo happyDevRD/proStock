@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -34,7 +35,7 @@ public class SaleController {
     }
 
     @GetMapping("/paginated")
-    public ResponseEntity<Page<SaleDto>> getAllSales(Pageable pageable) {
+    public ResponseEntity<Page<SaleDto>> getAllSales(@NonNull Pageable pageable) {
         Page<SaleDto> sales = saleService.findAllSales(pageable);
         return new ResponseEntity<>(sales, HttpStatus.OK);
     }
@@ -72,33 +73,33 @@ public class SaleController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SaleDto> getSaleById(@PathVariable Long id) {
+    public ResponseEntity<SaleDto> getSaleById(@PathVariable @NonNull Long id) {
         return saleService.findSaleById(id)
                 .map(sale -> new ResponseEntity<>(sale, HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PostMapping
-    public ResponseEntity<SaleDto> createSale(@Valid @RequestBody SaleDto saleDto) {
+    public ResponseEntity<SaleDto> createSale(@Valid @RequestBody @NonNull SaleDto saleDto) {
         SaleDto savedSale = saleService.createSale(saleDto);
         return new ResponseEntity<>(savedSale, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<SaleDto> updateSale(@PathVariable Long id, @Valid @RequestBody SaleDto saleDto) {
+    public ResponseEntity<SaleDto> updateSale(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull SaleDto saleDto) {
         SaleDto updatedSale = saleService.updateSale(id, saleDto);
         return new ResponseEntity<>(updatedSale, HttpStatus.OK);
     }
 
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSale(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteSale(@PathVariable @NonNull Long id) {
         saleService.deleteSale(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @PutMapping("/{id}/complete") // Endpoint para completar una venta (y descontar stock)
-    public ResponseEntity<SaleDto> completeSale(@PathVariable Long id) {
+    public ResponseEntity<SaleDto> completeSale(@PathVariable @NonNull Long id) {
         SaleDto completedSale = saleService.completeSale(id);
         return new ResponseEntity<>(completedSale, HttpStatus.OK);
     }

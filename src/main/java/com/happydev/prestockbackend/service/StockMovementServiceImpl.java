@@ -8,12 +8,14 @@ import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.StockMovementRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.PageRequest;
+import java.util.Objects;
 
 @Service
 public class StockMovementServiceImpl implements StockMovementService {
@@ -29,9 +31,10 @@ public class StockMovementServiceImpl implements StockMovementService {
 
     @Override
     @Transactional
-    public StockMovement createMovement(StockMovement movement) {
-        Product product = productRepository.findById(movement.getProduct().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", movement.getProduct().getId()));
+    public StockMovement createMovement(@NonNull StockMovement movement) {
+        Long productId = Objects.requireNonNull(movement.getProduct().getId());
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
         int currentStock = product.getStock() != null ? product.getStock() : 0;
         int stockAfter = currentStock + movement.getQuantityChange();
 
@@ -61,37 +64,37 @@ public class StockMovementServiceImpl implements StockMovementService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<StockMovement> getAllMovements(Pageable pageable) {
+    public Page<StockMovement> getAllMovements(@NonNull Pageable pageable) {
         return stockMovementRepository.findAll(pageable);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<StockMovement> getMovementById(Long id) {
+    public Optional<StockMovement> getMovementById(@NonNull Long id) {
         return stockMovementRepository.findById(id);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsByProduct(Long productId) {
+    public List<StockMovement> getMovementsByProduct(@NonNull Long productId) {
         return stockMovementRepository.findByProduct_IdOrderByMovementDateDesc(productId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsByProductAndDateRange(Long productId, LocalDateTime startDate, LocalDateTime endDate) {
+    public List<StockMovement> getMovementsByProductAndDateRange(@NonNull Long productId, @NonNull LocalDateTime startDate, @NonNull LocalDateTime endDate) {
         return stockMovementRepository.findByProduct_IdAndMovementDateBetweenOrderByMovementDateDesc(productId, startDate, endDate);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsByType(StockMovementType type) {
+    public List<StockMovement> getMovementsByType(@NonNull StockMovementType type) {
         return stockMovementRepository.findByTypeOrderByMovementDateDesc(type);
     }
 
     @Override
     @Transactional
-    public StockMovement updateMovement(Long id, StockMovement movementDetails) {
+    public StockMovement updateMovement(@NonNull Long id, @NonNull StockMovement movementDetails) {
         StockMovement movement = stockMovementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMovement", "id", id));
 
@@ -104,13 +107,14 @@ public class StockMovementServiceImpl implements StockMovementService {
         movement.setUnitCost(movementDetails.getUnitCost());
 
         // Recalcular stockBefore y stockAfter
-        int currentStock = calculateCurrentStock(movement.getProduct().getId());
+        Long productId = Objects.requireNonNull(movement.getProduct().getId());
+        int currentStock = calculateCurrentStock(productId);
         movement.setStockBefore(currentStock - movement.getQuantityChange()); // Ajuste para recalcular
         movement.setStockAfter(currentStock);
 
 
         // Actualizar el stock del producto
-        Product product = productRepository.findById(movement.getProduct().getId()).orElseThrow(()-> new ResourceNotFoundException("Product", "id", id));
+        Product product = productRepository.findById(productId).orElseThrow(()-> new ResourceNotFoundException("Product", "id", productId));
         product.setStock(movement.getStockAfter()); // Se actualiza en base al stockAfter YA calculado.
         productRepository.save(product);
 
@@ -119,7 +123,7 @@ public class StockMovementServiceImpl implements StockMovementService {
 
     @Override
     @Transactional
-    public void deleteMovement(Long id) {
+    public void deleteMovement(@NonNull Long id) {
         StockMovement movement = stockMovementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMovement", "id", id));
 
@@ -135,45 +139,45 @@ public class StockMovementServiceImpl implements StockMovementService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsByPurchaseOrder(Long purchaseOrderId) {
+    public List<StockMovement> getMovementsByPurchaseOrder(@NonNull Long purchaseOrderId) {
         return stockMovementRepository.findByPurchaseOrder_IdOrderByMovementDateDesc(purchaseOrderId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsBySale(Long saleId) {
+    public List<StockMovement> getMovementsBySale(@NonNull Long saleId) {
         return stockMovementRepository.findBySale_IdOrderByMovementDateDesc(saleId);
     }
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsBySourceLocation(Long sourceLocationId) {
+    public List<StockMovement> getMovementsBySourceLocation(@NonNull Long sourceLocationId) {
         return stockMovementRepository.findBySourceLocationIdOrderByMovementDateDesc(sourceLocationId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsByDestinationLocation(Long destinationLocationId) {
+    public List<StockMovement> getMovementsByDestinationLocation(@NonNull Long destinationLocationId) {
         return stockMovementRepository.findByDestinationLocationIdOrderByMovementDateDesc(destinationLocationId);
     }
     @Override
     @Transactional(readOnly = true)
-    public List<StockMovement> getMovementsByUser(Long userId) {
+    public List<StockMovement> getMovementsByUser(@NonNull Long userId) {
         return stockMovementRepository.findByUser_IdOrderByMovementDateDesc(userId);
     }
 
     @Override
-    public List<StockMovement> getMovementsByBatchNumber(String batchNumber) {
+    public List<StockMovement> getMovementsByBatchNumber(@NonNull String batchNumber) {
         return stockMovementRepository.findByBatchNumberOrderByMovementDateDesc(batchNumber);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public int calculateCurrentStock(Long productId) {
+    public int calculateCurrentStock(@NonNull Long productId) {
         return stockMovementRepository.calculateCurrentStock(productId);
     }
 
     @Override
-    public Optional<StockMovement> findLatestStockMovement(Long productId) {
+    public Optional<StockMovement> findLatestStockMovement(@NonNull Long productId) {
         return stockMovementRepository.findLatestStockMovement(productId, PageRequest.of(0, 1)).stream().findFirst();
     }
 }

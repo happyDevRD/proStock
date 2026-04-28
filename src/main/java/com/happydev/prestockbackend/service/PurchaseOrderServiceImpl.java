@@ -10,16 +10,17 @@ import com.happydev.prestockbackend.entity.StockMovementType;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.PurchaseOrderMapper;
 import com.happydev.prestockbackend.repository.ProductRepository;
-import com.happydev.prestockbackend.repository.PurchaseOrderItemRepository;
 import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SupplierRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -27,8 +28,6 @@ import java.util.Optional;
 public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final PurchaseOrderRepository purchaseOrderRepository;
-
-    private final PurchaseOrderItemRepository purchaseOrderItemRepository; //Para guardar los items
 
     private final SupplierRepository supplierRepository;
 
@@ -39,13 +38,11 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final StockMovementService stockMovementService;
 
     public PurchaseOrderServiceImpl(PurchaseOrderRepository purchaseOrderRepository,
-                                    PurchaseOrderItemRepository purchaseOrderItemRepository,
                                     SupplierRepository supplierRepository,
                                     ProductRepository productRepository,
                                     PurchaseOrderMapper purchaseOrderMapper,
                                     StockMovementService stockMovementService) {
         this.purchaseOrderRepository = purchaseOrderRepository;
-        this.purchaseOrderItemRepository = purchaseOrderItemRepository;
         this.supplierRepository = supplierRepository;
         this.productRepository = productRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
@@ -59,21 +56,22 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     @Override
-    public Page<PurchaseOrderDto> findAllPurchaseOrders(Pageable pageable) {
+    public Page<PurchaseOrderDto> findAllPurchaseOrders(@NonNull Pageable pageable) {
         Page<PurchaseOrder> purchaseOrders = purchaseOrderRepository.findAll(pageable);
         return purchaseOrders.map(purchaseOrderMapper::toDto);
     }
 
     @Override
-    public Optional<PurchaseOrderDto> findPurchaseOrderById(Long id) {
+    public Optional<PurchaseOrderDto> findPurchaseOrderById(@NonNull Long id) {
         return purchaseOrderRepository.findById(id).map(purchaseOrderMapper::toDto);
     }
 
     @Override
-    public PurchaseOrderDto createPurchaseOrder(PurchaseOrderDto purchaseOrderDto) {
+    public PurchaseOrderDto createPurchaseOrder(@NonNull PurchaseOrderDto purchaseOrderDto) {
         //Validaciones
-        if (!supplierRepository.existsById(purchaseOrderDto.getSupplierId())) {
-            throw new ResourceNotFoundException("Supplier", "id", purchaseOrderDto.getSupplierId());
+        Long supplierId = Objects.requireNonNull(purchaseOrderDto.getSupplierId(), "Supplier id is required");
+        if (!supplierRepository.existsById(supplierId)) {
+            throw new ResourceNotFoundException("Supplier", "id", supplierId);
         }
 
         // Convertir DTO a entidad
@@ -87,8 +85,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             for (PurchaseOrderItem item : purchaseOrder.getItems()) {
                 item.setPurchaseOrder(purchaseOrder); // Asigna la orden de compra a cada ítem
                 //Validar Producto
-                if(!productRepository.existsById(item.getProduct().getId())){
-                    throw new ResourceNotFoundException("Product", "id", item.getProduct().getId());
+                Long productId = Objects.requireNonNull(item.getProduct().getId());
+                if(!productRepository.existsById(productId)){
+                    throw new ResourceNotFoundException("Product", "id", productId);
                 }
             }
         }
@@ -100,16 +99,19 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
 
     @Override
-    public PurchaseOrderDto updatePurchaseOrder(Long id, PurchaseOrderDto purchaseOrderDto) {
+    public PurchaseOrderDto updatePurchaseOrder(@NonNull Long id, @NonNull PurchaseOrderDto purchaseOrderDto) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("PurchaseOrder", "id", id));
 
         //Validar Proveedor, si es que se cambia.
         if(purchaseOrderDto.getSupplierId() != null){
-            if(!supplierRepository.existsById(purchaseOrderDto.getSupplierId())){
-                throw new ResourceNotFoundException("Supplier", "id", purchaseOrderDto.getSupplierId());
+            Long supplierId = Objects.requireNonNull(purchaseOrderDto.getSupplierId());
+            if(!supplierRepository.existsById(supplierId)){
+                throw new ResourceNotFoundException("Supplier", "id", supplierId);
             }
-            purchaseOrder.setSupplier(supplierRepository.findById(purchaseOrderDto.getSupplierId()).get());
+            purchaseOrder.setSupplier(supplierRepository.findById(supplierId).orElseThrow(
+                    () -> new ResourceNotFoundException("Supplier", "id", supplierId)
+            ));
         }
 
         //Actualizar datos básicos.
@@ -132,8 +134,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 item.setPurchaseOrder(purchaseOrder); // Asigna la orden de compra a cada ítem
 
                 //Validar Producto
-                if(!productRepository.existsById(item.getProduct().getId())){
-                    throw new ResourceNotFoundException("Product", "id", item.getProduct().getId());
+                Long productId = Objects.requireNonNull(item.getProduct().getId());
+                if(!productRepository.existsById(productId)){
+                    throw new ResourceNotFoundException("Product", "id", productId);
                 }
                 purchaseOrder.getItems().add(item); //Agregamos a la lista
 
@@ -145,15 +148,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     @Override
-    public void deletePurchaseOrder(Long id) {
+    public void deletePurchaseOrder(@NonNull Long id) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("PurchaseOrder", "id", id));
-        purchaseOrderRepository.delete(purchaseOrder);
+        purchaseOrderRepository.delete(Objects.requireNonNull(purchaseOrder));
     }
 
     // Método para marcar una orden como recibida y actualizar el stock
     @Override
-    public PurchaseOrderDto receivePurchaseOrder(Long id) {
+    public PurchaseOrderDto receivePurchaseOrder(@NonNull Long id) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", id));
 

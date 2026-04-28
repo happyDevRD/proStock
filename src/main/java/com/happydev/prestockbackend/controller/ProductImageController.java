@@ -20,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.List;
 
 @RestController
@@ -119,7 +119,7 @@ public class ProductImageController {
         ProductImage image = productImageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
         try {
-            fileStorageService.delete(image.getFileName()); // Elimina el archivo
+            fileStorageService.delete(Objects.requireNonNull(image.getFileName())); // Elimina el archivo
             productImageRepository.delete(image);          // Elimina la entidad
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 
@@ -136,7 +136,7 @@ public class ProductImageController {
                 .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
         try {
             // Eliminar el archivo anterior
-            fileStorageService.delete(productImage.getFileName());
+            fileStorageService.delete(Objects.requireNonNull(productImage.getFileName()));
 
             // Guardar el nuevo archivo
             String filename = fileStorageService.store(file);

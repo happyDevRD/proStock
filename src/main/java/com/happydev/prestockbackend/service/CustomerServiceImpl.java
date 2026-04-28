@@ -6,12 +6,13 @@ import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.CustomerMapper;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -33,29 +34,29 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public Page<CustomerDto> findAllCustomers(Pageable pageable) {
+    public Page<CustomerDto> findAllCustomers(@NonNull Pageable pageable) {
         Page<Customer> customers = customerRepository.findAll(pageable);
         return customers.map(customerMapper::toDto);
     }
 
     @Override
-    public Optional<CustomerDto> findCustomerById(Long id) {
+    public Optional<CustomerDto> findCustomerById(@NonNull Long id) {
         return customerRepository.findById(id).map(customerMapper::toDto);
     }
 
     @Override
-    public CustomerDto createCustomer(CustomerDto customerDto) {
+    public CustomerDto createCustomer(@NonNull CustomerDto customerDto) {
         //Validar que no exista ese email
         if(customerRepository.existsByEmail(customerDto.getEmail())){
             throw new IllegalArgumentException("Email already exists: " + customerDto.getEmail()); // Otra excepción personalizada
         }
         Customer customer = customerMapper.toEntity(customerDto);
-        Customer savedCustomer = customerRepository.save(customer);
+        Customer savedCustomer = customerRepository.save(Objects.requireNonNull(customer));
         return customerMapper.toDto(savedCustomer);
     }
 
     @Override
-    public CustomerDto updateCustomer(Long id, CustomerDto customerDto) {
+    public CustomerDto updateCustomer(@NonNull Long id, @NonNull CustomerDto customerDto) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
 
@@ -80,9 +81,9 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public void deleteCustomer(Long id) {
+    public void deleteCustomer(@NonNull Long id) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
-        customerRepository.delete(customer);
+        customerRepository.delete(Objects.requireNonNull(customer));
     }
 }

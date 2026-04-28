@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -63,18 +64,18 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findAllProducts(Pageable pageable) {
+    public Page<ProductDto> findAllProducts(@NonNull Pageable pageable) {
         Page<Product> products = productRepository.findAll(pageable);
         return products.map(productMapper::toDto); // Convierte Page<Product> a Page<ProductDto>
     }
 
     @Override
-    public Optional<ProductDto> findProductById(Long id) {
+    public Optional<ProductDto> findProductById(@NonNull Long id) {
         return productRepository.findById(id).map(productMapper::toDto); //Utiliza method reference
     }
 
     @Override
-    public ProductDto saveProduct(ProductDto productDto) {
+    public ProductDto saveProduct(@NonNull ProductDto productDto) {
         Long categoryId = Objects.requireNonNull(productDto.getCategoryId(), "Category id is required");
         Long supplierId = Objects.requireNonNull(productDto.getSupplierId(), "Supplier id is required");
 
@@ -104,7 +105,7 @@ public class ProductServiceImpl implements ProductService {
 
     // En ProductServiceImpl, dentro de updateProduct
     @Override
-    public ProductDto updateProduct(Long id, ProductDto productDto) {
+    public ProductDto updateProduct(@NonNull Long id, @NonNull ProductDto productDto) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
 
@@ -159,7 +160,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public void deleteProduct(Long id) {
+    public void deleteProduct(@NonNull Long id) {
         productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
         // No es necesario hacer nada especial con las imágenes, gracias a orphanRemoval=true
@@ -174,13 +175,13 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findProductsBelowMinStock(Pageable pageable) {
+    public Page<ProductDto> findProductsBelowMinStock(@NonNull Pageable pageable) {
         Page<Product> products = productRepository.findProductsBelowMinStock(pageable);
         return products.map(productMapper::toDto);
     }
 
     @Override
-    public Page<ProductDto> searchProducts(String query, Pageable pageable) {
+    public Page<ProductDto> searchProducts(@NonNull String query, @NonNull Pageable pageable) {
         String normalizedQuery = query.trim();
         if (normalizedQuery.isEmpty()) {
             return findAllProducts(pageable);
@@ -189,7 +190,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<ProductDto> importProductsFromCsv(MultipartFile file) {
+    public List<ProductDto> importProductsFromCsv(@NonNull MultipartFile file) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("El archivo CSV está vacío.");
         }
@@ -296,10 +297,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public void adjustStock(Long productId,
+    public void adjustStock(@NonNull Long productId,
                             int quantityChange,
-                            StockMovementType type,
-                            String reason,
+                            @NonNull StockMovementType type,
+                            @NonNull String reason,
                             String batchNumber,
                             LocalDateTime expirationDate,
                             BigDecimal unitCost,

@@ -5,9 +5,11 @@ import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.ProductImageRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -30,21 +32,21 @@ public class ProductImageServiceImpl implements ProductImageService {
 
 
     @Override
-    public Optional<ProductImage> findProductImageById(Long id) {
+    public Optional<ProductImage> findProductImageById(@NonNull Long id) {
         return productImageRepository.findById(id);
     }
 
     @Override
-    public ProductImage saveProductImage(ProductImage productImage) {
+    public ProductImage saveProductImage(@NonNull ProductImage productImage) {
         // Asegúrate de que productImage.getProduct() NO sea null antes de guardar.
         if (productImage.getProduct() == null) {
             throw new IllegalArgumentException("Product cannot be null for ProductImage"); // O una excepción más específica
         }
 
         //Verificar si existe el producto.
-        if (productImage.getProduct().getId() == null ||
-                !productRepository.existsById(productImage.getProduct().getId()) ) {
-            throw new ResourceNotFoundException("Product", "id", productImage.getProduct().getId());
+        Long productId = productImage.getProduct().getId();
+        if (productId == null || !productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Product", "id", productId);
 
         }
 
@@ -53,24 +55,24 @@ public class ProductImageServiceImpl implements ProductImageService {
 
 
     @Override
-    public ProductImage updateProductImage(Long id) { // SOLO EL ID
+    public ProductImage updateProductImage(@NonNull Long id) { // SOLO EL ID
         ProductImage productImage = productImageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductImage", "id", id));
 
         // Ya no necesitas validaciones, el controlador maneja la actualizacion
 
-        return productImageRepository.save(productImage); // Guarda los cambios
+        return productImageRepository.save(Objects.requireNonNull(productImage)); // Guarda los cambios
     }
 
     @Override
-    public void deleteProductImage(Long id) {
+    public void deleteProductImage(@NonNull Long id) {
         ProductImage productImage = productImageRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("ProductImage", "id", id));
-        productImageRepository.delete(productImage);
+        productImageRepository.delete(Objects.requireNonNull(productImage));
     }
 
     @Override
-    public List<ProductImage> findByProductId(Long productId) {
+    public List<ProductImage> findByProductId(@NonNull Long productId) {
         return productImageRepository.findByProductId(productId);
     }
 }
