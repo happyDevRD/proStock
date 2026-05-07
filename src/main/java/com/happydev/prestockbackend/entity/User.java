@@ -41,7 +41,9 @@ public class User {
     @Column(name = "last_name")
     private String lastName;  // Apellido
 
-    //  ... otros campos (rol, activo/inactivo, etc.) ...
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role = UserRole.USER;
 
     //Relacion con StockMovement
     @OneToMany(mappedBy = "user") //Un usuario puede realizar muchos movimientos

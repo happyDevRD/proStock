@@ -11,7 +11,8 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface SaleMapper {
-    @Mapping(source = "customerId", target = "customer.id") // Mapeo de customerId a customer.id
+    /** Cliente se asigna en el servicio (evita entidad transitoria cuando {@code customerId} es null). */
+    @Mapping(target = "customer", ignore = true)
     Sale toEntity(SaleDto saleDto);
 
     @Mapping(target = "customerId", source = "customer.id") // Mapeo de customer.id a customerId

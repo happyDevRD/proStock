@@ -25,7 +25,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(CompanyConfigController.class)
 @WithMockUser(username = "admin", roles = {"ADMIN"})
-@SuppressWarnings("null")
 class CompanyConfigControllerTest {
 
     @Autowired

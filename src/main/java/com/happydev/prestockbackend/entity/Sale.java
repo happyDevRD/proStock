@@ -73,4 +73,8 @@ public class Sale {
 
     @Column(name = "qr_code_base64", columnDefinition = "TEXT")
     private String qrCodeBase64;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private PaymentMethod paymentMethod;
 }

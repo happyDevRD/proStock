@@ -38,7 +38,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ProductController.class) // Prueba solo el controlador
 @AutoConfigureMockMvc(addFilters = false)
-@SuppressWarnings("null")
 class ProductControllerTest {
 
     @Autowired

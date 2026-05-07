@@ -10,18 +10,26 @@ import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.util.DgiiTaxUtils;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -45,6 +53,8 @@ public class SaleServiceImpl implements SaleService {
 
     private final InvoiceQrService invoiceQrService;
 
+    private final AuditService auditService;
+
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
                            CustomerRepository customerRepository,
@@ -52,7 +62,8 @@ public class SaleServiceImpl implements SaleService {
                            StockMovementService stockMovementService,
                            SequenceService sequenceService,
                            CompanyConfigRepository companyConfigRepository,
-                           InvoiceQrService invoiceQrService) {
+                           InvoiceQrService invoiceQrService,
+                           AuditService auditService) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -61,6 +72,7 @@ public class SaleServiceImpl implements SaleService {
         this.sequenceService = sequenceService;
         this.companyConfigRepository = companyConfigRepository;
         this.invoiceQrService = invoiceQrService;
+        this.auditService = auditService;
     }
 
     @Override
@@ -72,6 +84,54 @@ public class SaleServiceImpl implements SaleService {
     public Page<SaleDto> findAllSales(@NonNull Pageable pageable) {
         Page<Sale> sales = saleRepository.findAll(pageable);
         return sales.map(saleMapper::toDto);
+    }
+
+    @Override
+    public Page<SaleDto> findInvoices(
+            @NonNull Pageable pageable,
+            String ncf,
+            Long customerId,
+            LocalDate dateFrom,
+            LocalDate dateTo
+    ) {
+        LocalDateTime startDateTime = dateFrom != null ? dateFrom.atStartOfDay() : null;
+        LocalDateTime endDateTime = dateTo != null ? dateTo.atTime(LocalTime.of(23, 59, 59, 999_000_000)) : null;
+        Specification<Sale> spec = buildInvoiceSpec(ncf, customerId, startDateTime, endDateTime);
+        return saleRepository.findAll(spec, pageable).map(saleMapper::toDto);
+    }
+
+    @Override
+    public Optional<SaleDto> findSaleByNcf(@NonNull String ncf) {
+        return saleRepository.findByNcf(ncf.trim())
+                .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
+                .map(saleMapper::toDto);
+    }
+
+    private Specification<Sale> buildInvoiceSpec(
+            String ncf,
+            Long customerId,
+            LocalDateTime startDate,
+            LocalDateTime endDate
+    ) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("status"), SaleStatus.COMPLETED));
+            predicates.add(cb.isNotNull(root.get("ncf")));
+            if (ncf != null && !ncf.isBlank()) {
+                String pattern = "%" + ncf.trim().toUpperCase() + "%";
+                predicates.add(cb.like(cb.upper(root.get("ncf")), pattern));
+            }
+            if (customerId != null) {
+                predicates.add(cb.equal(root.get("customer").get("id"), customerId));
+            }
+            if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("saleDate"), startDate));
+            }
+            if (endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("saleDate"), endDate));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     @Override
@@ -111,6 +171,8 @@ public class SaleServiceImpl implements SaleService {
             }
         }
 
+        ensureSaleMoneyColumnsForPersist(sale);
+
         //Guardar en db
         Sale savedSale = saleRepository.save(sale);
         return saleMapper.toDto(savedSale);
@@ -130,11 +192,20 @@ public class SaleServiceImpl implements SaleService {
             Customer customer = customerRepository.findById(customerId)
                     .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", customerId));
             sale.setCustomer(customer);
+        } else {
+            sale.setCustomer(null);
         }
 
         // Si cambia el estado
         if (saleDto.getStatus() != null) {
             sale.setStatus(saleDto.getStatus());
+        }
+
+        if (saleDto.getTipoComprobante() != null && !saleDto.getTipoComprobante().isBlank()) {
+            sale.setTipoComprobante(saleDto.getTipoComprobante());
+        }
+        if (saleDto.getPaymentMethod() != null) {
+            sale.setPaymentMethod(saleDto.getPaymentMethod());
         }
 
         // Actualizar Items:
@@ -154,6 +225,10 @@ public class SaleServiceImpl implements SaleService {
             }
         }
 
+        if (sale.getStatus() == SaleStatus.PENDING) {
+            ensureSaleMoneyColumnsForPersist(sale);
+        }
+
         // 3. Persistir
         Sale updatedSale = saleRepository.save(sale);
         return saleMapper.toDto(updatedSale);
@@ -169,7 +244,7 @@ public class SaleServiceImpl implements SaleService {
     // Método para finalizar una venta y descontar el stock
     @Override
     @Transactional // Importante para que la actualización del stock sea atómica
-    public SaleDto completeSale(@NonNull Long id) {
+    public SaleDto completeSale(@NonNull Long id, @Nullable String actorUsername) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
 
@@ -184,6 +259,10 @@ public class SaleServiceImpl implements SaleService {
 
         if (sale.getNcf() == null || sale.getNcf().isBlank()) {
             sale.setNcf(sequenceService.getNextSequence(sale.getTipoComprobante()));
+        }
+
+        if (sale.getPaymentMethod() == null) {
+            sale.setPaymentMethod(PaymentMethod.CASH);
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -267,6 +346,12 @@ public class SaleServiceImpl implements SaleService {
         sale.setStatus(SaleStatus.COMPLETED);
         Sale updatedSale = saleRepository.save(sale);
 
+        Map<String, String> details = new HashMap<>();
+        details.put("ncf", Optional.ofNullable(updatedSale.getNcf()).orElse(""));
+        details.put("montoTotal", updatedSale.getMontoTotal() != null ? updatedSale.getMontoTotal().toPlainString() : "");
+        details.put("paymentMethod", updatedSale.getPaymentMethod() != null ? updatedSale.getPaymentMethod().name() : "");
+        auditService.record(actorUsername, "SALE_COMPLETED", "Sale", updatedSale.getId(), details);
+
         return saleMapper.toDto(updatedSale);
     }
 
@@ -298,6 +383,27 @@ public class SaleServiceImpl implements SaleService {
             return hex.toString();
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 no disponible", ex);
+        }
+    }
+
+    /**
+     * El POS crea borradores sin montos; MapStruct pone {@code null} y la columna en BD es NOT NULL.
+     */
+    private static void ensureSaleMoneyColumnsForPersist(Sale sale) {
+        if (sale.getMontoGravadoTotal() == null) {
+            sale.setMontoGravadoTotal(BigDecimal.ZERO);
+        }
+        if (sale.getMontoExento() == null) {
+            sale.setMontoExento(BigDecimal.ZERO);
+        }
+        if (sale.getTotalItbis() == null) {
+            sale.setTotalItbis(BigDecimal.ZERO);
+        }
+        if (sale.getMontoTotal() == null) {
+            sale.setMontoTotal(BigDecimal.ZERO);
+        }
+        if (sale.getTipoIngresos() == null) {
+            sale.setTipoIngresos(TipoIngresos.OPERACIONES);
         }
     }
 }

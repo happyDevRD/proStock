@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -99,8 +100,9 @@ public class SaleController {
     }
 
     @PutMapping("/{id}/complete") // Endpoint para completar una venta (y descontar stock)
-    public ResponseEntity<SaleDto> completeSale(@PathVariable @NonNull Long id) {
-        SaleDto completedSale = saleService.completeSale(id);
+    public ResponseEntity<SaleDto> completeSale(@PathVariable @NonNull Long id, Principal principal) {
+        String actor = principal != null ? principal.getName() : null;
+        SaleDto completedSale = saleService.completeSale(id, actor);
         return new ResponseEntity<>(completedSale, HttpStatus.OK);
     }
 }

@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.dto;
 
+import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.entity.TipoIngresos;
 import jakarta.validation.constraints.NotEmpty;
@@ -42,4 +43,5 @@ public class SaleDto {
     private String codigoSeguridad;
     private String qrPayloadUrl;
     private String qrCodeBase64;
+    private PaymentMethod paymentMethod;
 }

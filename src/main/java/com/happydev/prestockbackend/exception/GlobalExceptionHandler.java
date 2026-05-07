@@ -31,14 +31,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     // 404 Not Found
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorDetails> resourceNotFoundException(ResourceNotFoundException ex, WebRequest request) {
+        String message = toSpanishNotFoundMessage(ex);
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
-                "RESOURCE_NOT_FOUND", // Código de error
-                ex.getMessage(),
+                "RESOURCE_NOT_FOUND",
+                message,
                 request.getDescription(false)
         );
-        logger.warn("ResourceNotFoundException: {}", ex.getMessage()); // Loggea la excepción
+        logger.warn("ResourceNotFoundException: {}", ex.getMessage());
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
+    }
+
+    private static String toSpanishNotFoundMessage(ResourceNotFoundException ex) {
+        String resource = ex.getResourceName() != null ? ex.getResourceName() : "";
+        return switch (resource) {
+            case "User" -> "No se encontró el usuario solicitado.";
+            case "Customer" -> "No se encontró el cliente solicitado.";
+            case "Product" -> "No se encontró el producto solicitado.";
+            case "Sale" -> "No se encontró la venta solicitada.";
+            case "Category" -> "No se encontró la categoría solicitada.";
+            case "Supplier" -> "No se encontró el proveedor solicitado.";
+            default -> "El recurso solicitado no existe.";
+        };
     }
 
     // 400 Bad Request - Validation Errors
@@ -61,9 +75,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
 
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
-                "VALIDATION_FAILED", // Código de error
-                "Validation errors occurred",
-                errors, // Incluye el mapa de errores
+                "VALIDATION_FAILED",
+                "Hay errores de validación en los datos enviados.",
+                errors,
                 request.getDescription(false)
         );
         logger.warn("Validation errors: {}", errors);
@@ -126,7 +140,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
                 "ACCESS_DENIED",
-                ex.getMessage(),
+                "No tienes permiso para realizar esta acción.",
                 request.getDescription(false)
         );
         logger.warn("AccessDeniedException: {}", ex.getMessage());
@@ -146,7 +160,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
                 "VALIDATION_FAILED",
-                "Constraint violations occurred",
+                "Algunos datos no cumplen las reglas de validación.",
                 errors,
                 request.getDescription(false)
         );
@@ -159,9 +173,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     public ResponseEntity<ErrorDetails> globalExceptionHandler(Exception ex, WebRequest request) {
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
-                "INTERNAL_SERVER_ERROR", // Código de error genérico
-                "An unexpected error occurred", // Mensaje genérico para el cliente
-                request.getDescription(false) //  OJO: No incluir ex.getMessage() en producción
+                "INTERNAL_SERVER_ERROR",
+                "Ocurrió un error inesperado. Intenta de nuevo más tarde.",
+                request.getDescription(false)
         );
         logger.error("Exception: ", ex); // Log *COMPLETO* de la excepción
         return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);

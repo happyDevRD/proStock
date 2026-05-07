@@ -27,7 +27,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(NcfSequenceController.class)
 @WithMockUser(username = "admin", roles = {"ADMIN"})
-@SuppressWarnings("null")
 class NcfSequenceControllerTest {
 
     @Autowired

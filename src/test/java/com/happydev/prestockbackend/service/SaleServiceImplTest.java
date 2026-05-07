@@ -4,6 +4,7 @@ import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.entity.CompanyConfig;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.entity.IndicadorFacturacion;
+import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.Product;
 import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleItem;
@@ -36,7 +37,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("null")
 class SaleServiceImplTest {
 
     @Mock
@@ -57,6 +57,8 @@ class SaleServiceImplTest {
     private CompanyConfigRepository companyConfigRepository;
     @Mock
     private InvoiceQrService invoiceQrService;
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private SaleServiceImpl saleService;
@@ -138,7 +140,7 @@ class SaleServiceImplTest {
         });
         when(stockMovementService.createMovement(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SaleDto result = saleService.completeSale(99L);
+        SaleDto result = saleService.completeSale(99L, "cashier");
 
         assertEquals("E310000000101", result.getNcf());
         assertEquals(new BigDecimal("200.00"), result.getMontoGravadoTotal());
@@ -150,5 +152,6 @@ class SaleServiceImplTest {
         assertNotNull(result.getCodigoSeguridad());
         assertFalse(result.getCodigoSeguridad().isBlank());
         assertEquals(TipoIngresos.OPERACIONES, saleCaptor.getValue().getTipoIngresos());
+        assertEquals(PaymentMethod.CASH, saleCaptor.getValue().getPaymentMethod());
     }
 }
