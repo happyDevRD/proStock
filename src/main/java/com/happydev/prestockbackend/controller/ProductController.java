@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.BulkProductPromoRequest;
 import com.happydev.prestockbackend.dto.ProductDto;
 import com.happydev.prestockbackend.dto.StockAdjustmentRequestDto;
 import com.happydev.prestockbackend.entity.StockMovementType;
@@ -106,6 +107,12 @@ public class ProductController {
     public ResponseEntity<Page<ProductDto>> searchProducts(@RequestParam("q") @NonNull String query, @NonNull Pageable pageable) {
         Page<ProductDto> products = productService.searchProducts(query, pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
+    }
+
+    @PostMapping("/bulk-promotional-pricing")
+    public ResponseEntity<Void> bulkPromotionalPricing(@Valid @RequestBody @NonNull BulkProductPromoRequest request) {
+        productService.bulkApplyPromotionalPricing(request);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @PostMapping("/import-csv")

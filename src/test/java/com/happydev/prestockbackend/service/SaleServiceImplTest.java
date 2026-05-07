@@ -34,6 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -153,5 +156,53 @@ class SaleServiceImplTest {
         assertFalse(result.getCodigoSeguridad().isBlank());
         assertEquals(TipoIngresos.OPERACIONES, saleCaptor.getValue().getTipoIngresos());
         assertEquals(PaymentMethod.CASH, saleCaptor.getValue().getPaymentMethod());
+        verify(stockMovementService, times(2)).createMovement(any());
+    }
+
+    @Test
+    void completeSale_DoesNotMoveStockForServicio() {
+        Product serviceProduct = new Product();
+        serviceProduct.setId(30L);
+        serviceProduct.setName("Mano de obra");
+        serviceProduct.setStock(0);
+        serviceProduct.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        serviceProduct.setTipoBienServicio(TipoBienServicio.SERVICIO);
+
+        SaleItem item = new SaleItem();
+        item.setId(8L);
+        item.setProduct(serviceProduct);
+        item.setQuantity(99);
+        item.setUnitPrice(new BigDecimal("50.00"));
+
+        Sale saleServicio = new Sale();
+        saleServicio.setId(101L);
+        saleServicio.setSaleDate(LocalDateTime.of(2026, 4, 27, 11, 0));
+        saleServicio.setStatus(SaleStatus.PENDING);
+        saleServicio.setTipoComprobante("31");
+        saleServicio.setItems(List.of(item));
+        item.setSale(saleServicio);
+        saleServicio.setPaymentMethod(PaymentMethod.CASH);
+
+        CompanyConfig config = new CompanyConfig();
+        config.setRnc("101010101");
+
+        when(saleRepository.findById(101L)).thenReturn(Optional.of(saleServicio));
+        when(productRepository.findById(30L)).thenReturn(Optional.of(serviceProduct));
+        when(sequenceService.getNextSequence("31")).thenReturn("E310000000102");
+        when(companyConfigRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(config));
+        when(invoiceQrService.buildPayloadUrl(any(), any(), any(), any(), any(), any(), any())).thenReturn("https://qr.test/svc");
+        when(invoiceQrService.generateBase64Qr("https://qr.test/svc")).thenReturn("qrSvc");
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleMapper.toDto(any(Sale.class))).thenAnswer(invocation -> {
+            Sale s = invocation.getArgument(0);
+            SaleDto dto = new SaleDto();
+            dto.setId(s.getId());
+            dto.setNcf(s.getNcf());
+            return dto;
+        });
+
+        saleService.completeSale(101L, "cashier");
+
+        verify(stockMovementService, never()).createMovement(any());
     }
 }

@@ -41,6 +41,9 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                     existingConfig.setActividadEconomica(companyConfig.getActividadEconomica());
                     existingConfig.setNumeroTelefono(companyConfig.getNumeroTelefono());
                     existingConfig.setCorreoElectronico(companyConfig.getCorreoElectronico());
+                    existingConfig.setLogoFileName(companyConfig.getLogoFileName());
+                    existingConfig.setInvoiceHeaderNote(companyConfig.getInvoiceHeaderNote());
+                    existingConfig.setInvoiceFooterText(companyConfig.getInvoiceFooterText());
                     return companyConfigRepository.save(existingConfig);
                 })
                 .orElseGet(() -> companyConfigRepository.save(companyConfig));

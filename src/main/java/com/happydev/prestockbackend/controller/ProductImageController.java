@@ -81,6 +81,10 @@ public class ProductImageController {
             // Crear la entidad ProductImage
             ProductImage productImage = new ProductImage();
             productImage.setFileName(filename);
+            String ctype = file.getContentType();
+            if (ctype != null && !ctype.isBlank()) {
+                productImage.setContentType(ctype);
+            }
             productImage.setProduct(product);  // Establecer la relación con el producto
             ProductImage savedImage = productImageRepository.save(productImage);
 

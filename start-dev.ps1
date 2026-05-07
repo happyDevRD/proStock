@@ -5,8 +5,7 @@ param(
   [string]$DbUser = "postgres",
   [string]$DbPassword = "postgres",
   [switch]$PromptPassword,
-  [switch]$SkipFlyway,
-  [switch]$Seed
+  [switch]$SkipFlyway
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,22 +34,6 @@ $env:DB_PASSWORD = $DbPassword
 if ($SkipFlyway) {
   $env:SPRING_FLYWAY_ENABLED = "false"
   Write-Host "Flyway deshabilitado para este arranque." -ForegroundColor Yellow
-}
-
-if ($Seed) {
-  $seedFile = Join-Path $PSScriptRoot "scripts/seed-test-data.sql"
-  $psqlPath = "C:/Program Files/PostgreSQL/18/bin/psql.exe"
-
-  if (-not (Test-Path $seedFile)) {
-    throw "No se encontro el archivo de seed: $seedFile"
-  }
-  if (-not (Test-Path $psqlPath)) {
-    throw "No se encontro psql en: $psqlPath"
-  }
-
-  Write-Host "Aplicando datos de prueba desde: $seedFile" -ForegroundColor Cyan
-  $env:PGPASSWORD = $DbPassword
-  & $psqlPath -h $DbHost -p $DbPort -U $DbUser -d $DbName -f $seedFile
 }
 
 Write-Host ""

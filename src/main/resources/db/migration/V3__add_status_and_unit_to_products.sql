@@ -1,3 +1,2 @@
-ALTER TABLE products
-    ADD COLUMN status VARCHAR(255) NOT NULL DEFAULT 'ACTIVE',
-    ADD COLUMN unit_of_measure VARCHAR(255) NOT NULL DEFAULT 'PCS';
+-- Obsoleto: columnas en V0__baseline_schema.sql
+SELECT 1;

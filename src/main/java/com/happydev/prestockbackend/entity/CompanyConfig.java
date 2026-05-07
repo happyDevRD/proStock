@@ -71,4 +71,14 @@ public class CompanyConfig {
     @Email
     @Size(max = 255)
     private String correoElectronico;
+
+    @Column(name = "logo_file_name", length = 255)
+    @Size(max = 255)
+    private String logoFileName;
+
+    @Column(name = "invoice_header_note", columnDefinition = "TEXT")
+    private String invoiceHeaderNote;
+
+    @Column(name = "invoice_footer_text", columnDefinition = "TEXT")
+    private String invoiceFooterText;
 }

@@ -1,6 +1,10 @@
 package com.happydev.prestockbackend.service;
 
+import com.happydev.prestockbackend.dto.BulkProductPromoRequest;
 import com.happydev.prestockbackend.dto.ProductDto;
+import com.happydev.prestockbackend.dto.ProductWorkbookImportResult;
+import com.happydev.prestockbackend.dto.SetupSheetRowPreview;
+import com.happydev.prestockbackend.dto.WorkbookDataRow;
 import com.happydev.prestockbackend.entity.StockMovementType;
 import org.springframework.lang.NonNull;
 import org.springframework.data.domain.Page;
@@ -10,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface ProductService {
@@ -32,6 +37,10 @@ public interface ProductService {
     Page<ProductDto> searchProducts(@NonNull String query, @NonNull Pageable pageable);
     List<ProductDto> importProductsFromCsv(@NonNull MultipartFile file);
 
+    ProductWorkbookImportResult importProductsFromWorkbookRows(@NonNull List<Map<String, String>> rows);
+
+    List<SetupSheetRowPreview> previewProductsFromWorkbook(@NonNull List<WorkbookDataRow> rows);
+
     void adjustStock(@NonNull Long productId,
                      int quantityChange,
                      @NonNull StockMovementType type,
@@ -41,5 +50,7 @@ public interface ProductService {
                      BigDecimal unitCost,
                      Long sourceLocationId,
                      Long destinationLocationId);
+
+    void bulkApplyPromotionalPricing(@NonNull BulkProductPromoRequest request);
 
 }

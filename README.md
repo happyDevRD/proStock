@@ -70,11 +70,21 @@ Si quieres forzar que te pida clave manualmente:
 .\start-dev.ps1 -PromptPassword
 ```
 
-Si quieres sembrar datos de prueba antes de arrancar:
+### Postgres local sin Docker: borrar base y empezar de cero
+
+Cierra el backend si esta corriendo. Desde `stock-backend-prostock`:
 
 ```powershell
-.\start-dev.ps1 -Seed
+.\scripts\reset-local-postgres.ps1
 ```
+
+Mismos parametros que `start-dev.ps1` si tu instancia no usa los valores por defecto
+(por ejemplo `-DbPort 5433`). Luego vuelve a ejecutar `.\start-dev.ps1` o `bootRun`:
+Flyway recreara tablas y migraciones.
+
+Los catalogos e inventario iniciales se cargan con el asistente de configuracion
+del frontend (hojas Excel / API de admin) o manualmente por la API; ya no hay
+dataset SQL de prueba en el repositorio.
 
 La API levanta en `http://localhost:8080`.
 

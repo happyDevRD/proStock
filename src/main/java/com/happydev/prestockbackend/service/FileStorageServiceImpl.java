@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.FileSystemUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -28,6 +29,15 @@ public class FileStorageServiceImpl implements FileStorageService {
     // Inyecta la ruta desde application.properties (o .yml)
     public FileStorageServiceImpl(@Value("${storage.location}") String location) {
         this.rootLocation = Paths.get(location);
+    }
+
+    @PostConstruct
+    public void ensureStorageReady() {
+        try {
+            init();
+        } catch (IOException e) {
+            throw new IllegalStateException("No se pudo crear el directorio de almacenamiento: " + rootLocation, e);
+        }
     }
 
     @Override
@@ -61,6 +71,57 @@ public class FileStorageServiceImpl implements FileStorageService {
                     StandardCopyOption.REPLACE_EXISTING); // Guarda el archivo (reemplaza si existe)
         }
         return filename; // Devuelve el nombre del archivo generado
+    }
+
+    @Override
+    public String storeCompanyLogo(@NonNull MultipartFile file) throws IOException {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("Archivo vacío.");
+        }
+        String ct = file.getContentType();
+        if (ct == null || !ct.startsWith("image/")) {
+            throw new IllegalArgumentException("Solo se admiten archivos de imagen (image/*).");
+        }
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.isBlank()) {
+            throw new IllegalArgumentException("Nombre de archivo inválido.");
+        }
+        String base = sanitizeLogoBasename(originalFilename);
+        if (base.isEmpty()) {
+            base = "logo.png";
+        }
+        Path destinationFile = this.rootLocation.resolve(base).normalize().toAbsolutePath();
+        if (!destinationFile.getParent().equals(this.rootLocation.toAbsolutePath())) {
+            throw new IllegalStateException("Nombre de archivo no permitido.");
+        }
+        String filename = base;
+        if (Files.exists(destinationFile)) {
+            int dot = base.lastIndexOf('.');
+            String stem = dot > 0 ? base.substring(0, dot) : base;
+            String ext = dot > 0 ? base.substring(dot) : "";
+            filename = stem + "-" + UUID.randomUUID().toString().substring(0, 8) + ext;
+            destinationFile = this.rootLocation.resolve(filename).normalize().toAbsolutePath();
+        }
+        try (InputStream inputStream = file.getInputStream()) {
+            Files.copy(inputStream, destinationFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return filename;
+    }
+
+    private static String sanitizeLogoBasename(String original) {
+        String n = original.replace("\\", "/");
+        int slash = n.lastIndexOf('/');
+        if (slash >= 0) {
+            n = n.substring(slash + 1);
+        }
+        n = n.replaceAll("[^a-zA-Z0-9._-]", "_");
+        if (n.length() > 120) {
+            n = n.substring(n.length() - 120);
+        }
+        if (n.isEmpty() || ".".equals(n) || "..".equals(n)) {
+            return "";
+        }
+        return n;
     }
 
     @Override

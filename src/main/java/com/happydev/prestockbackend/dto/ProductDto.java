@@ -1,4 +1,5 @@
 package com.happydev.prestockbackend.dto;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.happydev.prestockbackend.entity.IndicadorFacturacion;
 import com.happydev.prestockbackend.entity.ProductStatus;
 import com.happydev.prestockbackend.entity.TipoBienServicio;
@@ -42,6 +43,20 @@ public class ProductDto {
     @Positive(message = "El precio de venta debe ser mayor que cero")
     private BigDecimal sellingPrice;
 
+    @Positive(message = "El precio promocional debe ser mayor que cero")
+    private BigDecimal promoPrice;
+
+    @DecimalMin(value = "0.01", message = "El descuento debe ser al menos 0.01%")
+    @DecimalMax(value = "100", message = "El descuento no puede superar el 100%")
+    private BigDecimal promoPercentOff;
+
+    private LocalDate promoStartDate;
+    private LocalDate promoEndDate;
+
+    /** Calculado en el servidor según vigencia; no se envía en altas/ediciones. */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private BigDecimal effectiveSellingPrice;
+
     @NotNull(message = "El stock no puede ser nulo")
     @PositiveOrZero(message = "El stock no puede ser negativo")
     private Integer stock;
@@ -56,7 +71,6 @@ public class ProductDto {
     private Boolean forSale;
 
     @Valid
-    @NotEmpty(message = "Debe haber al menos una imagen del producto")
     private List<ProductImageDto> images;
 
 

@@ -40,6 +40,8 @@ dependencies {
     implementation 'org.mapstruct:mapstruct:1.6.3'
     implementation 'com.google.zxing:core:3.5.3'
     implementation 'com.google.zxing:javase:3.5.3'
+    implementation 'org.apache.poi:poi:5.2.5'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.9.1'
     testImplementation 'org.mockito:mockito-core:5.2.0'
@@ -57,4 +59,12 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+// Desarrollo local (Windows/PowerShell): asegura que bootRun vea las mismas credenciales que Docker (.env POSTGRES_*).
+tasks.named('bootRun') {
+    def dbUser = System.getenv('DB_USERNAME') ?: System.getenv('POSTGRES_USER') ?: 'postgres'
+    def dbPass = System.getenv('DB_PASSWORD') ?: System.getenv('POSTGRES_PASSWORD') ?: 'postgres'
+    environment 'DB_USERNAME', dbUser
+    environment 'DB_PASSWORD', dbPass
 }

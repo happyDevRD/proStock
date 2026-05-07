@@ -5,20 +5,26 @@ import com.happydev.prestockbackend.dto.ProductDto;
 import com.happydev.prestockbackend.dto.ProductImageDto;
 import com.happydev.prestockbackend.entity.Product;
 import com.happydev.prestockbackend.entity.ProductImage;
+import com.happydev.prestockbackend.util.PromoPriceUtils;
+import org.mapstruct.AfterMapping;
+import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ProductMapper {
 
+    @BeanMapping(ignoreUnmappedSourceProperties = {"effectiveSellingPrice"})
     @Mapping(source = "categoryId", target = "category.id")
     @Mapping(source = "supplierId", target = "supplier.id")
     @Mapping(source = "forSale", target = "forSale")
     Product toEntity(ProductDto productDto);
 
+    @Mapping(target = "effectiveSellingPrice", ignore = true)
     @Mapping(target = "categoryId", source = "category.id")
     @Mapping(target = "supplierId", source = "supplier.id")
     @Mapping(target = "forSale", source = "forSale")
@@ -36,8 +42,17 @@ public interface ProductMapper {
     ProductImageDto toImageDto(ProductImage productImage);
     List<ProductImage> toImageEntityList(List<ProductImageDto> productImageDtos);
 
+    @BeanMapping(ignoreUnmappedSourceProperties = {"effectiveSellingPrice"})
     @Mapping(target = "id", ignore = true) //Ignorar ID en la actualización
     @Mapping(target = "category", ignore = true) //Ignorar Category y Supplier
     @Mapping(target = "supplier", ignore = true) //El mapeo se hace por ID
     void updateProductFromDto(ProductDto productDto, @MappingTarget Product product);
+
+    @AfterMapping
+    default void fillEffectiveSellingPrice(Product product, @MappingTarget ProductDto dto) {
+        if (product == null || dto == null) {
+            return;
+        }
+        dto.setEffectiveSellingPrice(PromoPriceUtils.effectiveSellingPrice(product, LocalDate.now()));
+    }
 }

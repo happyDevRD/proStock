@@ -1,1 +1,2 @@
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20);
+-- Obsoleto: payment_method en V0__baseline_schema.sql
+SELECT 1;

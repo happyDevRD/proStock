@@ -1,2 +1,2 @@
-ALTER TABLE product_images
-    ADD COLUMN content_type VARCHAR(255);
+-- Obsoleto: columnas en V0__baseline_schema.sql
+SELECT 1;

@@ -75,6 +75,20 @@ public class Product {
     @Positive
     private BigDecimal sellingPrice;
 
+    /** Precio fijo de promoción (si aplica y está vigente por fechas). */
+    @Column(name = "promo_price", precision = 19, scale = 2)
+    private BigDecimal promoPrice;
+
+    /** Descuento sobre el precio de lista, en porcentaje (1–100). */
+    @Column(name = "promo_percent_off", precision = 5, scale = 2)
+    private BigDecimal promoPercentOff;
+
+    @Column(name = "promo_start_date")
+    private LocalDate promoStartDate;
+
+    @Column(name = "promo_end_date")
+    private LocalDate promoEndDate;
+
     @Column(nullable = false)
     @NotNull
     @PositiveOrZero

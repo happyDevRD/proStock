@@ -11,6 +11,8 @@ import java.util.stream.Stream;
 public interface FileStorageService {
     void init() throws IOException; // Inicializa el directorio de uploads
     String store(@NonNull MultipartFile file) throws IOException; // Guarda un archivo y devuelve su nombre
+    /** Guarda imagen con nombre de archivo legible (sin UUID); evita path traversal. */
+    String storeCompanyLogo(@NonNull MultipartFile file) throws IOException;
     Stream<Path> loadAll();      // Lista todos los archivos (opcional)
     Path load(@NonNull String filename);   // Carga la ruta de un archivo
     Resource loadAsResource(@NonNull String filename) throws IOException; // Carga un archivo como un Resource

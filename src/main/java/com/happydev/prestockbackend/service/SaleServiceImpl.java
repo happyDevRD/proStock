@@ -305,9 +305,9 @@ public class SaleServiceImpl implements SaleService {
             Product product = productRepository.findById(productId)
                     .orElseThrow(()-> new ResourceNotFoundException("Product", "id", productId));
 
-            //Verificar si hay stock
-            if(product.getStock() < item.getQuantity()){
-                throw new IllegalStateException("Not enough stock for product: " + product.getName());
+            boolean esServicio = product.getTipoBienServicio() == TipoBienServicio.SERVICIO;
+            if (!esServicio && product.getStock() < item.getQuantity()) {
+                throw new IllegalStateException("Existencias insuficientes para: " + product.getName());
             }
 
             BigDecimal lineBase = DgiiTaxUtils.roundMoney(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
@@ -329,14 +329,16 @@ public class SaleServiceImpl implements SaleService {
                 totalItbis = totalItbis.add(lineTax);
             }
 
-            StockMovement movement = new StockMovement();
-            movement.setProduct(product);
-            movement.setMovementDate(now);
-            movement.setQuantityChange(-item.getQuantity());
-            movement.setType(StockMovementType.OUT);
-            movement.setReason("Sale completed");
-            movement.setSale(sale);
-            stockMovementService.createMovement(movement);
+            if (!esServicio) {
+                StockMovement movement = new StockMovement();
+                movement.setProduct(product);
+                movement.setMovementDate(now);
+                movement.setQuantityChange(-item.getQuantity());
+                movement.setType(StockMovementType.OUT);
+                movement.setReason("Sale completed");
+                movement.setSale(sale);
+                stockMovementService.createMovement(movement);
+            }
 
         }
         BigDecimal montoGravadoTotal = DgiiTaxUtils.roundMoney(gravado18.add(gravado16).add(gravado0));

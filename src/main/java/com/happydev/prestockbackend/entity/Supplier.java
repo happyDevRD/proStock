@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -33,7 +34,9 @@ public class Supplier {
     @Column
     private String address;
 
-    //Relación con productos
+    // Relación con productos (no serializar en JSON: evita grafo infinito supplier → product → category → products → …)
+    @JsonIgnore
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)
-    private List<Product> products; //Lista de productos
+    private List<Product> products;
 }
+    
