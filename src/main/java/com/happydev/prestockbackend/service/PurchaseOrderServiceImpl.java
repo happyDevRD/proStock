@@ -12,6 +12,7 @@ import com.happydev.prestockbackend.mapper.PurchaseOrderMapper;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SupplierRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -37,16 +39,20 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final StockMovementService stockMovementService;
 
+    private final AuditService auditService;
+
     public PurchaseOrderServiceImpl(PurchaseOrderRepository purchaseOrderRepository,
                                     SupplierRepository supplierRepository,
                                     ProductRepository productRepository,
                                     PurchaseOrderMapper purchaseOrderMapper,
-                                    StockMovementService stockMovementService) {
+                                    StockMovementService stockMovementService,
+                                    AuditService auditService) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.supplierRepository = supplierRepository;
         this.productRepository = productRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.stockMovementService = stockMovementService;
+        this.auditService = auditService;
     }
 
 
@@ -93,6 +99,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
         // Guardar primero la orden de compra
         PurchaseOrder savedPurchaseOrder = purchaseOrderRepository.save(purchaseOrder);
+
+        int itemCount = savedPurchaseOrder.getItems() != null ? savedPurchaseOrder.getItems().size() : 0;
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PURCHASE_ORDER_CREATED",
+                "PurchaseOrder",
+                savedPurchaseOrder.getId(),
+                Map.of("supplierId", supplierId.toString(), "items", Integer.toString(itemCount))
+        );
 
         return purchaseOrderMapper.toDto(savedPurchaseOrder);
     }
@@ -144,6 +159,13 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
 
         PurchaseOrder updatedPurchaseOrder = purchaseOrderRepository.save(purchaseOrder); //Persistimos
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PURCHASE_ORDER_UPDATED",
+                "PurchaseOrder",
+                id,
+                Map.of("status", updatedPurchaseOrder.getStatus().name())
+        );
         return purchaseOrderMapper.toDto(updatedPurchaseOrder);
     }
 
@@ -151,7 +173,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     public void deletePurchaseOrder(@NonNull Long id) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("PurchaseOrder", "id", id));
+        String status = purchaseOrder.getStatus().name();
         purchaseOrderRepository.delete(Objects.requireNonNull(purchaseOrder));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PURCHASE_ORDER_DELETED",
+                "PurchaseOrder",
+                id,
+                Map.of("previousStatus", status)
+        );
     }
 
     // Método para marcar una orden como recibida y actualizar el stock
@@ -182,6 +212,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         purchaseOrder.setStatus(PurchaseOrderStatus.RECEIVED);
         purchaseOrder.setReceptionDate(LocalDateTime.now()); // Usar LocalDateTime
         PurchaseOrder updatedOrder = purchaseOrderRepository.save(purchaseOrder); // Guardar los cambios
+
+        int n = purchaseOrder.getItems() != null ? purchaseOrder.getItems().size() : 0;
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PURCHASE_ORDER_RECEIVED",
+                "PurchaseOrder",
+                updatedOrder.getId(),
+                Map.of("items", Integer.toString(n))
+        );
 
         return purchaseOrderMapper.toDto(updatedOrder);
     }

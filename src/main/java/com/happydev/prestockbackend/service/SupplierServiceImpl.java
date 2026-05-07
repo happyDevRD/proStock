@@ -3,11 +3,13 @@ package com.happydev.prestockbackend.service;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.SupplierRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -17,8 +19,11 @@ public class SupplierServiceImpl implements SupplierService {
 
     private final SupplierRepository supplierRepository;
 
-    public SupplierServiceImpl(SupplierRepository supplierRepository) {
+    private final AuditService auditService;
+
+    public SupplierServiceImpl(SupplierRepository supplierRepository, AuditService auditService) {
         this.supplierRepository = supplierRepository;
+        this.auditService = auditService;
     }
 
     @Override
@@ -33,7 +38,15 @@ public class SupplierServiceImpl implements SupplierService {
 
     @Override
     public Supplier saveSupplier(@NonNull Supplier supplier) {
-        return supplierRepository.save(Objects.requireNonNull(supplier));
+        Supplier saved = supplierRepository.save(Objects.requireNonNull(supplier));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "SUPPLIER_CREATED",
+                "Supplier",
+                saved.getId(),
+                Map.of("name", saved.getName() != null ? saved.getName() : "")
+        );
+        return saved;
     }
 
     @Override
@@ -48,13 +61,29 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setAddress(supplierDetails.getAddress());
         // Actualiza otros campos si es necesario.
 
-        return supplierRepository.save(Objects.requireNonNull(supplier));
+        Supplier saved = supplierRepository.save(Objects.requireNonNull(supplier));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "SUPPLIER_UPDATED",
+                "Supplier",
+                id,
+                Map.of("name", saved.getName() != null ? saved.getName() : "")
+        );
+        return saved;
     }
 
     @Override
     public void deleteSupplier(@NonNull Long id) {
         Supplier supplier = supplierRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("Supplier", "id", id));
+        String name = supplier.getName() != null ? supplier.getName() : "";
         supplierRepository.delete(Objects.requireNonNull(supplier));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "SUPPLIER_DELETED",
+                "Supplier",
+                id,
+                Map.of("name", name)
+        );
     }
 }

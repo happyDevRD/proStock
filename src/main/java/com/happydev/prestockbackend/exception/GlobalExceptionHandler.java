@@ -4,7 +4,9 @@ package com.happydev.prestockbackend.exception;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -19,6 +21,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +30,21 @@ import java.util.Map;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // Extiende ResponseEntityExceptionHandler
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class); // Logger
+
+    private final Environment environment;
+
+    public GlobalExceptionHandler(Environment environment) {
+        this.environment = environment;
+    }
+
+    private boolean exposeInternalErrorDebug() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("local".equalsIgnoreCase(profile) || "dev".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     // 404 Not Found
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -107,6 +125,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
+    /** Uso incorrecto de JPA/Hibernate (p. ej. referencia transiente). */
+    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+    public ResponseEntity<ErrorDetails> handleInvalidDataAccess(InvalidDataAccessApiUsageException ex, WebRequest request) {
+        String message = "No se pudieron guardar los datos. Revisa que las referencias (cliente, producto, etc.) existan y esten bien enlazadas.";
+        logger.warn("InvalidDataAccessApiUsageException: {}", ex.getMessage());
+        Object errors = null;
+        if (exposeInternalErrorDebug()) {
+            Throwable cause = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause() : ex;
+            errors = Map.of("cause", String.valueOf(cause.getMessage()));
+        }
+        ErrorDetails errorDetails = errors != null
+                ? new ErrorDetails(LocalDateTime.now(), "DATA_ACCESS_INVALID", message, errors, request.getDescription(false))
+                : new ErrorDetails(LocalDateTime.now(), "DATA_ACCESS_INVALID", message, request.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+    }
 
     // 400 Bad Request - Illegal Argument
     @ExceptionHandler(IllegalArgumentException.class)
@@ -171,10 +204,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     // 500 Internal Server Error - Catch-all
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDetails> globalExceptionHandler(Exception ex, WebRequest request) {
+        Object errors = null;
+        if (exposeInternalErrorDebug()) {
+            Map<String, String> dbg = new LinkedHashMap<>();
+            dbg.put("exceptionType", ex.getClass().getSimpleName());
+            if (ex.getMessage() != null) {
+                dbg.put("message", ex.getMessage());
+            }
+            if (ex.getCause() != null && ex.getCause().getMessage() != null) {
+                dbg.put("cause", ex.getCause().getMessage());
+            }
+            errors = dbg;
+        }
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
                 "INTERNAL_SERVER_ERROR",
                 "Ocurrió un error inesperado. Intenta de nuevo más tarde.",
+                errors,
                 request.getDescription(false)
         );
         logger.error("Exception: ", ex); // Log *COMPLETO* de la excepción

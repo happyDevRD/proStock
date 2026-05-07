@@ -9,6 +9,7 @@ import com.happydev.prestockbackend.repository.CategoryRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SupplierRepository;
 import com.happydev.prestockbackend.repository.UserRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -42,19 +44,25 @@ public class ProductServiceImpl implements ProductService {
     private final ProductMapper productMapper; //Inyectar el mapper
     private final StockMovementService stockMovementService; //Inyectar el mapper
     private final UserRepository userRepository; //Inyectar el mapper
+    private final AuditService auditService;
 
     private static final Logger logger = LoggerFactory.getLogger(ProductServiceImpl.class); //Logger
 
 
     public ProductServiceImpl(ProductRepository productRepository,
                               CategoryRepository categoryRepository,
-                              SupplierRepository supplierRepository, ProductMapper productMapper, StockMovementService stockMovementService, UserRepository userRepository) {
+                              SupplierRepository supplierRepository,
+                              ProductMapper productMapper,
+                              StockMovementService stockMovementService,
+                              UserRepository userRepository,
+                              AuditService auditService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
         this.productMapper = productMapper;
         this.stockMovementService = stockMovementService;
         this.userRepository = userRepository;
+        this.auditService = auditService;
     }
 
     @Override
@@ -76,6 +84,18 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductDto saveProduct(@NonNull ProductDto productDto) {
+        ProductDto saved = persistNewProduct(productDto);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_CREATED",
+                "Product",
+                saved.getId(),
+                Map.of("sku", saved.getSku(), "name", saved.getName())
+        );
+        return saved;
+    }
+
+    private ProductDto persistNewProduct(@NonNull ProductDto productDto) {
         Long categoryId = Objects.requireNonNull(productDto.getCategoryId(), "Category id is required");
         Long supplierId = Objects.requireNonNull(productDto.getSupplierId(), "Supplier id is required");
 
@@ -156,15 +176,31 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product updatedProduct = productRepository.save(product); // Guarda los cambios
-        return productMapper.toDto(updatedProduct); // Devuelve el DTO actualizado
+        ProductDto dto = productMapper.toDto(updatedProduct);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_UPDATED",
+                "Product",
+                id,
+                Map.of("sku", dto.getSku(), "name", dto.getName())
+        );
+        return dto;
     }
 
     @Override
     public void deleteProduct(@NonNull Long id) {
-        productRepository.findById(id)
+        Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
-        // No es necesario hacer nada especial con las imágenes, gracias a orphanRemoval=true
+        String sku = product.getSku() != null ? product.getSku() : "";
+        String name = product.getName() != null ? product.getName() : "";
         productRepository.deleteById(id);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_DELETED",
+                "Product",
+                id,
+                Map.of("sku", sku, "name", name)
+        );
     }
 
 
@@ -265,11 +301,19 @@ public class ProductServiceImpl implements ProductService {
                 imageDto.setUrl("placeholder-product.png");
                 dto.setImages(Collections.singletonList(imageDto));
 
-                imported.add(saveProduct(dto));
+                imported.add(persistNewProduct(dto));
             }
         } catch (IOException ex) {
             throw new IllegalArgumentException("No se pudo procesar el archivo CSV.", ex);
         }
+
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_CSV_IMPORTED",
+                "ProductImport",
+                null,
+                Map.of("rows", Integer.toString(imported.size()))
+        );
 
         return imported;
     }
@@ -341,6 +385,19 @@ public class ProductServiceImpl implements ProductService {
         }
 
         stockMovementService.createMovement(movement); // Guarda el movimiento, y actualiza stock
+
+        String reasonShort = reason.length() > 220 ? reason.substring(0, 220) + "..." : reason;
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "STOCK_ADJUSTED",
+                "Product",
+                productId,
+                Map.of(
+                        "quantityChange", Integer.toString(quantityChange),
+                        "type", type.name(),
+                        "reason", reasonShort
+                )
+        );
     }
 
     private String normalizeSku(String sku) {

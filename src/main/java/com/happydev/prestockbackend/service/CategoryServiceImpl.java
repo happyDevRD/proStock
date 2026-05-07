@@ -3,11 +3,13 @@ package com.happydev.prestockbackend.service;
 import com.happydev.prestockbackend.entity.Category;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.CategoryRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -16,8 +18,11 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
 
-    public CategoryServiceImpl(CategoryRepository categoryRepository) {
+    private final AuditService auditService;
+
+    public CategoryServiceImpl(CategoryRepository categoryRepository, AuditService auditService) {
         this.categoryRepository = categoryRepository;
+        this.auditService = auditService;
     }
 
     @Override
@@ -32,7 +37,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public Category saveCategory(@NonNull Category category) {
-        return categoryRepository.save(category);
+        Category saved = categoryRepository.save(category);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CATEGORY_CREATED",
+                "Category",
+                saved.getId(),
+                Map.of("name", saved.getName() != null ? saved.getName() : "")
+        );
+        return saved;
     }
 
     @Override
@@ -42,13 +55,29 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setName(categoryDetails.getName());
         // Actualiza otros campos si es necesario.
-        return categoryRepository.save(category);
+        Category saved = categoryRepository.save(category);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CATEGORY_UPDATED",
+                "Category",
+                id,
+                Map.of("name", saved.getName() != null ? saved.getName() : "")
+        );
+        return saved;
     }
 
     @Override
     public void deleteCategory(@NonNull Long id) {
-        categoryRepository.findById(id)
+        Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
+        String name = category.getName() != null ? category.getName() : "";
         categoryRepository.deleteById(id);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CATEGORY_DELETED",
+                "Category",
+                id,
+                Map.of("name", name)
+        );
     }
 }

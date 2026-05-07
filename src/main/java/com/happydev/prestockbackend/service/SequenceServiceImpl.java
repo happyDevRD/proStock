@@ -2,10 +2,12 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.entity.NcfSequence;
 import com.happydev.prestockbackend.repository.NcfSequenceRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -15,8 +17,11 @@ public class SequenceServiceImpl implements SequenceService {
 
     private final NcfSequenceRepository ncfSequenceRepository;
 
-    public SequenceServiceImpl(NcfSequenceRepository ncfSequenceRepository) {
+    private final AuditService auditService;
+
+    public SequenceServiceImpl(NcfSequenceRepository ncfSequenceRepository, AuditService auditService) {
         this.ncfSequenceRepository = ncfSequenceRepository;
+        this.auditService = auditService;
     }
 
     @Override
@@ -31,7 +36,7 @@ public class SequenceServiceImpl implements SequenceService {
         Objects.requireNonNull(ncfSequence, "ncfSequence es obligatorio");
         validateSequence(ncfSequence);
 
-        return ncfSequenceRepository.findByTipoComprobante(ncfSequence.getTipoComprobante())
+        NcfSequence saved = ncfSequenceRepository.findByTipoComprobante(ncfSequence.getTipoComprobante())
                 .map(existingSequence -> {
                     existingSequence.setPrefijo(ncfSequence.getPrefijo());
                     existingSequence.setValorActual(ncfSequence.getValorActual());
@@ -40,6 +45,17 @@ public class SequenceServiceImpl implements SequenceService {
                     return ncfSequenceRepository.save(existingSequence);
                 })
                 .orElseGet(() -> ncfSequenceRepository.save(ncfSequence));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "NCF_SEQUENCE_SAVED",
+                "NcfSequence",
+                saved.getId(),
+                Map.of(
+                        "tipoComprobante", saved.getTipoComprobante() != null ? saved.getTipoComprobante() : "",
+                        "prefijo", saved.getPrefijo() != null ? saved.getPrefijo() : ""
+                )
+        );
+        return saved;
     }
 
     @Override

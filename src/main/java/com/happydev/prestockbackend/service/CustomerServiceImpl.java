@@ -5,6 +5,7 @@ import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.CustomerMapper;
 import com.happydev.prestockbackend.repository.CustomerRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,6 +13,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -23,9 +25,12 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerMapper customerMapper;
 
-    public CustomerServiceImpl(CustomerRepository customerRepository, CustomerMapper customerMapper) {
+    private final AuditService auditService;
+
+    public CustomerServiceImpl(CustomerRepository customerRepository, CustomerMapper customerMapper, AuditService auditService) {
         this.customerRepository = customerRepository;
         this.customerMapper = customerMapper;
+        this.auditService = auditService;
     }
 
     @Override
@@ -52,7 +57,15 @@ public class CustomerServiceImpl implements CustomerService {
         }
         Customer customer = customerMapper.toEntity(customerDto);
         Customer savedCustomer = customerRepository.save(Objects.requireNonNull(customer));
-        return customerMapper.toDto(savedCustomer);
+        CustomerDto dto = customerMapper.toDto(savedCustomer);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CUSTOMER_CREATED",
+                "Customer",
+                dto.getId(),
+                Map.of("email", dto.getEmail(), "name", dto.getFirstName() + " " + dto.getLastName())
+        );
+        return dto;
     }
 
     @Override
@@ -77,13 +90,29 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setTipoIdentificacion(customerDto.getTipoIdentificacion());
 
         Customer updatedCustomer = customerRepository.save(customer);
-        return customerMapper.toDto(updatedCustomer);
+        CustomerDto dto = customerMapper.toDto(updatedCustomer);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CUSTOMER_UPDATED",
+                "Customer",
+                id,
+                Map.of("email", dto.getEmail())
+        );
+        return dto;
     }
 
     @Override
     public void deleteCustomer(@NonNull Long id) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
+        String email = customer.getEmail() != null ? customer.getEmail() : "";
         customerRepository.delete(Objects.requireNonNull(customer));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CUSTOMER_DELETED",
+                "Customer",
+                id,
+                Map.of("email", email)
+        );
     }
 }

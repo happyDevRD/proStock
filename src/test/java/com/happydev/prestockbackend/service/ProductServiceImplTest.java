@@ -11,9 +11,11 @@ import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.ProductMapper;
+import com.happydev.prestockbackend.mapper.ProductMapper;
 import com.happydev.prestockbackend.repository.CategoryRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SupplierRepository;
+import com.happydev.prestockbackend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +47,12 @@ class ProductServiceImplTest {
     private SupplierRepository supplierRepository;
     @Mock
     private ProductMapper productMapper;
+    @Mock
+    private StockMovementService stockMovementService;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private AuditService auditService;
     @InjectMocks
     private ProductServiceImpl productService;
 

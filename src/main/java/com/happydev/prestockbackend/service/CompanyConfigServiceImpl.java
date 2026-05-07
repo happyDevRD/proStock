@@ -2,10 +2,12 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.entity.CompanyConfig;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -14,8 +16,11 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
 
     private final CompanyConfigRepository companyConfigRepository;
 
-    public CompanyConfigServiceImpl(CompanyConfigRepository companyConfigRepository) {
+    private final AuditService auditService;
+
+    public CompanyConfigServiceImpl(CompanyConfigRepository companyConfigRepository, AuditService auditService) {
         this.companyConfigRepository = companyConfigRepository;
+        this.auditService = auditService;
     }
 
     @Override
@@ -25,7 +30,7 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
 
     @Override
     public CompanyConfig saveOrUpdate(@NonNull CompanyConfig companyConfig) {
-        return companyConfigRepository.findFirstByOrderByIdAsc()
+        CompanyConfig saved = companyConfigRepository.findFirstByOrderByIdAsc()
                 .map(existingConfig -> {
                     existingConfig.setRnc(companyConfig.getRnc());
                     existingConfig.setRazonSocial(companyConfig.getRazonSocial());
@@ -39,5 +44,16 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                     return companyConfigRepository.save(existingConfig);
                 })
                 .orElseGet(() -> companyConfigRepository.save(companyConfig));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "COMPANY_CONFIG_SAVED",
+                "CompanyConfig",
+                saved.getId(),
+                Map.of(
+                        "rnc", saved.getRnc() != null ? saved.getRnc() : "",
+                        "razonSocial", saved.getRazonSocial() != null ? saved.getRazonSocial() : ""
+                )
+        );
+        return saved;
     }
 }

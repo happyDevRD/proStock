@@ -2,6 +2,7 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.entity.NcfSequence;
 import com.happydev.prestockbackend.repository.NcfSequenceRepository;
+import com.happydev.prestockbackend.service.AuditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +24,9 @@ class SequenceServiceImplTest {
 
     @Mock
     private NcfSequenceRepository ncfSequenceRepository;
+
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private SequenceServiceImpl sequenceService;
