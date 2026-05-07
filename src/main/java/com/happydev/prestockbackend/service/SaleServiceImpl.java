@@ -10,6 +10,7 @@ import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.util.DgiiTaxUtils;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
@@ -175,6 +176,16 @@ public class SaleServiceImpl implements SaleService {
 
         //Guardar en db
         Sale savedSale = saleRepository.save(sale);
+        Map<String, String> createdDetails = new HashMap<>();
+        createdDetails.put("status", savedSale.getStatus() != null ? savedSale.getStatus().name() : "");
+        createdDetails.put("itemCount", String.valueOf(savedSale.getItems() != null ? savedSale.getItems().size() : 0));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "SALE_CREATED",
+                "Sale",
+                savedSale.getId(),
+                createdDetails
+        );
         return saleMapper.toDto(savedSale);
 
     }
@@ -231,6 +242,13 @@ public class SaleServiceImpl implements SaleService {
 
         // 3. Persistir
         Sale updatedSale = saleRepository.save(sale);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "SALE_UPDATED",
+                "Sale",
+                id,
+                Map.of("status", updatedSale.getStatus() != null ? updatedSale.getStatus().name() : "")
+        );
         return saleMapper.toDto(updatedSale);
     }
 
@@ -238,7 +256,16 @@ public class SaleServiceImpl implements SaleService {
     public void deleteSale(@NonNull Long id) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
+        Long saleId = sale.getId();
+        SaleStatus statusBefore = sale.getStatus();
         saleRepository.delete(Objects.requireNonNull(sale)); // orphanRemoval=true se encarga de los ítems
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "SALE_DELETED",
+                "Sale",
+                saleId,
+                Map.of("status", statusBefore != null ? statusBefore.name() : "")
+        );
     }
 
     // Método para finalizar una venta y descontar el stock

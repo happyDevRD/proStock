@@ -4,11 +4,13 @@ import com.happydev.prestockbackend.entity.ProductImage;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.ProductImageRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
+import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -18,10 +20,16 @@ public class ProductImageServiceImpl implements ProductImageService {
 
     private final ProductImageRepository productImageRepository;
     private final ProductRepository productRepository;
+    private final AuditService auditService;
 
-    public ProductImageServiceImpl(ProductImageRepository productImageRepository, ProductRepository productRepository) {
+    public ProductImageServiceImpl(
+            ProductImageRepository productImageRepository,
+            ProductRepository productRepository,
+            AuditService auditService
+    ) {
         this.productImageRepository = productImageRepository;
         this.productRepository = productRepository;
+        this.auditService = auditService;
     }
 
 
@@ -44,13 +52,22 @@ public class ProductImageServiceImpl implements ProductImageService {
         }
 
         //Verificar si existe el producto.
-        Long productId = productImage.getProduct().getId();
-        if (productId == null || !productRepository.existsById(productId)) {
-            throw new ResourceNotFoundException("Product", "id", productId);
+        Long validatedProductId = productImage.getProduct().getId();
+        if (validatedProductId == null || !productRepository.existsById(validatedProductId)) {
+            throw new ResourceNotFoundException("Product", "id", validatedProductId);
 
         }
 
-        return productImageRepository.save(productImage);
+        ProductImage saved = productImageRepository.save(productImage);
+        Long productId = saved.getProduct() != null ? saved.getProduct().getId() : null;
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_IMAGE_CREATED",
+                "ProductImage",
+                saved.getId(),
+                Map.of("productId", productId != null ? productId.toString() : "")
+        );
+        return saved;
     }
 
 
@@ -61,14 +78,31 @@ public class ProductImageServiceImpl implements ProductImageService {
 
         // Ya no necesitas validaciones, el controlador maneja la actualizacion
 
-        return productImageRepository.save(Objects.requireNonNull(productImage)); // Guarda los cambios
+        ProductImage saved = productImageRepository.save(Objects.requireNonNull(productImage)); // Guarda los cambios
+        Long productId = saved.getProduct() != null ? saved.getProduct().getId() : null;
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_IMAGE_UPDATED",
+                "ProductImage",
+                id,
+                Map.of("productId", productId != null ? productId.toString() : "")
+        );
+        return saved;
     }
 
     @Override
     public void deleteProductImage(@NonNull Long id) {
         ProductImage productImage = productImageRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("ProductImage", "id", id));
+        Long productId = productImage.getProduct() != null ? productImage.getProduct().getId() : null;
         productImageRepository.delete(Objects.requireNonNull(productImage));
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "PRODUCT_IMAGE_DELETED",
+                "ProductImage",
+                id,
+                Map.of("productId", productId != null ? productId.toString() : "")
+        );
     }
 
     @Override
