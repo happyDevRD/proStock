@@ -53,6 +53,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
 
+    implementation 'org.flywaydb:flyway-core:11.3.4'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql:11.3.4'
 
 
