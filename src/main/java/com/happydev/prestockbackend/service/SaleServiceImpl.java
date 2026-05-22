@@ -2,6 +2,8 @@ package com.happydev.prestockbackend.service;
 
 
 import com.happydev.prestockbackend.dto.SaleDto;
+import com.happydev.prestockbackend.dto.SaleSummaryDayDto;
+import com.happydev.prestockbackend.dto.SaleSummaryDto;
 import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.SaleMapper;
@@ -13,8 +15,10 @@ import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
@@ -27,6 +31,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +147,18 @@ public class SaleServiceImpl implements SaleService {
 
     @Override
     public SaleDto createSale(@NonNull SaleDto saleDto) {
+        return createSale(saleDto, null);
+    }
+
+    @Override
+    public SaleDto createSale(@NonNull SaleDto saleDto, @Nullable String idempotencyKey) {
+        String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
+        if (normalizedKey != null) {
+            Optional<Sale> existing = saleRepository.findByIdempotencyKey(normalizedKey);
+            if (existing.isPresent()) {
+                return saleMapper.toDto(existing.get());
+            }
+        }
 
         //Convertir a entidad.
         Sale sale = saleMapper.toEntity(saleDto);
@@ -174,8 +191,23 @@ public class SaleServiceImpl implements SaleService {
 
         ensureSaleMoneyColumnsForPersist(sale);
 
+        if (normalizedKey != null) {
+            sale.setIdempotencyKey(normalizedKey);
+        }
+
         //Guardar en db
-        Sale savedSale = saleRepository.save(sale);
+        Sale savedSale;
+        try {
+            savedSale = saleRepository.save(sale);
+        } catch (DataIntegrityViolationException ex) {
+            if (normalizedKey != null) {
+                Optional<Sale> raced = saleRepository.findByIdempotencyKey(normalizedKey);
+                if (raced.isPresent()) {
+                    return saleMapper.toDto(raced.get());
+                }
+            }
+            throw ex;
+        }
         Map<String, String> createdDetails = new HashMap<>();
         createdDetails.put("status", savedSale.getStatus() != null ? savedSale.getStatus().name() : "");
         createdDetails.put("itemCount", String.valueOf(savedSale.getItems() != null ? savedSale.getItems().size() : 0));
@@ -275,7 +307,10 @@ public class SaleServiceImpl implements SaleService {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
 
-        // Verificar que la venta esté en estado PENDING
+        if (sale.getStatus() == SaleStatus.COMPLETED) {
+            return saleMapper.toDto(sale);
+        }
+
         if (sale.getStatus() != SaleStatus.PENDING) {
             throw new IllegalStateException("Cannot complete a sale that is not in PENDING status.");
         }
@@ -413,6 +448,147 @@ public class SaleServiceImpl implements SaleService {
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 no disponible", ex);
         }
+    }
+
+    @Override
+    public List<SaleDto> findSalesForExport(
+            @Nullable LocalDateTime startDate,
+            @Nullable LocalDateTime endDate,
+            @Nullable SaleStatus status
+    ) {
+        Sort sort = Sort.by(Sort.Direction.DESC, "saleDate");
+        return saleMapper.toDtoList(
+                saleRepository.findAll(buildExportSpec(startDate, endDate, status), sort)
+        );
+    }
+
+    private Specification<Sale> buildExportSpec(
+            @Nullable LocalDateTime startDate,
+            @Nullable LocalDateTime endDate,
+            @Nullable SaleStatus status
+    ) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("saleDate"), startDate));
+            }
+            if (endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("saleDate"), endDate));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    @Override
+    public SaleSummaryDto getSalesSummary(
+            @Nullable LocalDateTime startDate,
+            @Nullable LocalDateTime endDate,
+            @Nullable SaleStatus statusFilter
+    ) {
+        long completedCount = saleRepository.countInRange(SaleStatus.COMPLETED, startDate, endDate);
+        long pendingCount = saleRepository.countInRange(SaleStatus.PENDING, startDate, endDate);
+        long canceledCount = saleRepository.countInRange(SaleStatus.CANCELED, startDate, endDate);
+
+        if (statusFilter == SaleStatus.COMPLETED) {
+            pendingCount = 0;
+            canceledCount = 0;
+        } else if (statusFilter == SaleStatus.PENDING) {
+            completedCount = 0;
+            canceledCount = 0;
+        } else if (statusFilter == SaleStatus.CANCELED) {
+            completedCount = 0;
+            pendingCount = 0;
+        }
+
+        long totalCount = completedCount + pendingCount + canceledCount;
+
+        boolean includeCompletedRevenue = statusFilter == null || statusFilter == SaleStatus.COMPLETED;
+        BigDecimal completedRevenue = includeCompletedRevenue
+                ? saleRepository.sumCompletedRevenue(startDate, endDate)
+                : BigDecimal.ZERO;
+        BigDecimal completedTax = includeCompletedRevenue
+                ? saleRepository.sumCompletedTax(startDate, endDate)
+                : BigDecimal.ZERO;
+
+        BigDecimal averageTicket = completedCount > 0
+                ? completedRevenue.divide(BigDecimal.valueOf(completedCount), 2, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        double completionRate = totalCount > 0
+                ? (completedCount * 100.0) / totalCount
+                : 0.0;
+
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        LocalDateTime todayEnd = LocalDate.now().atTime(LocalTime.MAX);
+        long todayCompletedCount = saleRepository.countCompletedBetween(todayStart, todayEnd);
+        BigDecimal todayRevenue = saleRepository.sumCompletedRevenueBetween(todayStart, todayEnd);
+        BigDecimal todayAverageTicket = todayCompletedCount > 0
+                ? todayRevenue.divide(BigDecimal.valueOf(todayCompletedCount), 2, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        List<SaleSummaryDayDto> topDays = saleRepository
+                .findTopCompletedDaysByRevenue(startDate, endDate)
+                .stream()
+                .map(this::mapSummaryDayRow)
+                .collect(Collectors.toList());
+
+        LocalDateTime trendStart = LocalDate.now().minusDays(7).atStartOfDay();
+        List<SaleSummaryDayDto> revenueTrend = saleRepository
+                .findCompletedDailyTrend(trendStart)
+                .stream()
+                .map(this::mapSummaryDayRow)
+                .collect(Collectors.toList());
+
+        return new SaleSummaryDto(
+                totalCount,
+                completedCount,
+                pendingCount,
+                canceledCount,
+                completedRevenue,
+                completedTax,
+                averageTicket,
+                completionRate,
+                todayCompletedCount,
+                todayRevenue,
+                todayAverageTicket,
+                topDays,
+                revenueTrend
+        );
+    }
+
+    private SaleSummaryDayDto mapSummaryDayRow(Object[] row) {
+        String date = row[0] != null ? row[0].toString() : "";
+        long count = row[1] instanceof Number number ? number.longValue() : 0L;
+        BigDecimal revenue = toBigDecimal(row[2]);
+        BigDecimal tax = row.length > 3 ? toBigDecimal(row[3]) : BigDecimal.ZERO;
+        return new SaleSummaryDayDto(date, count, revenue, tax);
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        return new BigDecimal(value.toString());
+    }
+
+    @Nullable
+    private static String normalizeIdempotencyKey(@Nullable String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+        String trimmed = idempotencyKey.trim();
+        if (trimmed.length() > 64) {
+            return trimmed.substring(0, 64);
+        }
+        return trimmed;
     }
 
     /**

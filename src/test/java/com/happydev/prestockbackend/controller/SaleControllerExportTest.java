@@ -15,6 +15,8 @@ import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 
 class SaleControllerExportTest {
 
@@ -38,7 +40,7 @@ class SaleControllerExportTest {
         sale.setMontoTotal(new BigDecimal("1500.00"));
         sale.setTotalItbis(new BigDecimal("228.81"));
 
-        Mockito.when(saleService.findAllSales()).thenReturn(List.of(sale));
+        Mockito.when(saleService.findSalesForExport(isNull(), isNull(), isNull())).thenReturn(List.of(sale));
 
         ResponseEntity<String> response = saleController.exportSales(null, null, null);
         String body = Objects.requireNonNull(response.getBody(), "CSV response body should not be null");
@@ -50,22 +52,18 @@ class SaleControllerExportTest {
 
     @Test
     void exportSales_shouldFilterByStatus() {
-        SaleDto completed = new SaleDto();
-        completed.setId(1L);
-        completed.setSaleDate(LocalDateTime.of(2026, 4, 27, 8, 0));
-        completed.setStatus(SaleStatus.COMPLETED);
-
         SaleDto pending = new SaleDto();
         pending.setId(2L);
         pending.setSaleDate(LocalDateTime.of(2026, 4, 27, 9, 0));
         pending.setStatus(SaleStatus.PENDING);
 
-        Mockito.when(saleService.findAllSales()).thenReturn(List.of(completed, pending));
+        Mockito.when(saleService.findSalesForExport(isNull(), isNull(), eq(SaleStatus.PENDING)))
+                .thenReturn(List.of(pending));
 
         ResponseEntity<String> response = saleController.exportSales(null, null, SaleStatus.PENDING);
         String body = Objects.requireNonNull(response.getBody(), "CSV response body should not be null");
 
         assertTrue(body.contains("2,2026-04-27T09:00"));
-        assertTrue(!body.contains("1,2026-04-27T08:00"));
+        assertTrue(!body.contains("id,saleDate,status,tipoComprobante,ncf,montoTotal,totalItbis\n1,"));
     }
 }

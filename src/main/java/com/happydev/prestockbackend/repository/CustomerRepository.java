@@ -10,4 +10,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     // Método para buscar por email (útil para validaciones)
     Optional<Customer> findByEmail(String email); //Para validar si existe
     boolean existsByEmail(String email);
+
+    Optional<Customer> findByIdempotencyKey(String idempotencyKey);
 }

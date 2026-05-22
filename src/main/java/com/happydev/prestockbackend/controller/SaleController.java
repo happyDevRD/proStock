@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.SaleDto;
+import com.happydev.prestockbackend.dto.SaleSummaryDto;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.service.SaleService;
 import jakarta.validation.Valid;
@@ -41,17 +42,22 @@ public class SaleController {
         return new ResponseEntity<>(sales, HttpStatus.OK);
     }
 
+    @GetMapping("/summary")
+    public ResponseEntity<SaleSummaryDto> getSalesSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) SaleStatus status
+    ) {
+        return ResponseEntity.ok(saleService.getSalesSummary(startDate, endDate, status));
+    }
+
     @GetMapping("/export")
     public ResponseEntity<String> exportSales(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam(required = false) SaleStatus status
     ) {
-        List<SaleDto> filtered = saleService.findAllSales().stream()
-                .filter(sale -> status == null || sale.getStatus() == status)
-                .filter(sale -> startDate == null || !sale.getSaleDate().isBefore(startDate))
-                .filter(sale -> endDate == null || !sale.getSaleDate().isAfter(endDate))
-                .toList();
+        List<SaleDto> filtered = saleService.findSalesForExport(startDate, endDate, status);
 
         String header = "id,saleDate,status,tipoComprobante,ncf,montoTotal,totalItbis";
         String body = filtered.stream()
@@ -81,8 +87,11 @@ public class SaleController {
     }
 
     @PostMapping
-    public ResponseEntity<SaleDto> createSale(@Valid @RequestBody @NonNull SaleDto saleDto) {
-        SaleDto savedSale = saleService.createSale(saleDto);
+    public ResponseEntity<SaleDto> createSale(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody @NonNull SaleDto saleDto
+    ) {
+        SaleDto savedSale = saleService.createSale(saleDto, idempotencyKey);
         return new ResponseEntity<>(savedSale, HttpStatus.CREATED);
     }
 

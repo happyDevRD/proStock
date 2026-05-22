@@ -37,5 +37,8 @@ public class Customer {
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_identificacion", length = 30)
     private TipoIdentificacion tipoIdentificacion;
+
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
 }
 

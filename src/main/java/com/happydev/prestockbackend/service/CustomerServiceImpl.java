@@ -9,7 +9,9 @@ import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -51,12 +53,39 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerDto createCustomer(@NonNull CustomerDto customerDto) {
+        return createCustomer(customerDto, null);
+    }
+
+    @Override
+    public CustomerDto createCustomer(@NonNull CustomerDto customerDto, @Nullable String idempotencyKey) {
+        String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
+        if (normalizedKey != null) {
+            Optional<Customer> existing = customerRepository.findByIdempotencyKey(normalizedKey);
+            if (existing.isPresent()) {
+                return customerMapper.toDto(existing.get());
+            }
+        }
+
         //Validar que no exista ese email
         if(customerRepository.existsByEmail(customerDto.getEmail())){
             throw new IllegalArgumentException("Email already exists: " + customerDto.getEmail()); // Otra excepción personalizada
         }
         Customer customer = customerMapper.toEntity(customerDto);
-        Customer savedCustomer = customerRepository.save(Objects.requireNonNull(customer));
+        if (normalizedKey != null) {
+            customer.setIdempotencyKey(normalizedKey);
+        }
+        Customer savedCustomer;
+        try {
+            savedCustomer = customerRepository.save(Objects.requireNonNull(customer));
+        } catch (DataIntegrityViolationException ex) {
+            if (normalizedKey != null) {
+                Optional<Customer> raced = customerRepository.findByIdempotencyKey(normalizedKey);
+                if (raced.isPresent()) {
+                    return customerMapper.toDto(raced.get());
+                }
+            }
+            throw ex;
+        }
         CustomerDto dto = customerMapper.toDto(savedCustomer);
         auditService.record(
                 SecurityAuditUtils.currentUsernameOrNull(),
@@ -66,6 +95,18 @@ public class CustomerServiceImpl implements CustomerService {
                 Map.of("email", dto.getEmail(), "name", dto.getFirstName() + " " + dto.getLastName())
         );
         return dto;
+    }
+
+    @Nullable
+    private static String normalizeIdempotencyKey(@Nullable String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+        String trimmed = idempotencyKey.trim();
+        if (trimmed.length() > 64) {
+            return trimmed.substring(0, 64);
+        }
+        return trimmed;
     }
 
     @Override

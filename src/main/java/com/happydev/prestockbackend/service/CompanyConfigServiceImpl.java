@@ -46,7 +46,11 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                     existingConfig.setInvoiceFooterText(companyConfig.getInvoiceFooterText());
                     return companyConfigRepository.save(existingConfig);
                 })
-                .orElseGet(() -> companyConfigRepository.save(companyConfig));
+                .orElseGet(() -> {
+                    // id=0 desde el cliente se interpreta como entidad existente (merge) y rompe el INSERT.
+                    companyConfig.setId(null);
+                    return companyConfigRepository.save(companyConfig);
+                });
         auditService.record(
                 SecurityAuditUtils.currentUsernameOrNull(),
                 "COMPANY_CONFIG_SAVED",

@@ -4,6 +4,8 @@ import com.happydev.prestockbackend.dto.CustomerDto;
 import org.springframework.lang.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.Nullable;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +14,8 @@ public interface CustomerService {
     Page<CustomerDto> findAllCustomers(@NonNull Pageable pageable);
     Optional<CustomerDto> findCustomerById(@NonNull Long id);
     CustomerDto createCustomer(@NonNull CustomerDto customerDto);
+
+    CustomerDto createCustomer(@NonNull CustomerDto customerDto, @Nullable String idempotencyKey);
     CustomerDto updateCustomer(@NonNull Long id, @NonNull CustomerDto customerDto);
     void deleteCustomer(@NonNull Long id);
 }

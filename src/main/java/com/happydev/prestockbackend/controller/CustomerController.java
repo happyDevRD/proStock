@@ -42,8 +42,11 @@ public class CustomerController {
     }
 
     @PostMapping
-    public ResponseEntity<CustomerDto> createCustomer(@Valid @RequestBody @NonNull CustomerDto customerDto) {
-        CustomerDto savedCustomer = customerService.createCustomer(customerDto);
+    public ResponseEntity<CustomerDto> createCustomer(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody @NonNull CustomerDto customerDto
+    ) {
+        CustomerDto savedCustomer = customerService.createCustomer(customerDto, idempotencyKey);
         return new ResponseEntity<>(savedCustomer, HttpStatus.CREATED);
     }
 

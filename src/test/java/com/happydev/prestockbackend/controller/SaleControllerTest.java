@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.dto.SaleItemDto;
 import com.happydev.prestockbackend.entity.SaleStatus;
+import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
 import com.happydev.prestockbackend.service.SaleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,7 +28,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(SaleController.class)
+@WebMvcTest(
+        controllers = SaleController.class,
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = JwtAuthenticationFilter.class
+        )
+)
 @AutoConfigureMockMvc(addFilters = false)
 class SaleControllerTest {
 
@@ -62,7 +71,8 @@ class SaleControllerTest {
 
     @Test
     void createSale_ValidBody_Returns201() throws Exception {
-        given(saleService.createSale(any(SaleDto.class))).willReturn(savedDto);
+        given(saleService.createSale(any(SaleDto.class), org.mockito.ArgumentMatchers.nullable(String.class)))
+                .willReturn(savedDto);
 
         mockMvc.perform(post("/api/sales")
                         .contentType(MediaType.APPLICATION_JSON)

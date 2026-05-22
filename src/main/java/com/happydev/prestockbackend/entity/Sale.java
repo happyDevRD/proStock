@@ -77,4 +77,7 @@ public class Sale {
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method", length = 20)
     private PaymentMethod paymentMethod;
+
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
 }

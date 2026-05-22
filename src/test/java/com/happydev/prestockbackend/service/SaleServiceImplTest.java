@@ -205,4 +205,26 @@ class SaleServiceImplTest {
 
         verify(stockMovementService, never()).createMovement(any());
     }
+
+    @Test
+    void completeSale_whenAlreadyCompleted_returnsExistingWithoutSideEffects() {
+        sale.setStatus(SaleStatus.COMPLETED);
+        sale.setNcf("E310000000099");
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(saleMapper.toDto(sale)).thenAnswer(invocation -> {
+            Sale s = invocation.getArgument(0);
+            SaleDto dto = new SaleDto();
+            dto.setId(s.getId());
+            dto.setStatus(s.getStatus());
+            dto.setNcf(s.getNcf());
+            return dto;
+        });
+
+        SaleDto result = saleService.completeSale(99L, "cashier");
+
+        assertEquals(SaleStatus.COMPLETED, result.getStatus());
+        assertEquals("E310000000099", result.getNcf());
+        verify(stockMovementService, never()).createMovement(any());
+        verify(saleRepository, never()).save(any());
+    }
 }
