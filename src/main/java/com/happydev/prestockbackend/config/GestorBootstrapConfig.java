@@ -37,21 +37,27 @@ public class GestorBootstrapConfig {
                 return;
             }
 
-            if (userRepository.existsByUsername(gestorUsername)) {
-                log.debug("Usuario GESTOR '{}' ya existe. Sin cambios.", gestorUsername);
-                return;
-            }
-
-            User gestor = new User();
-            gestor.setUsername(gestorUsername);
-            gestor.setPassword(passwordEncoder.encode(gestorPassword));
-            gestor.setEmail(gestorEmail);
-            gestor.setFirstName(gestorFirstName);
-            gestor.setLastName(gestorLastName);
-            gestor.setRole(UserRole.GESTOR);
-
-            userRepository.save(gestor);
-            log.info("Usuario GESTOR '{}' creado correctamente.", gestorUsername);
+            userRepository.findByUsername(gestorUsername).ifPresentOrElse(
+                existing -> {
+                    // Sincroniza la contraseña con el valor actual del secreto en cada arranque
+                    existing.setPassword(passwordEncoder.encode(gestorPassword));
+                    existing.setRole(UserRole.GESTOR);
+                    existing.setEmail(gestorEmail);
+                    userRepository.save(existing);
+                    log.info("Contraseña del usuario GESTOR '{}' sincronizada con el secreto.", gestorUsername);
+                },
+                () -> {
+                    User gestor = new User();
+                    gestor.setUsername(gestorUsername);
+                    gestor.setPassword(passwordEncoder.encode(gestorPassword));
+                    gestor.setEmail(gestorEmail);
+                    gestor.setFirstName(gestorFirstName);
+                    gestor.setLastName(gestorLastName);
+                    gestor.setRole(UserRole.GESTOR);
+                    userRepository.save(gestor);
+                    log.info("Usuario GESTOR '{}' creado correctamente.", gestorUsername);
+                }
+            );
         };
     }
 }
