@@ -30,7 +30,7 @@ public class AccAccountController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('GESTOR', 'ADMIN', 'MANAGER')")
     public ResponseEntity<AccountDto> create(@RequestBody AccountDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(accountService.create(dto));
     }

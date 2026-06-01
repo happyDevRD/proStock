@@ -99,7 +99,7 @@ public class UserController {
         try {
             return UserRole.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Rol invalido. Use: ADMIN, MANAGER, CASHIER o USER.");
+            throw new IllegalArgumentException("Rol invalido. Use: GESTOR, ADMIN, MANAGER, CASHIER o USER.");
         }
     }
 }

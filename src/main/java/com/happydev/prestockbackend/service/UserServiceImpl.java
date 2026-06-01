@@ -79,6 +79,16 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("No puedes cambiar tu propio rol. Pide a otro administrador que lo haga.");
         }
 
+        // Solo GESTOR puede modificar usuarios con rol GESTOR
+        if (user.getRole() == UserRole.GESTOR && actor.getRole() != UserRole.GESTOR) {
+            throw new IllegalArgumentException("No se puede modificar un usuario de gestión sin tener el rol de gestor.");
+        }
+
+        // Evitar que un actor no-GESTOR promueva a otro usuario al rol GESTOR
+        if (userDetails.getRole() == UserRole.GESTOR && actor.getRole() != UserRole.GESTOR) {
+            throw new IllegalArgumentException("Solo el proveedor del software puede asignar el rol de gestión.");
+        }
+
         if (user.getRole() == UserRole.ADMIN
                 && userDetails.getRole() != null
                 && userDetails.getRole() != UserRole.ADMIN
@@ -127,6 +137,11 @@ public class UserServiceImpl implements UserService {
 
         if (actor.getId().equals(user.getId())) {
             throw new IllegalArgumentException("No puedes eliminar tu propio usuario.");
+        }
+
+        // Solo GESTOR puede eliminar usuarios con rol GESTOR
+        if (user.getRole() == UserRole.GESTOR && actor.getRole() != UserRole.GESTOR) {
+            throw new IllegalArgumentException("No se puede eliminar un usuario de gestión sin tener el rol de gestor.");
         }
         if (user.getRole() == UserRole.ADMIN && userRepository.countByRole(UserRole.ADMIN) <= 1) {
             throw new IllegalArgumentException("No se puede eliminar el unico administrador del sistema.");
