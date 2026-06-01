@@ -43,7 +43,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthMeResponse login(
+    public LoginResponse login(
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
@@ -52,7 +52,15 @@ public class AuthController {
         );
         String token = jwtService.generateToken(authentication);
         authCookieSupport.writeAccessToken(response, token);
-        return toMeResponse(loadUser(authentication.getName()));
+        AuthMeResponse me = toMeResponse(loadUser(authentication.getName()));
+        return new LoginResponse(
+                me.username(),
+                me.email(),
+                me.firstName(),
+                me.lastName(),
+                me.role(),
+                token
+        );
     }
 
     @PostMapping("/logout")
@@ -89,5 +97,15 @@ public class AuthController {
             String firstName,
             String lastName,
             String role
+    ) {}
+
+    /** Incluye JWT para clientes SPA (p. ej. frontend en otro puerto que la cookie HttpOnly). */
+    public record LoginResponse(
+            String username,
+            String email,
+            String firstName,
+            String lastName,
+            String role,
+            String accessToken
     ) {}
 }

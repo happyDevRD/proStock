@@ -85,7 +85,8 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
-                .andExpect(jsonPath("$.role").value("ADMIN"));
+                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.accessToken").value("signed-jwt"));
 
         verify(authCookieSupport).writeAccessToken(any(), org.mockito.ArgumentMatchers.eq("signed-jwt"));
     }

@@ -29,4 +29,11 @@ public class SaleItem {
 
     @Column(name = "unit_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal unitPrice;
+
+    /** Snapshot al momento de la venta (factura / histórico). */
+    @Column(name = "product_name")
+    private String productName;
+
+    @Column(name = "product_sku", length = 100)
+    private String productSku;
 }

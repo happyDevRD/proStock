@@ -181,11 +181,8 @@ public class SaleServiceImpl implements SaleService {
         if (sale.getItems() != null) {
             for (SaleItem item : sale.getItems()) {
                 item.setSale(sale); // Asigna la venta a cada ítem.
-                //Validaciones
                 Long productId = Objects.requireNonNull(item.getProduct().getId());
-                if(!productRepository.existsById(productId)){
-                    throw new ResourceNotFoundException("Product", "id", productId);
-                }
+                enrichSaleItemFromProduct(item, productId);
             }
         }
 
@@ -261,9 +258,7 @@ public class SaleServiceImpl implements SaleService {
             for (SaleItem item : newItems) {
                 item.setSale(sale);
                 Long productId = Objects.requireNonNull(item.getProduct().getId());
-                if (!productRepository.existsById(productId)) {
-                    throw new ResourceNotFoundException("Product", "id", productId);
-                }
+                enrichSaleItemFromProduct(item, productId);
                 sale.getItems().add(item);
             }
         }
@@ -589,6 +584,14 @@ public class SaleServiceImpl implements SaleService {
             return trimmed.substring(0, 64);
         }
         return trimmed;
+    }
+
+    private void enrichSaleItemFromProduct(SaleItem item, Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+        item.setProduct(product);
+        item.setProductName(product.getName());
+        item.setProductSku(product.getSku());
     }
 
     /**

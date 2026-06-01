@@ -22,4 +22,9 @@ public class SaleItemDto {
     @NotNull(message = "Price cannot be null")
     @Positive(message = "Price must be positive")
     private BigDecimal unitPrice;
+
+    /** Nombre del producto al momento de la venta (solo lectura en respuestas). */
+    private String productName;
+
+    private String productSku;
 }

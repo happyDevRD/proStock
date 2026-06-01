@@ -46,6 +46,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         return false;
     }
 
+    @ExceptionHandler(DgiiConsultaException.class)
+    public ResponseEntity<ErrorDetails> dgiiConsultaException(DgiiConsultaException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getCode(),
+                ex.getMessage(),
+                request.getDescription(false)
+        );
+        logger.warn("DgiiConsultaException [{}]: {}", ex.getCode(), ex.getMessage());
+        return new ResponseEntity<>(errorDetails, ex.getStatus());
+    }
+
     // 404 Not Found
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorDetails> resourceNotFoundException(ResourceNotFoundException ex, WebRequest request) {
