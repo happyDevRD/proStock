@@ -44,6 +44,7 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                     existingConfig.setLogoFileName(companyConfig.getLogoFileName());
                     existingConfig.setInvoiceHeaderNote(companyConfig.getInvoiceHeaderNote());
                     existingConfig.setInvoiceFooterText(companyConfig.getInvoiceFooterText());
+                    existingConfig.setPreciosIncluyenItbis(companyConfig.isPreciosIncluyenItbis());
                     return companyConfigRepository.save(existingConfig);
                 })
                 .orElseGet(() -> {

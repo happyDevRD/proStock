@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.CustomerDto;
+import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.CustomerMapper;
@@ -140,6 +141,24 @@ public class CustomerServiceImpl implements CustomerService {
                 Map.of("email", dto.getEmail())
         );
         return dto;
+    }
+
+    @Override
+    public CustomerDto createQuickCustomer(@NonNull QuickCustomerRequest request) {
+        String[] parts = request.getName().trim().split("\\s+", 2);
+        Customer customer = new Customer();
+        customer.setFirstName(parts[0]);
+        customer.setLastName(parts.length > 1 ? parts[1] : "-");
+        customer.setPhoneNumber(request.getPhoneNumber());
+        Customer saved = customerRepository.save(customer);
+        auditService.record(
+                SecurityAuditUtils.currentUsernameOrNull(),
+                "CUSTOMER_CREATED",
+                "Customer",
+                saved.getId(),
+                Map.of("name", saved.getFirstName() + " " + saved.getLastName(), "quick", "true")
+        );
+        return customerMapper.toDto(saved);
     }
 
     @Override

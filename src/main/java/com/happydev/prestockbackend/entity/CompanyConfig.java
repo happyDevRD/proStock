@@ -81,4 +81,7 @@ public class CompanyConfig {
 
     @Column(name = "invoice_footer_text", columnDefinition = "TEXT")
     private String invoiceFooterText;
+
+    @Column(name = "precios_incluyen_itbis", nullable = false)
+    private boolean preciosIncluyenItbis = false;
 }

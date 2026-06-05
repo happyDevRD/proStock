@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.CustomerDto;
+import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.service.CustomerService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -54,6 +55,12 @@ public class CustomerController {
     public ResponseEntity<CustomerDto> updateCustomer(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull CustomerDto customerDto) {
         CustomerDto updatedCustomer = customerService.updateCustomer(id, customerDto);
         return new ResponseEntity<>(updatedCustomer, HttpStatus.OK);
+    }
+
+    @PostMapping("/quick")
+    public ResponseEntity<CustomerDto> createQuickCustomer(@Valid @RequestBody @NonNull QuickCustomerRequest request) {
+        CustomerDto saved = customerService.createQuickCustomer(request);
+        return new ResponseEntity<>(saved, HttpStatus.CREATED);
     }
 
     @DeleteMapping("/{id}")

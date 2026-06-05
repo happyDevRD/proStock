@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.SaleDto;
+import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.service.SaleService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,9 +32,10 @@ public class InvoiceController {
             @RequestParam(required = false) Long customerId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @RequestParam(required = false) SaleStatus status,
             @NonNull Pageable pageable
     ) {
-        Page<SaleDto> page = saleService.findInvoices(pageable, ncf, customerId, dateFrom, dateTo);
+        Page<SaleDto> page = saleService.findInvoices(pageable, ncf, customerId, dateFrom, dateTo, status);
         return ResponseEntity.ok(page);
     }
 

@@ -1,6 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.AddPaymentRequest;
 import com.happydev.prestockbackend.dto.SaleDto;
+import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDto;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.service.SaleService;
@@ -108,10 +110,26 @@ public class SaleController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    @PutMapping("/{id}/complete") // Endpoint para completar una venta (y descontar stock)
+    @PutMapping("/{id}/complete")
     public ResponseEntity<SaleDto> completeSale(@PathVariable @NonNull Long id, Principal principal) {
         String actor = principal != null ? principal.getName() : null;
         SaleDto completedSale = saleService.completeSale(id, actor);
         return new ResponseEntity<>(completedSale, HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/payments")
+    public ResponseEntity<SalePaymentDto> addPayment(
+            @PathVariable @NonNull Long id,
+            @Valid @RequestBody AddPaymentRequest request,
+            Principal principal) {
+        String actor = principal != null ? principal.getName() : null;
+        SalePaymentDto dto = saleService.addPayment(
+                id, request.getAmount(), request.getPaymentMethod(), request.getNotes(), actor);
+        return new ResponseEntity<>(dto, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{id}/payments")
+    public ResponseEntity<List<SalePaymentDto>> getPayments(@PathVariable @NonNull Long id) {
+        return ResponseEntity.ok(saleService.getPaymentsForSale(id));
     }
 }

@@ -149,4 +149,7 @@ public class Product {
     @Column(name = "tax_rate")
     @PositiveOrZero
     private BigDecimal taxRate;
+
+    @Column(name = "icon", length = 20)
+    private String icon;
 }

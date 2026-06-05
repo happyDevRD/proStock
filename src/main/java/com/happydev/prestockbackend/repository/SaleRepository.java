@@ -105,4 +105,10 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
             ORDER BY day ASC
             """, nativeQuery = true)
     List<Object[]> findCompletedDailyTrend(@Param("trendStart") LocalDateTime trendStart);
+
+    @Query("SELECT COUNT(s) FROM Sale s WHERE s.status = com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID")
+    long countPartiallyPaid();
+
+    @Query("SELECT COALESCE(SUM(s.montoTotal - s.paidAmount), 0) FROM Sale s WHERE s.status = com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID")
+    BigDecimal sumPendingBalance();
 }

@@ -8,6 +8,7 @@ public record SaleSummaryDto(
         long completedCount,
         long pendingCount,
         long canceledCount,
+        long partiallyPaidCount,
         BigDecimal completedRevenue,
         BigDecimal completedTax,
         BigDecimal averageTicket,
@@ -15,6 +16,7 @@ public record SaleSummaryDto(
         long todayCompletedCount,
         BigDecimal todayRevenue,
         BigDecimal todayAverageTicket,
+        BigDecimal totalPendingBalance,
         List<SaleSummaryDayDto> topDaysByRevenue,
         List<SaleSummaryDayDto> revenueTrend
 ) {

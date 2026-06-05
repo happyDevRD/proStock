@@ -1,0 +1,2 @@
+ALTER TABLE company_config
+    ADD COLUMN IF NOT EXISTS precios_incluyen_itbis BOOLEAN NOT NULL DEFAULT FALSE;

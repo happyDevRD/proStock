@@ -101,4 +101,7 @@ public class ProductDto {
 
     @PositiveOrZero(message= "La tasa de impuesto no puede ser negativa")
     private BigDecimal taxRate;
+
+    @Size(max = 20, message = "El icono no puede superar 20 caracteres")
+    private String icon;
 }

@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.CustomerDto;
+import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import org.springframework.lang.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,4 +19,6 @@ public interface CustomerService {
     CustomerDto createCustomer(@NonNull CustomerDto customerDto, @Nullable String idempotencyKey);
     CustomerDto updateCustomer(@NonNull Long id, @NonNull CustomerDto customerDto);
     void deleteCustomer(@NonNull Long id);
+
+    CustomerDto createQuickCustomer(@NonNull QuickCustomerRequest request);
 }

@@ -2,6 +2,7 @@ package com.happydev.prestockbackend.service;
 
 
 import com.happydev.prestockbackend.dto.SaleDto;
+import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDayDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDto;
 import com.happydev.prestockbackend.entity.*;
@@ -10,6 +11,7 @@ import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
+import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
@@ -33,9 +35,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -44,22 +46,15 @@ import java.util.Optional;
 public class SaleServiceImpl implements SaleService {
 
     private final SaleRepository saleRepository;
-
-    private final ProductRepository productRepository; // Para actualizar el stock
-
-    private final CustomerRepository customerRepository; // Para actualizar el stock
-
+    private final ProductRepository productRepository;
+    private final CustomerRepository customerRepository;
     private final SaleMapper saleMapper;
-
     private final StockMovementService stockMovementService;
-
     private final SequenceService sequenceService;
-
     private final CompanyConfigRepository companyConfigRepository;
-
     private final InvoiceQrService invoiceQrService;
-
     private final AuditService auditService;
+    private final SalePaymentRepository salePaymentRepository;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -69,7 +64,8 @@ public class SaleServiceImpl implements SaleService {
                            SequenceService sequenceService,
                            CompanyConfigRepository companyConfigRepository,
                            InvoiceQrService invoiceQrService,
-                           AuditService auditService) {
+                           AuditService auditService,
+                           SalePaymentRepository salePaymentRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -79,6 +75,7 @@ public class SaleServiceImpl implements SaleService {
         this.companyConfigRepository = companyConfigRepository;
         this.invoiceQrService = invoiceQrService;
         this.auditService = auditService;
+        this.salePaymentRepository = salePaymentRepository;
     }
 
     @Override
@@ -98,11 +95,12 @@ public class SaleServiceImpl implements SaleService {
             String ncf,
             Long customerId,
             LocalDate dateFrom,
-            LocalDate dateTo
+            LocalDate dateTo,
+            @Nullable SaleStatus statusFilter
     ) {
         LocalDateTime startDateTime = dateFrom != null ? dateFrom.atStartOfDay() : null;
         LocalDateTime endDateTime = dateTo != null ? dateTo.atTime(LocalTime.of(23, 59, 59, 999_000_000)) : null;
-        Specification<Sale> spec = buildInvoiceSpec(ncf, customerId, startDateTime, endDateTime);
+        Specification<Sale> spec = buildInvoiceSpec(ncf, customerId, startDateTime, endDateTime, statusFilter);
         return saleRepository.findAll(spec, pageable).map(saleMapper::toDto);
     }
 
@@ -117,13 +115,22 @@ public class SaleServiceImpl implements SaleService {
             String ncf,
             Long customerId,
             LocalDateTime startDate,
-            LocalDateTime endDate
+            LocalDateTime endDate,
+            @Nullable SaleStatus statusFilter
     ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("status"), SaleStatus.COMPLETED));
-            predicates.add(cb.isNotNull(root.get("ncf")));
+            if (statusFilter != null) {
+                predicates.add(cb.equal(root.get("status"), statusFilter));
+            } else {
+                // Default: include both COMPLETED and PARTIALLY_PAID
+                predicates.add(cb.or(
+                        cb.equal(root.get("status"), SaleStatus.COMPLETED),
+                        cb.equal(root.get("status"), SaleStatus.PARTIALLY_PAID)
+                ));
+            }
             if (ncf != null && !ncf.isBlank()) {
+                predicates.add(cb.isNotNull(root.get("ncf")));
                 String pattern = "%" + ncf.trim().toUpperCase() + "%";
                 predicates.add(cb.like(cb.upper(root.get("ncf")), pattern));
             }
@@ -160,39 +167,34 @@ public class SaleServiceImpl implements SaleService {
             }
         }
 
-        //Convertir a entidad.
         Sale sale = saleMapper.toEntity(saleDto);
-
-        //Poner la fecha actual.
         sale.setSaleDate(LocalDateTime.now());
-        //Establecer estado inicial
         sale.setStatus(SaleStatus.PENDING);
         sale.setTipoIngresos(TipoIngresos.OPERACIONES);
 
-        //Si se cambia el customer
-        if(saleDto.getCustomerId() != null){
+        if (saleDto.getCustomerId() != null) {
             Long customerId = Objects.requireNonNull(saleDto.getCustomerId());
             Customer customer = customerRepository.findById(customerId)
-                    .orElseThrow(()-> new ResourceNotFoundException("Customer", "id", customerId));
-            sale.setCustomer(customer); //Asignamos el customer.
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", customerId));
+            sale.setCustomer(customer);
         }
 
-        // Establecer la relación bidireccional con los ítems (MUY IMPORTANTE)
         if (sale.getItems() != null) {
             for (SaleItem item : sale.getItems()) {
-                item.setSale(sale); // Asigna la venta a cada ítem.
+                item.setSale(sale);
                 Long productId = Objects.requireNonNull(item.getProduct().getId());
                 enrichSaleItemFromProduct(item, productId);
             }
         }
 
+        // Pre-calculate tax totals so the draft shows the correct amount for payment tracking
+        recalculateTaxTotals(sale);
         ensureSaleMoneyColumnsForPersist(sale);
 
         if (normalizedKey != null) {
             sale.setIdempotencyKey(normalizedKey);
         }
 
-        //Guardar en db
         Sale savedSale;
         try {
             savedSale = saleRepository.save(sale);
@@ -205,6 +207,7 @@ public class SaleServiceImpl implements SaleService {
             }
             throw ex;
         }
+
         Map<String, String> createdDetails = new HashMap<>();
         createdDetails.put("status", savedSale.getStatus() != null ? savedSale.getStatus().name() : "");
         createdDetails.put("itemCount", String.valueOf(savedSale.getItems() != null ? savedSale.getItems().size() : 0));
@@ -216,7 +219,6 @@ public class SaleServiceImpl implements SaleService {
                 createdDetails
         );
         return saleMapper.toDto(savedSale);
-
     }
 
     @Override
@@ -224,9 +226,6 @@ public class SaleServiceImpl implements SaleService {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
 
-        // La fecha no se debería poder cambiar.
-
-        // Si se cambia el customer (OBTENER EL CLIENTE)
         if (saleDto.getCustomerId() != null) {
             Long customerId = Objects.requireNonNull(saleDto.getCustomerId());
             Customer customer = customerRepository.findById(customerId)
@@ -236,7 +235,6 @@ public class SaleServiceImpl implements SaleService {
             sale.setCustomer(null);
         }
 
-        // Si cambia el estado
         if (saleDto.getStatus() != null) {
             sale.setStatus(saleDto.getStatus());
         }
@@ -248,11 +246,9 @@ public class SaleServiceImpl implements SaleService {
             sale.setPaymentMethod(saleDto.getPaymentMethod());
         }
 
-        // Actualizar Items:
-        // 1. Eliminar Items Antiguos:
-        sale.getItems().clear();
+        sale.setDiscountAmount(saleDto.getDiscountAmount() != null ? saleDto.getDiscountAmount() : BigDecimal.ZERO);
 
-        // 2. Agregar y asociar nuevos items
+        sale.getItems().clear();
         if (saleDto.getItems() != null) {
             List<SaleItem> newItems = saleMapper.toItemEntityList(saleDto.getItems());
             for (SaleItem item : newItems) {
@@ -264,10 +260,10 @@ public class SaleServiceImpl implements SaleService {
         }
 
         if (sale.getStatus() == SaleStatus.PENDING) {
+            recalculateTaxTotals(sale);
             ensureSaleMoneyColumnsForPersist(sale);
         }
 
-        // 3. Persistir
         Sale updatedSale = saleRepository.save(sale);
         auditService.record(
                 SecurityAuditUtils.currentUsernameOrNull(),
@@ -285,7 +281,7 @@ public class SaleServiceImpl implements SaleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
         Long saleId = sale.getId();
         SaleStatus statusBefore = sale.getStatus();
-        saleRepository.delete(Objects.requireNonNull(sale)); // orphanRemoval=true se encarga de los ítems
+        saleRepository.delete(Objects.requireNonNull(sale));
         auditService.record(
                 SecurityAuditUtils.currentUsernameOrNull(),
                 "SALE_DELETED",
@@ -295,9 +291,8 @@ public class SaleServiceImpl implements SaleService {
         );
     }
 
-    // Método para finalizar una venta y descontar el stock
     @Override
-    @Transactional // Importante para que la actualización del stock sea atómica
+    @Transactional
     public SaleDto completeSale(@NonNull Long id, @Nullable String actorUsername) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
@@ -306,41 +301,121 @@ public class SaleServiceImpl implements SaleService {
             return saleMapper.toDto(sale);
         }
 
-        if (sale.getStatus() != SaleStatus.PENDING) {
-            throw new IllegalStateException("Cannot complete a sale that is not in PENDING status.");
+        if (sale.getStatus() != SaleStatus.PENDING && sale.getStatus() != SaleStatus.PARTIALLY_PAID) {
+            throw new IllegalStateException("Cannot complete a sale that is not in PENDING or PARTIALLY_PAID status.");
         }
 
         if (sale.getTipoComprobante() == null || sale.getTipoComprobante().isBlank()) {
             throw new IllegalStateException("No se puede completar una venta sin tipoComprobante");
         }
 
-        if (sale.getNcf() == null || sale.getNcf().isBlank()) {
-            sale.setNcf(sequenceService.getNextSequence(sale.getTipoComprobante()));
-        }
-
         if (sale.getPaymentMethod() == null) {
             sale.setPaymentMethod(PaymentMethod.CASH);
         }
 
+        // Recalculate fresh totals (in case items changed since draft creation)
+        recalculateTaxTotals(sale);
+
+        Sale updatedSale = finalizeSaleAsCompleted(sale, actorUsername);
+        return saleMapper.toDto(updatedSale);
+    }
+
+    @Override
+    public SalePaymentDto addPayment(@NonNull Long saleId,
+                                     @NonNull BigDecimal amount,
+                                     @NonNull PaymentMethod paymentMethod,
+                                     @Nullable String notes,
+                                     @Nullable String actorUsername) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+
+        if (sale.getStatus() != SaleStatus.PENDING && sale.getStatus() != SaleStatus.PARTIALLY_PAID) {
+            throw new IllegalStateException("No se puede abonar a una venta que no esté en estado PENDING o PARTIALLY_PAID.");
+        }
+
         LocalDateTime now = LocalDateTime.now();
+        SalePayment payment = new SalePayment();
+        payment.setSale(sale);
+        payment.setPaymentDate(now);
+        payment.setAmount(DgiiTaxUtils.roundMoney(amount));
+        payment.setPaymentMethod(paymentMethod);
+        payment.setNotes(notes);
+        payment.setCreatedBy(actorUsername);
+        payment.setCreatedAt(now);
+        SalePayment savedPayment = salePaymentRepository.save(payment);
+
+        // Recalculate total paid
+        BigDecimal totalPaid = salePaymentRepository.sumAmountBySaleId(saleId);
+        sale.setPaidAmount(DgiiTaxUtils.roundMoney(totalPaid));
+
+        // Set paymentMethod on the sale (last payment method wins for display)
+        sale.setPaymentMethod(paymentMethod);
+
+        if (totalPaid.compareTo(sale.getMontoTotal()) >= 0
+                && sale.getTipoComprobante() != null && !sale.getTipoComprobante().isBlank()) {
+            // Fully paid with comprobante ready: fiscally finalize the sale
+            recalculateTaxTotals(sale);
+            finalizeSaleAsCompleted(sale, actorUsername);
+        } else {
+            sale.setStatus(SaleStatus.PARTIALLY_PAID);
+            saleRepository.save(sale);
+        }
+
+        auditService.record(actorUsername, "SALE_PAYMENT_ADDED", "Sale", saleId,
+                Map.of("amount", amount.toPlainString(), "method", paymentMethod.name()));
+
+        SalePaymentDto dto = new SalePaymentDto();
+        dto.setId(savedPayment.getId());
+        dto.setSaleId(saleId);
+        dto.setPaymentDate(savedPayment.getPaymentDate());
+        dto.setAmount(savedPayment.getAmount());
+        dto.setPaymentMethod(savedPayment.getPaymentMethod());
+        dto.setNotes(savedPayment.getNotes());
+        dto.setCreatedBy(savedPayment.getCreatedBy());
+        dto.setCreatedAt(savedPayment.getCreatedAt());
+        return dto;
+    }
+
+    @Override
+    public List<SalePaymentDto> getPaymentsForSale(@NonNull Long saleId) {
+        if (!saleRepository.existsById(saleId)) {
+            throw new ResourceNotFoundException("Sale", "id", saleId);
+        }
+        return salePaymentRepository.findBySaleIdOrderByPaymentDateAsc(saleId)
+                .stream()
+                .map(p -> {
+                    SalePaymentDto dto = new SalePaymentDto();
+                    dto.setId(p.getId());
+                    dto.setSaleId(saleId);
+                    dto.setPaymentDate(p.getPaymentDate());
+                    dto.setAmount(p.getAmount());
+                    dto.setPaymentMethod(p.getPaymentMethod());
+                    dto.setNotes(p.getNotes());
+                    dto.setCreatedBy(p.getCreatedBy());
+                    dto.setCreatedAt(p.getCreatedAt());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Calculates ITBIS tax totals for all items in the sale and updates the sale's monetary fields.
+     * Does NOT assign NCF, deduct stock, or generate QR. Safe to call on draft (PENDING) sales.
+     */
+    private void recalculateTaxTotals(Sale sale) {
         BigDecimal gravado18 = BigDecimal.ZERO;
         BigDecimal gravado16 = BigDecimal.ZERO;
         BigDecimal gravado0 = BigDecimal.ZERO;
         BigDecimal montoExento = BigDecimal.ZERO;
         BigDecimal totalItbis = BigDecimal.ZERO;
 
-        // Registrar movimientos de stock y calcular desglose tributario
         for (SaleItem item : sale.getItems()) {
             Long productId = Objects.requireNonNull(item.getProduct().getId());
             Product product = productRepository.findById(productId)
-                    .orElseThrow(()-> new ResourceNotFoundException("Product", "id", productId));
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
-            boolean esServicio = product.getTipoBienServicio() == TipoBienServicio.SERVICIO;
-            if (!esServicio && product.getStock() < item.getQuantity()) {
-                throw new IllegalStateException("Existencias insuficientes para: " + product.getName());
-            }
-
-            BigDecimal lineBase = DgiiTaxUtils.roundMoney(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+            BigDecimal lineBase = DgiiTaxUtils.roundMoney(
+                    item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
             IndicadorFacturacion indicador = product.getIndicadorFacturacion() == null
                     ? IndicadorFacturacion.EXENTO
                     : product.getIndicadorFacturacion();
@@ -352,14 +427,62 @@ public class SaleServiceImpl implements SaleService {
                     case ITBIS_18 -> gravado18 = gravado18.add(lineBase);
                     case ITBIS_16 -> gravado16 = gravado16.add(lineBase);
                     case ITBIS_0 -> gravado0 = gravado0.add(lineBase);
-                    default -> {
-                    }
+                    default -> { }
                 }
                 BigDecimal lineTax = DgiiTaxUtils.roundMoney(lineBase.multiply(indicador.getRate()));
                 totalItbis = totalItbis.add(lineTax);
             }
+        }
 
+        // Apply global discount proportionally to base amounts (before ITBIS)
+        BigDecimal discount = sale.getDiscountAmount() != null ? sale.getDiscountAmount() : BigDecimal.ZERO;
+        if (discount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal totalBase = gravado18.add(gravado16).add(gravado0).add(montoExento);
+            if (totalBase.compareTo(BigDecimal.ZERO) > 0) {
+                discount = discount.min(totalBase);
+                BigDecimal factor = totalBase.subtract(discount).divide(totalBase, 10, java.math.RoundingMode.HALF_UP);
+                gravado18 = DgiiTaxUtils.roundMoney(gravado18.multiply(factor));
+                gravado16 = DgiiTaxUtils.roundMoney(gravado16.multiply(factor));
+                gravado0 = DgiiTaxUtils.roundMoney(gravado0.multiply(factor));
+                montoExento = DgiiTaxUtils.roundMoney(montoExento.multiply(factor));
+                totalItbis = DgiiTaxUtils.roundMoney(totalItbis.multiply(factor));
+            }
+        }
+
+        BigDecimal montoGravadoTotal = DgiiTaxUtils.roundMoney(gravado18.add(gravado16).add(gravado0));
+        BigDecimal montoExentoRounded = DgiiTaxUtils.roundMoney(montoExento);
+        BigDecimal totalItbisRounded = DgiiTaxUtils.roundMoney(totalItbis);
+        BigDecimal montoTotal = DgiiTaxUtils.roundMoney(montoGravadoTotal.add(montoExentoRounded).add(totalItbisRounded));
+
+        sale.setMontoGravadoTotal(montoGravadoTotal);
+        sale.setMontoExento(montoExentoRounded);
+        sale.setTotalItbis(totalItbisRounded);
+        sale.setMontoTotal(montoTotal);
+    }
+
+    /**
+     * Fiscally finalizes a sale: assigns NCF, deducts stock, generates QR and security code,
+     * sets paidAmount = montoTotal, sets status = COMPLETED. Assumes recalculateTaxTotals()
+     * has already been called. The sale must have tipoComprobante set.
+     */
+    private Sale finalizeSaleAsCompleted(Sale sale, @Nullable String actorUsername) {
+        LocalDateTime now = LocalDateTime.now();
+
+        if (sale.getNcf() == null || sale.getNcf().isBlank()) {
+            sale.setNcf(sequenceService.getNextSequence(sale.getTipoComprobante()));
+        }
+
+        // Deduct stock for goods
+        for (SaleItem item : sale.getItems()) {
+            Long productId = Objects.requireNonNull(item.getProduct().getId());
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+
+            boolean esServicio = product.getTipoBienServicio() == TipoBienServicio.SERVICIO;
             if (!esServicio) {
+                if (product.getStock() < item.getQuantity()) {
+                    throw new IllegalStateException("Existencias insuficientes para: " + product.getName());
+                }
                 StockMovement movement = new StockMovement();
                 movement.setProduct(product);
                 movement.setMovementDate(now);
@@ -369,12 +492,7 @@ public class SaleServiceImpl implements SaleService {
                 movement.setSale(sale);
                 stockMovementService.createMovement(movement);
             }
-
         }
-        BigDecimal montoGravadoTotal = DgiiTaxUtils.roundMoney(gravado18.add(gravado16).add(gravado0));
-        BigDecimal montoExentoRounded = DgiiTaxUtils.roundMoney(montoExento);
-        BigDecimal totalItbisRounded = DgiiTaxUtils.roundMoney(totalItbis);
-        BigDecimal montoTotal = DgiiTaxUtils.roundMoney(montoGravadoTotal.add(montoExentoRounded).add(totalItbisRounded));
 
         String rncEmisor = companyConfigRepository.findFirstByOrderByIdAsc()
                 .map(CompanyConfig::getRnc)
@@ -382,27 +500,21 @@ public class SaleServiceImpl implements SaleService {
         String rncComprador = sale.getCustomer() != null && sale.getCustomer().getRncCedula() != null
                 ? sale.getCustomer().getRncCedula()
                 : "";
+        BigDecimal montoTotal = sale.getMontoTotal();
         String codigoSeguridad = createSecurityCode(rncEmisor, sale.getNcf(), rncComprador, sale.getSaleDate(), montoTotal, now);
         String qrPayloadUrl = invoiceQrService.buildPayloadUrl(
-                rncEmisor,
-                sale.getNcf(),
-                rncComprador,
-                sale.getSaleDate(),
-                montoTotal.toPlainString(),
-                now,
-                codigoSeguridad
+                rncEmisor, sale.getNcf(), rncComprador, sale.getSaleDate(),
+                montoTotal.toPlainString(), now, codigoSeguridad
         );
 
-        sale.setMontoGravadoTotal(montoGravadoTotal);
-        sale.setMontoExento(montoExentoRounded);
-        sale.setTotalItbis(totalItbisRounded);
-        sale.setMontoTotal(montoTotal);
         sale.setTipoIngresos(TipoIngresos.OPERACIONES);
         sale.setFechaFirma(now);
         sale.setCodigoSeguridad(codigoSeguridad);
         sale.setQrPayloadUrl(qrPayloadUrl);
         sale.setQrCodeBase64(invoiceQrService.generateBase64Qr(qrPayloadUrl));
+        sale.setPaidAmount(montoTotal);
         sale.setStatus(SaleStatus.COMPLETED);
+
         Sale updatedSale = saleRepository.save(sale);
 
         Map<String, String> details = new HashMap<>();
@@ -411,7 +523,7 @@ public class SaleServiceImpl implements SaleService {
         details.put("paymentMethod", updatedSale.getPaymentMethod() != null ? updatedSale.getPaymentMethod().name() : "");
         auditService.record(actorUsername, "SALE_COMPLETED", "Sale", updatedSale.getId(), details);
 
-        return saleMapper.toDto(updatedSale);
+        return updatedSale;
     }
 
     private String createSecurityCode(String rncEmisor,
@@ -536,11 +648,15 @@ public class SaleServiceImpl implements SaleService {
                 .map(this::mapSummaryDayRow)
                 .collect(Collectors.toList());
 
+        long partiallyPaidCount = saleRepository.countPartiallyPaid();
+        BigDecimal totalPendingBalance = saleRepository.sumPendingBalance();
+
         return new SaleSummaryDto(
                 totalCount,
                 completedCount,
                 pendingCount,
                 canceledCount,
+                partiallyPaidCount,
                 completedRevenue,
                 completedTax,
                 averageTicket,
@@ -548,6 +664,7 @@ public class SaleServiceImpl implements SaleService {
                 todayCompletedCount,
                 todayRevenue,
                 todayAverageTicket,
+                totalPendingBalance,
                 topDays,
                 revenueTrend
         );
@@ -562,28 +679,17 @@ public class SaleServiceImpl implements SaleService {
     }
 
     private BigDecimal toBigDecimal(Object value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        if (value instanceof BigDecimal decimal) {
-            return decimal;
-        }
-        if (value instanceof Number number) {
-            return BigDecimal.valueOf(number.doubleValue());
-        }
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal decimal) return decimal;
+        if (value instanceof Number number) return BigDecimal.valueOf(number.doubleValue());
         return new BigDecimal(value.toString());
     }
 
     @Nullable
     private static String normalizeIdempotencyKey(@Nullable String idempotencyKey) {
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return null;
-        }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
         String trimmed = idempotencyKey.trim();
-        if (trimmed.length() > 64) {
-            return trimmed.substring(0, 64);
-        }
-        return trimmed;
+        return trimmed.length() > 64 ? trimmed.substring(0, 64) : trimmed;
     }
 
     private void enrichSaleItemFromProduct(SaleItem item, Long productId) {
@@ -594,24 +700,12 @@ public class SaleServiceImpl implements SaleService {
         item.setProductSku(product.getSku());
     }
 
-    /**
-     * El POS crea borradores sin montos; MapStruct pone {@code null} y la columna en BD es NOT NULL.
-     */
     private static void ensureSaleMoneyColumnsForPersist(Sale sale) {
-        if (sale.getMontoGravadoTotal() == null) {
-            sale.setMontoGravadoTotal(BigDecimal.ZERO);
-        }
-        if (sale.getMontoExento() == null) {
-            sale.setMontoExento(BigDecimal.ZERO);
-        }
-        if (sale.getTotalItbis() == null) {
-            sale.setTotalItbis(BigDecimal.ZERO);
-        }
-        if (sale.getMontoTotal() == null) {
-            sale.setMontoTotal(BigDecimal.ZERO);
-        }
-        if (sale.getTipoIngresos() == null) {
-            sale.setTipoIngresos(TipoIngresos.OPERACIONES);
-        }
+        if (sale.getMontoGravadoTotal() == null) sale.setMontoGravadoTotal(BigDecimal.ZERO);
+        if (sale.getMontoExento() == null) sale.setMontoExento(BigDecimal.ZERO);
+        if (sale.getTotalItbis() == null) sale.setTotalItbis(BigDecimal.ZERO);
+        if (sale.getMontoTotal() == null) sale.setMontoTotal(BigDecimal.ZERO);
+        if (sale.getPaidAmount() == null) sale.setPaidAmount(BigDecimal.ZERO);
+        if (sale.getTipoIngresos() == null) sale.setTipoIngresos(TipoIngresos.OPERACIONES);
     }
 }
