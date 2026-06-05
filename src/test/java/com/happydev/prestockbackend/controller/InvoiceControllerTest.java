@@ -58,7 +58,8 @@ class InvoiceControllerTest {
                 isNull(),
                 isNull(),
                 eq(LocalDate.of(2026, 5, 1)),
-                eq(LocalDate.of(2026, 5, 7))
+                eq(LocalDate.of(2026, 5, 7)),
+                isNull()
         )).willReturn(page);
 
         mockMvc.perform(get("/api/invoices")
