@@ -44,6 +44,8 @@ public interface SaleService {
 
     List<SalePaymentDto> getPaymentsForSale(@NonNull Long saleId);
 
+    SaleDto voidPayment(@NonNull Long saleId, @NonNull Long paymentId, @Nullable String actorUsername);
+
     SaleSummaryDto getSalesSummary(
             @Nullable LocalDateTime startDate,
             @Nullable LocalDateTime endDate,

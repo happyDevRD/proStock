@@ -132,4 +132,14 @@ public class SaleController {
     public ResponseEntity<List<SalePaymentDto>> getPayments(@PathVariable @NonNull Long id) {
         return ResponseEntity.ok(saleService.getPaymentsForSale(id));
     }
+
+    @DeleteMapping("/{id}/payments/{paymentId}")
+    public ResponseEntity<SaleDto> voidPayment(
+            @PathVariable @NonNull Long id,
+            @PathVariable @NonNull Long paymentId,
+            Principal principal) {
+        String actor = principal != null ? principal.getName() : null;
+        SaleDto updatedSale = saleService.voidPayment(id, paymentId, actor);
+        return ResponseEntity.ok(updatedSale);
+    }
 }

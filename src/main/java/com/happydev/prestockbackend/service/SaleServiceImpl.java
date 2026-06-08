@@ -333,11 +333,20 @@ public class SaleServiceImpl implements SaleService {
             throw new IllegalStateException("No se puede abonar a una venta que no esté en estado PENDING o PARTIALLY_PAID.");
         }
 
+        BigDecimal roundedAmount = DgiiTaxUtils.roundMoney(amount);
+        BigDecimal alreadyPaid = salePaymentRepository.sumAmountBySaleId(saleId);
+        BigDecimal pendingBalance = sale.getMontoTotal().subtract(alreadyPaid);
+        if (roundedAmount.compareTo(pendingBalance) > 0) {
+            throw new IllegalArgumentException(
+                    "El monto del abono (" + roundedAmount.toPlainString()
+                            + ") excede el saldo pendiente de la venta (" + pendingBalance.toPlainString() + ").");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         SalePayment payment = new SalePayment();
         payment.setSale(sale);
         payment.setPaymentDate(now);
-        payment.setAmount(DgiiTaxUtils.roundMoney(amount));
+        payment.setAmount(roundedAmount);
         payment.setPaymentMethod(paymentMethod);
         payment.setNotes(notes);
         payment.setCreatedBy(actorUsername);
@@ -396,6 +405,39 @@ public class SaleServiceImpl implements SaleService {
                     return dto;
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public SaleDto voidPayment(@NonNull Long saleId, @NonNull Long paymentId, @Nullable String actorUsername) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+
+        if (sale.getStatus() == SaleStatus.COMPLETED || sale.getStatus() == SaleStatus.CANCELED) {
+            throw new IllegalStateException(
+                    "No se puede anular un abono de una venta " +
+                            (sale.getStatus() == SaleStatus.COMPLETED ? "ya completada (con NCF asignado)." : "cancelada."));
+        }
+
+        SalePayment payment = salePaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("SalePayment", "id", paymentId));
+
+        if (payment.getSale() == null || !saleId.equals(payment.getSale().getId())) {
+            throw new IllegalArgumentException("El abono indicado no pertenece a esta venta.");
+        }
+
+        BigDecimal voidedAmount = payment.getAmount();
+        salePaymentRepository.delete(payment);
+
+        BigDecimal totalPaid = salePaymentRepository.sumAmountBySaleId(saleId);
+        sale.setPaidAmount(DgiiTaxUtils.roundMoney(totalPaid));
+        sale.setStatus(totalPaid.compareTo(BigDecimal.ZERO) > 0 ? SaleStatus.PARTIALLY_PAID : SaleStatus.PENDING);
+        Sale updatedSale = saleRepository.save(sale);
+
+        auditService.record(actorUsername, "SALE_PAYMENT_VOIDED", "Sale", saleId,
+                Map.of("paymentId", paymentId.toString(), "amount", voidedAmount.toPlainString()));
+
+        return saleMapper.toDto(updatedSale);
     }
 
     /**

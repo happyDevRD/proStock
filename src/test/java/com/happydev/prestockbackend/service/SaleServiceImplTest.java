@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.SaleDto;
+import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.entity.CompanyConfig;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.entity.IndicadorFacturacion;
@@ -8,14 +9,17 @@ import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.Product;
 import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleItem;
+import com.happydev.prestockbackend.entity.SalePayment;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.entity.TipoIngresos;
+import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleItemRepository;
+import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +37,9 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -62,6 +68,8 @@ class SaleServiceImplTest {
     private InvoiceQrService invoiceQrService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private SalePaymentRepository salePaymentRepository;
 
     @InjectMocks
     private SaleServiceImpl saleService;
@@ -226,5 +234,292 @@ class SaleServiceImplTest {
         assertEquals("E310000000099", result.getNcf());
         verify(stockMovementService, never()).createMovement(any());
         verify(saleRepository, never()).save(any());
+    }
+
+    @Test
+    void addPayment_PartialAmount_SetsPartiallyPaidStatus() {
+        sale.setMontoTotal(new BigDecimal("286.00"));
+        sale.setPaidAmount(BigDecimal.ZERO);
+
+        ArgumentCaptor<SalePayment> paymentCaptor = ArgumentCaptor.forClass(SalePayment.class);
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.save(paymentCaptor.capture())).thenAnswer(invocation -> {
+            SalePayment saved = invocation.getArgument(0);
+            saved.setId(501L);
+            return saved;
+        });
+        when(salePaymentRepository.sumAmountBySaleId(99L)).thenReturn(BigDecimal.ZERO, new BigDecimal("100.00"));
+
+        SalePaymentDto result = saleService.addPayment(99L, new BigDecimal("100.00"), PaymentMethod.CASH, "Abono inicial", "cashier");
+
+        assertEquals(SaleStatus.PARTIALLY_PAID, sale.getStatus());
+        assertEquals(new BigDecimal("100.00"), sale.getPaidAmount());
+        assertEquals(PaymentMethod.CASH, sale.getPaymentMethod());
+        assertEquals("Abono inicial", paymentCaptor.getValue().getNotes());
+        assertEquals(501L, result.getId());
+        assertEquals(new BigDecimal("100.00"), result.getAmount());
+        verify(saleRepository).save(sale);
+        verify(stockMovementService, never()).createMovement(any());
+        verify(auditService).record(eq("cashier"), eq("SALE_PAYMENT_ADDED"), eq("Sale"), eq(99L), any());
+    }
+
+    @Test
+    void addPayment_AmountExceedsPendingBalance_ThrowsIllegalArgumentException() {
+        sale.setMontoTotal(new BigDecimal("286.00"));
+        sale.setPaidAmount(new BigDecimal("200.00"));
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.sumAmountBySaleId(99L)).thenReturn(new BigDecimal("200.00"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> saleService.addPayment(99L, new BigDecimal("100.00"), PaymentMethod.CASH, null, "cashier"));
+
+        assertEquals(SaleStatus.PENDING, sale.getStatus());
+        verify(salePaymentRepository, never()).save(any());
+        verify(saleRepository, never()).save(any());
+        verify(auditService, never()).record(any(), eq("SALE_PAYMENT_ADDED"), any(), any(), any());
+    }
+
+    @Test
+    void addPayment_FullAmountWithComprobante_FinalizesSaleAsCompleted() {
+        sale.setStatus(SaleStatus.PARTIALLY_PAID);
+        sale.setMontoTotal(new BigDecimal("286.00"));
+        sale.setPaidAmount(new BigDecimal("186.00"));
+
+        CompanyConfig config = new CompanyConfig();
+        config.setRnc("101010101");
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.save(any(SalePayment.class))).thenAnswer(invocation -> {
+            SalePayment saved = invocation.getArgument(0);
+            saved.setId(777L);
+            return saved;
+        });
+        when(salePaymentRepository.sumAmountBySaleId(99L)).thenReturn(new BigDecimal("186.00"), new BigDecimal("286.00"));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(taxableProduct));
+        when(productRepository.findById(20L)).thenReturn(Optional.of(exentoProduct));
+        when(sequenceService.getNextSequence("31")).thenReturn("E310000000200");
+        when(companyConfigRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(config));
+        when(invoiceQrService.buildPayloadUrl(any(), any(), any(), any(), any(), any(), any())).thenReturn("https://qr.test/payment");
+        when(invoiceQrService.generateBase64Qr("https://qr.test/payment")).thenReturn("base64qrPayment");
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stockMovementService.createMovement(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SalePaymentDto result = saleService.addPayment(99L, new BigDecimal("100.00"), PaymentMethod.CARD, null, "cashier");
+
+        assertEquals(SaleStatus.COMPLETED, sale.getStatus());
+        assertEquals("E310000000200", sale.getNcf());
+        assertEquals(new BigDecimal("286.00"), sale.getPaidAmount());
+        assertEquals(PaymentMethod.CARD, sale.getPaymentMethod());
+        assertEquals(777L, result.getId());
+        verify(stockMovementService, times(2)).createMovement(any());
+        verify(auditService).record(eq("cashier"), eq("SALE_PAYMENT_ADDED"), eq("Sale"), eq(99L), any());
+        verify(auditService).record(eq("cashier"), eq("SALE_COMPLETED"), eq("Sale"), eq(99L), any());
+    }
+
+    @Test
+    void addPayment_FullAmountWithoutComprobante_StaysPartiallyPaid() {
+        sale.setStatus(SaleStatus.PARTIALLY_PAID);
+        sale.setTipoComprobante(null);
+        sale.setMontoTotal(new BigDecimal("286.00"));
+        sale.setPaidAmount(new BigDecimal("186.00"));
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.save(any(SalePayment.class))).thenAnswer(invocation -> {
+            SalePayment saved = invocation.getArgument(0);
+            saved.setId(778L);
+            return saved;
+        });
+        when(salePaymentRepository.sumAmountBySaleId(99L)).thenReturn(new BigDecimal("186.00"), new BigDecimal("286.00"));
+
+        saleService.addPayment(99L, new BigDecimal("100.00"), PaymentMethod.CASH, null, "cashier");
+
+        assertEquals(SaleStatus.PARTIALLY_PAID, sale.getStatus());
+        assertEquals(new BigDecimal("286.00"), sale.getPaidAmount());
+        verify(saleRepository).save(sale);
+        verify(stockMovementService, never()).createMovement(any());
+        verify(sequenceService, never()).getNextSequence(any());
+    }
+
+    @Test
+    void addPayment_SaleNotFound_ThrowsResourceNotFoundException() {
+        when(saleRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> saleService.addPayment(404L, new BigDecimal("50.00"), PaymentMethod.CASH, null, "cashier"));
+
+        verify(salePaymentRepository, never()).save(any());
+    }
+
+    @Test
+    void addPayment_SaleCanceled_ThrowsIllegalStateException() {
+        sale.setStatus(SaleStatus.CANCELED);
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+
+        assertThrows(IllegalStateException.class,
+                () -> saleService.addPayment(99L, new BigDecimal("50.00"), PaymentMethod.CASH, null, "cashier"));
+
+        verify(salePaymentRepository, never()).save(any());
+    }
+
+    @Test
+    void getPaymentsForSale_ReturnsPaymentsOrderedByDate() {
+        SalePayment first = new SalePayment();
+        first.setId(1L);
+        first.setSale(sale);
+        first.setPaymentDate(LocalDateTime.of(2026, 6, 1, 9, 0));
+        first.setAmount(new BigDecimal("100.00"));
+        first.setPaymentMethod(PaymentMethod.CASH);
+        first.setCreatedBy("cashier");
+        first.setCreatedAt(first.getPaymentDate());
+
+        SalePayment second = new SalePayment();
+        second.setId(2L);
+        second.setSale(sale);
+        second.setPaymentDate(LocalDateTime.of(2026, 6, 3, 14, 0));
+        second.setAmount(new BigDecimal("186.00"));
+        second.setPaymentMethod(PaymentMethod.TRANSFER);
+        second.setNotes("Saldo final");
+        second.setCreatedBy("cashier");
+        second.setCreatedAt(second.getPaymentDate());
+
+        when(saleRepository.existsById(99L)).thenReturn(true);
+        when(salePaymentRepository.findBySaleIdOrderByPaymentDateAsc(99L)).thenReturn(List.of(first, second));
+
+        List<SalePaymentDto> result = saleService.getPaymentsForSale(99L);
+
+        assertEquals(2, result.size());
+        assertEquals(99L, result.get(0).getSaleId());
+        assertEquals(new BigDecimal("100.00"), result.get(0).getAmount());
+        assertEquals(PaymentMethod.TRANSFER, result.get(1).getPaymentMethod());
+        assertEquals("Saldo final", result.get(1).getNotes());
+    }
+
+    @Test
+    void getPaymentsForSale_SaleNotFound_ThrowsResourceNotFoundException() {
+        when(saleRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> saleService.getPaymentsForSale(404L));
+
+        verify(salePaymentRepository, never()).findBySaleIdOrderByPaymentDateAsc(any());
+    }
+
+    @Test
+    void voidPayment_BalanceRemains_KeepsSalePartiallyPaidWithRecalculatedAmount() {
+        sale.setStatus(SaleStatus.PARTIALLY_PAID);
+        sale.setMontoTotal(new BigDecimal("286.00"));
+        sale.setPaidAmount(new BigDecimal("286.00"));
+
+        SalePayment payment = new SalePayment();
+        payment.setId(501L);
+        payment.setSale(sale);
+        payment.setAmount(new BigDecimal("100.00"));
+        payment.setPaymentMethod(PaymentMethod.CASH);
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.findById(501L)).thenReturn(Optional.of(payment));
+        when(salePaymentRepository.sumAmountBySaleId(99L)).thenReturn(new BigDecimal("186.00"));
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleMapper.toDto(sale)).thenAnswer(invocation -> {
+            Sale s = invocation.getArgument(0);
+            SaleDto dto = new SaleDto();
+            dto.setId(s.getId());
+            dto.setStatus(s.getStatus());
+            dto.setPaidAmount(s.getPaidAmount());
+            return dto;
+        });
+
+        SaleDto result = saleService.voidPayment(99L, 501L, "cashier");
+
+        assertEquals(SaleStatus.PARTIALLY_PAID, result.getStatus());
+        assertEquals(new BigDecimal("186.00"), result.getPaidAmount());
+        assertEquals(SaleStatus.PARTIALLY_PAID, sale.getStatus());
+        assertEquals(new BigDecimal("186.00"), sale.getPaidAmount());
+        verify(salePaymentRepository).delete(payment);
+        verify(saleRepository).save(sale);
+        verify(auditService).record(eq("cashier"), eq("SALE_PAYMENT_VOIDED"), eq("Sale"), eq(99L), any());
+    }
+
+    @Test
+    void voidPayment_RemovingOnlyPayment_RevertsSaleToPending() {
+        sale.setStatus(SaleStatus.PARTIALLY_PAID);
+        sale.setMontoTotal(new BigDecimal("286.00"));
+        sale.setPaidAmount(new BigDecimal("100.00"));
+
+        SalePayment payment = new SalePayment();
+        payment.setId(502L);
+        payment.setSale(sale);
+        payment.setAmount(new BigDecimal("100.00"));
+        payment.setPaymentMethod(PaymentMethod.CASH);
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.findById(502L)).thenReturn(Optional.of(payment));
+        when(salePaymentRepository.sumAmountBySaleId(99L)).thenReturn(BigDecimal.ZERO);
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleMapper.toDto(sale)).thenAnswer(invocation -> {
+            Sale s = invocation.getArgument(0);
+            SaleDto dto = new SaleDto();
+            dto.setId(s.getId());
+            dto.setStatus(s.getStatus());
+            dto.setPaidAmount(s.getPaidAmount());
+            return dto;
+        });
+
+        SaleDto result = saleService.voidPayment(99L, 502L, "cashier");
+
+        assertEquals(SaleStatus.PENDING, result.getStatus());
+        assertEquals(new BigDecimal("0.00"), result.getPaidAmount());
+        verify(salePaymentRepository).delete(payment);
+    }
+
+    @Test
+    void voidPayment_SaleCompleted_ThrowsIllegalStateException() {
+        sale.setStatus(SaleStatus.COMPLETED);
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+
+        assertThrows(IllegalStateException.class, () -> saleService.voidPayment(99L, 501L, "cashier"));
+
+        verify(salePaymentRepository, never()).delete(any());
+        verify(saleRepository, never()).save(any());
+    }
+
+    @Test
+    void voidPayment_SaleNotFound_ThrowsResourceNotFoundException() {
+        when(saleRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> saleService.voidPayment(404L, 501L, "cashier"));
+
+        verify(salePaymentRepository, never()).delete(any());
+    }
+
+    @Test
+    void voidPayment_PaymentNotFound_ThrowsResourceNotFoundException() {
+        sale.setStatus(SaleStatus.PARTIALLY_PAID);
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> saleService.voidPayment(99L, 999L, "cashier"));
+
+        verify(salePaymentRepository, never()).delete(any());
+    }
+
+    @Test
+    void voidPayment_PaymentBelongsToDifferentSale_ThrowsIllegalArgumentException() {
+        sale.setStatus(SaleStatus.PARTIALLY_PAID);
+
+        Sale otherSale = new Sale();
+        otherSale.setId(123L);
+
+        SalePayment payment = new SalePayment();
+        payment.setId(501L);
+        payment.setSale(otherSale);
+        payment.setAmount(new BigDecimal("50.00"));
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(salePaymentRepository.findById(501L)).thenReturn(Optional.of(payment));
+
+        assertThrows(IllegalArgumentException.class, () -> saleService.voidPayment(99L, 501L, "cashier"));
+
+        verify(salePaymentRepository, never()).delete(any());
     }
 }
