@@ -743,6 +743,7 @@ public class SaleServiceImpl implements SaleService {
     }
 
     private static void ensureSaleMoneyColumnsForPersist(Sale sale) {
+        if (sale.getDiscountAmount() == null) sale.setDiscountAmount(BigDecimal.ZERO);
         if (sale.getMontoGravadoTotal() == null) sale.setMontoGravadoTotal(BigDecimal.ZERO);
         if (sale.getMontoExento() == null) sale.setMontoExento(BigDecimal.ZERO);
         if (sale.getTotalItbis() == null) sale.setTotalItbis(BigDecimal.ZERO);
