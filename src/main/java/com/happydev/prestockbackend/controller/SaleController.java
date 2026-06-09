@@ -142,4 +142,21 @@ public class SaleController {
         SaleDto updatedSale = saleService.voidPayment(id, paymentId, actor);
         return ResponseEntity.ok(updatedSale);
     }
+
+    @PostMapping("/{saleId}/service-order/{serviceOrderId}")
+    public ResponseEntity<SaleDto> linkToServiceOrder(
+            @PathVariable @NonNull Long saleId,
+            @PathVariable @NonNull Long serviceOrderId) {
+        return ResponseEntity.ok(saleService.linkToServiceOrder(saleId, serviceOrderId));
+    }
+
+    @DeleteMapping("/{saleId}/service-order")
+    public ResponseEntity<SaleDto> unlinkFromServiceOrder(@PathVariable @NonNull Long saleId) {
+        return ResponseEntity.ok(saleService.unlinkFromServiceOrder(saleId));
+    }
+
+    @GetMapping("/by-service-order/{serviceOrderId}")
+    public ResponseEntity<List<SaleDto>> findByServiceOrder(@PathVariable @NonNull Long serviceOrderId) {
+        return ResponseEntity.ok(saleService.findByServiceOrderId(serviceOrderId));
+    }
 }

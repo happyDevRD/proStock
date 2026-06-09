@@ -6,5 +6,6 @@ public enum AppModule {
     INVENTORY,
     SUPPLIERS,
     REPORTS,
-    ACCOUNTING
+    ACCOUNTING,
+    SERVICE_ORDERS
 }

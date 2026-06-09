@@ -57,4 +57,10 @@ public interface SaleService {
             @Nullable LocalDateTime endDate,
             @Nullable SaleStatus status
     );
+
+    SaleDto linkToServiceOrder(@NonNull Long saleId, @NonNull Long serviceOrderId);
+
+    SaleDto unlinkFromServiceOrder(@NonNull Long saleId);
+
+    List<SaleDto> findByServiceOrderId(@NonNull Long serviceOrderId);
 }

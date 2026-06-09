@@ -111,4 +111,6 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
 
     @Query("SELECT COALESCE(SUM(s.montoTotal - s.paidAmount), 0) FROM Sale s WHERE s.status = com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID")
     BigDecimal sumPendingBalance();
+
+    List<Sale> findByServiceOrderIdOrderBySaleDateDesc(Long serviceOrderId);
 }

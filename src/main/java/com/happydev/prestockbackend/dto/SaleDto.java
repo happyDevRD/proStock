@@ -49,4 +49,7 @@ public class SaleDto {
     private BigDecimal paidAmount;
     private LocalDate dueDate;
     private BigDecimal discountAmount;
+
+    private Long serviceOrderId;
+    private String serviceOrderNumber;
 }

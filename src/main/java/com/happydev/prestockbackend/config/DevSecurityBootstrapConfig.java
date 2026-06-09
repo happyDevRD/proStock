@@ -39,7 +39,7 @@ public class DevSecurityBootstrapConfig {
             );
 
             for (DevUserSeed seed : usersToSeed) {
-                if (userRepository.existsByUsername(seed.username())) {
+                if (userRepository.existsByUsername(seed.username()) || userRepository.existsByEmail(seed.email())) {
                     continue;
                 }
                 User user = new User();

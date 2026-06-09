@@ -13,6 +13,7 @@ import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
+import com.happydev.prestockbackend.repository.ServiceOrderRepository;
 import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.persistence.criteria.Predicate;
@@ -55,6 +56,7 @@ public class SaleServiceImpl implements SaleService {
     private final InvoiceQrService invoiceQrService;
     private final AuditService auditService;
     private final SalePaymentRepository salePaymentRepository;
+    private final ServiceOrderRepository serviceOrderRepository;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -65,7 +67,8 @@ public class SaleServiceImpl implements SaleService {
                            CompanyConfigRepository companyConfigRepository,
                            InvoiceQrService invoiceQrService,
                            AuditService auditService,
-                           SalePaymentRepository salePaymentRepository) {
+                           SalePaymentRepository salePaymentRepository,
+                           ServiceOrderRepository serviceOrderRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -76,6 +79,7 @@ public class SaleServiceImpl implements SaleService {
         this.invoiceQrService = invoiceQrService;
         this.auditService = auditService;
         this.salePaymentRepository = salePaymentRepository;
+        this.serviceOrderRepository = serviceOrderRepository;
     }
 
     @Override
@@ -750,5 +754,30 @@ public class SaleServiceImpl implements SaleService {
         if (sale.getMontoTotal() == null) sale.setMontoTotal(BigDecimal.ZERO);
         if (sale.getPaidAmount() == null) sale.setPaidAmount(BigDecimal.ZERO);
         if (sale.getTipoIngresos() == null) sale.setTipoIngresos(TipoIngresos.OPERACIONES);
+    }
+
+    @Override
+    @Transactional
+    public SaleDto linkToServiceOrder(@NonNull Long saleId, @NonNull Long serviceOrderId) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+        ServiceOrder order = serviceOrderRepository.findById(serviceOrderId)
+                .orElseThrow(() -> new ResourceNotFoundException("ServiceOrder", "id", serviceOrderId));
+        sale.setServiceOrder(order);
+        return saleMapper.toDto(saleRepository.save(sale));
+    }
+
+    @Override
+    @Transactional
+    public SaleDto unlinkFromServiceOrder(@NonNull Long saleId) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+        sale.setServiceOrder(null);
+        return saleMapper.toDto(saleRepository.save(sale));
+    }
+
+    @Override
+    public List<SaleDto> findByServiceOrderId(@NonNull Long serviceOrderId) {
+        return saleMapper.toDtoList(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(serviceOrderId));
     }
 }

@@ -13,9 +13,12 @@ import java.util.List;
 public interface SaleMapper {
     /** Cliente se asigna en el servicio (evita entidad transitoria cuando {@code customerId} es null). */
     @Mapping(target = "customer", ignore = true)
+    @Mapping(target = "serviceOrder", ignore = true)
     Sale toEntity(SaleDto saleDto);
 
-    @Mapping(target = "customerId", source = "customer.id") // Mapeo de customer.id a customerId
+    @Mapping(target = "customerId", source = "customer.id")
+    @Mapping(target = "serviceOrderId", source = "serviceOrder.id")
+    @Mapping(target = "serviceOrderNumber", source = "serviceOrder.orderNumber")
     SaleDto toDto(Sale sale);
 
     List<SaleDto> toDtoList(List<Sale> sales);

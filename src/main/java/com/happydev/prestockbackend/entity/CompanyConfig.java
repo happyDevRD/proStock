@@ -84,4 +84,7 @@ public class CompanyConfig {
 
     @Column(name = "precios_incluyen_itbis", nullable = false)
     private boolean preciosIncluyenItbis = false;
+
+    @Column(name = "service_order_type", nullable = false, length = 20)
+    private String serviceOrderType = "PHOTOGRAPHY";
 }

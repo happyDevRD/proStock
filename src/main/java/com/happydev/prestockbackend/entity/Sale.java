@@ -90,4 +90,8 @@ public class Sale {
 
     @Column(name = "discount_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_order_id")
+    private ServiceOrder serviceOrder;
 }

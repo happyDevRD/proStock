@@ -45,6 +45,9 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                     existingConfig.setInvoiceHeaderNote(companyConfig.getInvoiceHeaderNote());
                     existingConfig.setInvoiceFooterText(companyConfig.getInvoiceFooterText());
                     existingConfig.setPreciosIncluyenItbis(companyConfig.isPreciosIncluyenItbis());
+                    if (companyConfig.getServiceOrderType() != null) {
+                        existingConfig.setServiceOrderType(companyConfig.getServiceOrderType());
+                    }
                     return companyConfigRepository.save(existingConfig);
                 })
                 .orElseGet(() -> {
