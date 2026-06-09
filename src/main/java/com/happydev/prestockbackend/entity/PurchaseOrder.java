@@ -7,6 +7,7 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,6 +35,9 @@ public class PurchaseOrder {
     @Enumerated(EnumType.STRING) // Guarda el estado como String
     @Column(nullable = false)
     private PurchaseOrderStatus status; // Nuevo campo para el estado
+
+    @Column(name = "paid_amount", nullable = false)
+    private BigDecimal paidAmount = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "purchaseOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PurchaseOrderItem> items = new ArrayList<>(); // Lista de items

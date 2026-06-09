@@ -50,7 +50,9 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
                 .toList();
 
         List<PurchaseOrder> receivedOrders = purchaseOrderRepository.findAll().stream()
-                .filter(po -> po.getStatus() == PurchaseOrderStatus.RECEIVED)
+                .filter(po -> po.getStatus() == PurchaseOrderStatus.RECEIVED
+                           || po.getStatus() == PurchaseOrderStatus.PARTIALLY_PAID
+                           || po.getStatus() == PurchaseOrderStatus.PAID)
                 .filter(po -> !syncLogRepository.existsByEntityTypeAndEntityId(ENTITY_PURCHASE, po.getId()))
                 .toList();
 
@@ -98,7 +100,9 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
 
         // --- Purchase Orders ---
         List<PurchaseOrder> receivedOrders = purchaseOrderRepository.findAll().stream()
-                .filter(po -> po.getStatus() == PurchaseOrderStatus.RECEIVED)
+                .filter(po -> po.getStatus() == PurchaseOrderStatus.RECEIVED
+                           || po.getStatus() == PurchaseOrderStatus.PARTIALLY_PAID
+                           || po.getStatus() == PurchaseOrderStatus.PAID)
                 .filter(po -> !syncLogRepository.existsByEntityTypeAndEntityId(ENTITY_PURCHASE, po.getId()))
                 .toList();
 

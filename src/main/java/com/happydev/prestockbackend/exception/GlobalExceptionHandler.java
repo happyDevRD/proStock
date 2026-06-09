@@ -80,6 +80,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
             case "Product" -> "No se encontró el producto solicitado.";
             case "Sale" -> "No se encontró la venta solicitada.";
             case "SalePayment" -> "No se encontró el abono solicitado.";
+            case "SupplierPayment" -> "No se encontró el pago a suplidor solicitado.";
             case "Category" -> "No se encontró la categoría solicitada.";
             case "Supplier" -> "No se encontró el proveedor solicitado.";
             default -> "El recurso solicitado no existe.";

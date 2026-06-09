@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,11 +14,13 @@ import java.util.List;
 public class PurchaseOrderDto {
     private Long id;
     @NotNull
-    private Long supplierId; // ID del proveedor, como en ProductDto
+    private Long supplierId;
     @NotNull
     private LocalDate orderDate;
     private LocalDateTime receptionDate;
     @NotNull
     private PurchaseOrderStatus status;
-    private List<PurchaseOrderItemDto> items; // Usaremos un DTO para los ítems
+    private List<PurchaseOrderItemDto> items;
+    private BigDecimal paidAmount;
+    private Double total;
 }

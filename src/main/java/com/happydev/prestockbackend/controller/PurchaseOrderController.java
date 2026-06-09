@@ -1,6 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.AddPaymentRequest;
 import com.happydev.prestockbackend.dto.PurchaseOrderDto;
+import com.happydev.prestockbackend.dto.SupplierPaymentDto;
 import com.happydev.prestockbackend.service.PurchaseOrderService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -10,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -22,47 +25,74 @@ public class PurchaseOrderController {
         this.purchaseOrderService = purchaseOrderService;
     }
 
-    @GetMapping
-    public ResponseEntity<List<PurchaseOrderDto>> getAllPurchaseOrders() {
-        List<PurchaseOrderDto> orders = purchaseOrderService.findAllPurchaseOrders();
-        return new ResponseEntity<>(orders, HttpStatus.OK);
+    @GetMapping("/payable")
+    public ResponseEntity<List<PurchaseOrderDto>> getPayableOrders() {
+        return ResponseEntity.ok(purchaseOrderService.findPayableOrders());
     }
 
-    @GetMapping("/paginated") // Endpoint separado para la paginación
+    @GetMapping
+    public ResponseEntity<List<PurchaseOrderDto>> getAllPurchaseOrders() {
+        return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders());
+    }
+
+    @GetMapping("/paginated")
     public ResponseEntity<Page<PurchaseOrderDto>> getAllPurchaseOrders(@NonNull Pageable pageable) {
-        Page<PurchaseOrderDto> orders = purchaseOrderService.findAllPurchaseOrders(pageable);
-        return new ResponseEntity<>(orders, HttpStatus.OK);
+        return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders(pageable));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<PurchaseOrderDto> getPurchaseOrderById(@PathVariable @NonNull Long id) {
         return purchaseOrderService.findPurchaseOrderById(id)
-                .map(order -> new ResponseEntity<>(order, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<PurchaseOrderDto> createPurchaseOrder(@Valid @RequestBody @NonNull PurchaseOrderDto purchaseOrderDto) {
-        PurchaseOrderDto savedOrder = purchaseOrderService.createPurchaseOrder(purchaseOrderDto);
-        return new ResponseEntity<>(savedOrder, HttpStatus.CREATED);
+    public ResponseEntity<PurchaseOrderDto> createPurchaseOrder(@Valid @RequestBody @NonNull PurchaseOrderDto dto) {
+        return new ResponseEntity<>(purchaseOrderService.createPurchaseOrder(dto), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<PurchaseOrderDto> updatePurchaseOrder(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull PurchaseOrderDto purchaseOrderDto) {
-        PurchaseOrderDto updatedOrder = purchaseOrderService.updatePurchaseOrder(id, purchaseOrderDto);
-        return new ResponseEntity<>(updatedOrder, HttpStatus.OK);
+    public ResponseEntity<PurchaseOrderDto> updatePurchaseOrder(@PathVariable @NonNull Long id,
+                                                                 @Valid @RequestBody @NonNull PurchaseOrderDto dto) {
+        return ResponseEntity.ok(purchaseOrderService.updatePurchaseOrder(id, dto));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePurchaseOrder(@PathVariable @NonNull Long id) {
         purchaseOrderService.deletePurchaseOrder(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{id}/receive") // Endpoint para recibir una orden
+    @PutMapping("/{id}/receive")
     public ResponseEntity<PurchaseOrderDto> receivePurchaseOrder(@PathVariable @NonNull Long id) {
-        PurchaseOrderDto receivedOrder = purchaseOrderService.receivePurchaseOrder(id);
-        return new ResponseEntity<>(receivedOrder, HttpStatus.OK);
+        return ResponseEntity.ok(purchaseOrderService.receivePurchaseOrder(id));
+    }
+
+    // -------------------------------------------------------
+    // Payment endpoints
+    // -------------------------------------------------------
+
+    @GetMapping("/{id}/payments")
+    public ResponseEntity<List<SupplierPaymentDto>> getPayments(@PathVariable Long id) {
+        return ResponseEntity.ok(purchaseOrderService.getPaymentsForPurchaseOrder(id));
+    }
+
+    @PostMapping("/{id}/payments")
+    public ResponseEntity<SupplierPaymentDto> addPayment(@PathVariable Long id,
+                                                          @Valid @RequestBody AddPaymentRequest req,
+                                                          Principal principal) {
+        String actor = principal != null ? principal.getName() : null;
+        SupplierPaymentDto dto = purchaseOrderService.addPayment(
+                id, req.getAmount(), req.getPaymentMethod(), req.getNotes(), actor);
+        return new ResponseEntity<>(dto, HttpStatus.CREATED);
+    }
+
+    @DeleteMapping("/{id}/payments/{paymentId}")
+    public ResponseEntity<PurchaseOrderDto> voidPayment(@PathVariable Long id,
+                                                         @PathVariable Long paymentId,
+                                                         Principal principal) {
+        String actor = principal != null ? principal.getName() : null;
+        return ResponseEntity.ok(purchaseOrderService.voidPayment(id, paymentId, actor));
     }
 }
-

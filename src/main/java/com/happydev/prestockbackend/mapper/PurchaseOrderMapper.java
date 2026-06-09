@@ -15,13 +15,14 @@ public interface PurchaseOrderMapper {
 
     @Mappings({
             @Mapping(source = "supplierId", target = "supplier.id"),
-            // No es necesario mapear items aquí, porque lo haremos en el servicio
+            @Mapping(target = "paidAmount", ignore = true),
     })
     PurchaseOrder toEntity(PurchaseOrderDto purchaseOrderDto);
 
     @Mappings({
             @Mapping(target = "supplierId", source = "supplier.id"),
-            // No es necesario mapear items aquí.
+            @Mapping(target = "total", source = "total"),
+            @Mapping(target = "paidAmount", source = "paidAmount"),
     })
     PurchaseOrderDto toDto(PurchaseOrder purchaseOrder);
 
