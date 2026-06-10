@@ -27,11 +27,21 @@ Objetivos concretos:
 - **Fase 1 (fundación de modularización): ✅ COMPLETADA y pusheada**
   - Backend `proStock` commit `705581b`
   - Frontend `proStockFront` commit `40c6818`
-- **Próximo paso:** definir con el usuario cuál de las fases de la sección 4
-  se ataca primero. Sugerencia: **Fase 2 — Centro de Módulos**, porque
-  convierte la infraestructura de feature flags ya existente en la pieza
-  central que necesitarán todos los módulos nuevos (empleados,
-  integraciones, etc.).
+- **Fase 2 (Centro de Módulos): ✅ implementada en frontend, pendiente push**
+  - `ModulesView.tsx` (nuevo) + `lib/modules.ts` (nuevo): pantalla
+    "marketplace" con tarjetas por módulo (toggle + sub-features) agrupadas
+    desde `/api/features`, más sección "Próximamente" (Empleados/RRHH,
+    Integraciones WhatsApp) basada en las fases 5/6.
+  - `SettingsView.tsx`: nueva pestaña "Módulos"; se removió la tarjeta
+    "Funcionalidades" inline de la pestaña General (su lógica se movió a
+    `ModulesView`).
+  - Sin cambios de backend (el DTO `FeatureFlagDto` ya tenía todo lo
+    necesario: code/category/name/description/enabled/dependsOn).
+  - Validado: typecheck + lint + test + build, todos verdes. **No probado
+    visualmente en navegador** (no hay herramienta de browser disponible en
+    esta sesión).
+- **Próximo paso:** decidir con el usuario si seguimos con Fase 3 (Menú y
+  navegación) o Fase 4 (Dashboard).
 - **Issue conocido, no bloqueante:** `AccessDeniedException` devuelve HTTP
   401 en vez de 403 en toda la app (confirmado de nuevo en esta sesión).
   Corregir la próxima vez que se toque `SecurityConfig`/manejo global de
@@ -75,20 +85,24 @@ Objetivos concretos:
 > Cada fase se detalla con más profundidad **justo antes de empezarla**. Las
 > fases que aún no se han iniciado solo tienen un esbozo de alcance.
 
-### Fase 2 — Centro de Módulos
+### Fase 2 — Centro de Módulos ✅ (frontend implementado, pendiente push)
 **Objetivo:** convertir la lista de feature flags de `SettingsView` en una
 pantalla tipo "marketplace" (módulos activos / disponibles / próximamente).
 Esta pantalla será la puerta de entrada para registrar y activar todos los
 módulos nuevos de las fases siguientes.
 
-- [ ] Backend: agrupar `FeatureCatalog` en "módulos" de primer nivel con
-      metadata extra (ícono, descripción larga, estado: disponible / beta /
-      próximamente).
-- [ ] Frontend: nueva vista `ModulesView` (tarjetas por módulo, toggle,
-      badges de dependencias y de "próximamente").
-- [ ] Mover el toggle de features de `SettingsView` a esta nueva vista
+- [x] Backend: se evaluó agrupar `FeatureCatalog` en "módulos" de primer
+      nivel con metadata extra (ícono, estado beta/próximamente), pero el
+      DTO existente (`code`/`category`/`name`/`description`/`enabled`/
+      `dependsOn`/`dependenciesSatisfied`) ya alcanza para agrupar por
+      categoría y detectar la raíz `module.*` en frontend — **no se
+      necesitó migración ni cambios de backend**.
+- [x] Frontend: nueva vista `ModulesView` (tarjetas por módulo, toggle,
+      sub-features con badges de dependencias, sección "Próximamente").
+- [x] Mover el toggle de features de `SettingsView` a esta nueva vista
       (Settings queda para configuración de empresa/NCF/etc.).
-- [ ] Reutilizar permiso `settings.manage_features`.
+- [x] Reutilizar permiso `settings.manage_features` (modo solo lectura si
+      no se tiene el permiso, igual que Roles y Permisos).
 
 ### Fase 3 — Menú y navegación
 - [ ] Revisar agrupación de `NAV_GROUPS` pensando en los módulos nuevos.
@@ -146,5 +160,8 @@ módulos nuevos de las fases siguientes.
 ### 2026-06-10
 - Completada Fase 1: overrides de permisos por usuario (backend + UI),
   pusheado (`proStock@705581b`, `proStockFront@40c6818`).
-- Creado este plan de ejecución.
-- Pendiente: el usuario decide qué fase atacar primero (sugerido: Fase 2).
+- Creado este plan de ejecución (`proStock@3c0c37f`).
+- Usuario eligió Fase 2 (Centro de Módulos) como siguiente paso.
+- Implementada Fase 2 en frontend: `ModulesView.tsx`, `lib/modules.ts`,
+  pestaña "Módulos" en `SettingsView`. Typecheck/lint/test/build verdes.
+  Pendiente: commit + push, y validación visual en navegador.
