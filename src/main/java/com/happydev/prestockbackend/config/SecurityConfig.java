@@ -79,6 +79,8 @@ public class SecurityConfig {
                             .hasAnyAuthority("ROLE_GESTOR", "settings.manage_features")
                         .requestMatchers(HttpMethod.PUT, "/api/permissions/role-matrix")
                             .hasAnyAuthority("ROLE_GESTOR", "settings.manage_permissions")
+                        .requestMatchers("/api/permissions/users/**")
+                            .hasAnyAuthority("ROLE_GESTOR", "settings.manage_permissions")
                         .requestMatchers("/api/accounting/**").authenticated()
                         .anyRequest().authenticated()
                 )

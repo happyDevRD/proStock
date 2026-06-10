@@ -2,14 +2,18 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.PermissionDto;
 import com.happydev.prestockbackend.dto.RolePermissionsDto;
+import com.happydev.prestockbackend.dto.UserPermissionOverrideDto;
+import com.happydev.prestockbackend.dto.UserPermissionStateDto;
 import com.happydev.prestockbackend.entity.Permission;
 import com.happydev.prestockbackend.entity.RolePermission;
 import com.happydev.prestockbackend.entity.User;
 import com.happydev.prestockbackend.entity.UserPermissionOverride;
 import com.happydev.prestockbackend.entity.UserRole;
+import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.PermissionRepository;
 import com.happydev.prestockbackend.repository.RolePermissionRepository;
 import com.happydev.prestockbackend.repository.UserPermissionOverrideRepository;
+import com.happydev.prestockbackend.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -18,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,6 +41,9 @@ class PermissionServiceImplTest {
 
     @Mock
     private UserPermissionOverrideRepository userPermissionOverrideRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private AuditService auditService;
@@ -144,6 +152,105 @@ class PermissionServiceImplTest {
         List<String> result = permissionService.getEffectivePermissions(cashier);
 
         assertEquals(List.of("view.pos", "view.reports"), result);
+    }
+
+    @Test
+    void getUserPermissionOverrides_userNotFound_throwsResourceNotFound() {
+        given(userRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> permissionService.getUserPermissionOverrides(99L));
+    }
+
+    @Test
+    void getUserPermissionOverrides_marksFromRoleAndAppliedOverrides() {
+        User cashier = new User();
+        cashier.setId(5L);
+        cashier.setRole(UserRole.CASHIER);
+
+        Permission viewPos = permission(1L, "view.pos", "VIEW", "POS", null);
+        Permission viewInvoice = permission(2L, "view.invoice", "VIEW", "Facturas", null);
+        Permission viewReports = permission(3L, "view.reports", "VIEW", "Reportes", null);
+
+        given(userRepository.findById(5L)).willReturn(Optional.of(cashier));
+        given(rolePermissionRepository.findByRole(UserRole.CASHIER)).willReturn(List.of(
+                new RolePermission(10L, UserRole.CASHIER, viewPos),
+                new RolePermission(11L, UserRole.CASHIER, viewInvoice)
+        ));
+        given(userPermissionOverrideRepository.findByUserId(5L)).willReturn(List.of(
+                new UserPermissionOverride(20L, cashier, viewReports, true),
+                new UserPermissionOverride(21L, cashier, viewInvoice, false)
+        ));
+        given(permissionRepository.findAllByOrderByCategoryAscCodeAsc())
+                .willReturn(List.of(viewInvoice, viewPos, viewReports));
+
+        List<UserPermissionStateDto> result = permissionService.getUserPermissionOverrides(5L);
+
+        UserPermissionStateDto invoice = findCode(result, "view.invoice");
+        assertTrue(invoice.fromRole());
+        assertEquals(Boolean.FALSE, invoice.override());
+        assertFalse(invoice.effective());
+
+        UserPermissionStateDto pos = findCode(result, "view.pos");
+        assertTrue(pos.fromRole());
+        assertNull(pos.override());
+        assertTrue(pos.effective());
+
+        UserPermissionStateDto reports = findCode(result, "view.reports");
+        assertFalse(reports.fromRole());
+        assertEquals(Boolean.TRUE, reports.override());
+        assertTrue(reports.effective());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void updateUserPermissionOverrides_replacesExistingOverridesAndRecordsAudit() {
+        User cashier = new User();
+        cashier.setId(5L);
+        cashier.setRole(UserRole.CASHIER);
+
+        Permission viewReports = permission(3L, "view.reports", "VIEW", "Reportes", null);
+
+        given(userRepository.findById(5L)).willReturn(Optional.of(cashier));
+        given(permissionRepository.findAll()).willReturn(List.of(viewReports));
+        given(rolePermissionRepository.findByRole(UserRole.CASHIER)).willReturn(List.of());
+        given(permissionRepository.findAllByOrderByCategoryAscCodeAsc()).willReturn(List.of(viewReports));
+
+        permissionService.updateUserPermissionOverrides(
+                5L, List.of(new UserPermissionOverrideDto("view.reports", true), new UserPermissionOverrideDto("unknown.code", true)), "admin");
+
+        verify(userPermissionOverrideRepository).deleteByUserId(5L);
+        verify(userPermissionOverrideRepository).flush();
+
+        ArgumentCaptor<List<UserPermissionOverride>> captor = ArgumentCaptor.forClass(List.class);
+        verify(userPermissionOverrideRepository).saveAll(captor.capture());
+        List<UserPermissionOverride> saved = captor.getValue();
+        assertEquals(1, saved.size());
+        assertEquals("view.reports", saved.get(0).getPermission().getCode());
+        assertTrue(saved.get(0).isGranted());
+
+        verify(auditService).record(eq("admin"), eq("USER_PERMISSION_OVERRIDES_UPDATED"), eq("User"), eq(5L), any());
+    }
+
+    @Test
+    void updateUserPermissionOverrides_gestorUser_doesNotPersistOverrides() {
+        User gestor = new User();
+        gestor.setId(1L);
+        gestor.setRole(UserRole.GESTOR);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(gestor));
+        given(permissionRepository.findAll()).willReturn(List.of());
+        given(permissionRepository.findAllByOrderByCategoryAscCodeAsc()).willReturn(List.of());
+
+        permissionService.updateUserPermissionOverrides(1L, List.of(new UserPermissionOverrideDto("view.dashboard", false)), "admin");
+
+        verify(userPermissionOverrideRepository, never()).deleteByUserId(any());
+        verify(userPermissionOverrideRepository, never()).saveAll(any());
+        verify(auditService, never()).record(any(), any(), any(), any(), any());
+    }
+
+    private UserPermissionStateDto findCode(List<UserPermissionStateDto> states, String code) {
+        return states.stream().filter(s -> s.code().equals(code)).findFirst()
+                .orElseThrow(() -> new AssertionError("No se encontró el permiso: " + code));
     }
 
     private RolePermissionsDto findRole(List<RolePermissionsDto> matrix, String role) {

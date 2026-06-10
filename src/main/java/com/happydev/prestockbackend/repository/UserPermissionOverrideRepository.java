@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface UserPermissionOverrideRepository extends JpaRepository<UserPermissionOverride, Long> {
     List<UserPermissionOverride> findByUserId(Long userId);
+
+    void deleteByUserId(Long userId);
 }
