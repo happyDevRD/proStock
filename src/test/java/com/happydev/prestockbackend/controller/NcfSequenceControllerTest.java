@@ -2,11 +2,14 @@ package com.happydev.prestockbackend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happydev.prestockbackend.entity.NcfSequence;
+import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
 import com.happydev.prestockbackend.service.SequenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -25,7 +28,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(NcfSequenceController.class)
+@WebMvcTest(
+        controllers = NcfSequenceController.class,
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = JwtAuthenticationFilter.class
+        )
+)
 @WithMockUser(username = "admin", roles = {"ADMIN"})
 class NcfSequenceControllerTest {
 

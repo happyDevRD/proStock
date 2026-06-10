@@ -9,12 +9,15 @@ import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.entity.Category;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
+import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
 import com.happydev.prestockbackend.service.ProductService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -36,7 +39,13 @@ import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(ProductController.class) // Prueba solo el controlador
+@WebMvcTest(
+        controllers = ProductController.class,
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = JwtAuthenticationFilter.class
+        )
+)
 @AutoConfigureMockMvc(addFilters = false)
 class ProductControllerTest {
 
