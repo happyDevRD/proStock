@@ -9,6 +9,9 @@ Esta carpeta concentra la documentacion funcional y tecnica del modulo de config
 - `company-config-validaciones-dgii.md`: reglas de validacion y ejemplos de errores.
 - `company-config-integracion-frontend.md`: guia practica para consumo desde UI.
 - `integracion-baseline-contratos.md`: baseline de contratos y backlog de gaps de integracion.
+- `plan-erp-modular.md`: plan de ejecucion vivo hacia un ERP modular (vision,
+  fases, estado actual y bitacora de sesiones). Leer antes de retomar trabajo
+  de modularizacion/rediseno.
 
 ## Contexto
 
