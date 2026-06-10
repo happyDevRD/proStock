@@ -6,6 +6,7 @@ import com.happydev.prestockbackend.repository.UserRepository;
 import com.happydev.prestockbackend.security.AuthCookieSupport;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
 import com.happydev.prestockbackend.security.JwtService;
+import com.happydev.prestockbackend.service.PermissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,9 @@ class AuthControllerTest {
     @MockitoBean
     private AuthCookieSupport authCookieSupport;
 
+    @MockitoBean
+    private PermissionService permissionService;
+
     private User user;
 
     @BeforeEach
@@ -72,8 +76,9 @@ class AuthControllerTest {
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
         );
         given(authenticationManager.authenticate(any())).willReturn(authentication);
-        given(jwtService.generateToken(authentication)).willReturn("signed-jwt");
+        given(jwtService.generateToken(any())).willReturn("signed-jwt");
         given(userRepository.findByUsername("admin")).willReturn(Optional.of(user));
+        given(permissionService.getEffectivePermissions(any())).willReturn(List.of("view.dashboard", "view.users"));
     }
 
     @Test
@@ -86,6 +91,8 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
                 .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.permissions[0]").value("view.dashboard"))
+                .andExpect(jsonPath("$.permissions[1]").value("view.users"))
                 .andExpect(jsonPath("$.accessToken").value("signed-jwt"));
 
         verify(authCookieSupport).writeAccessToken(any(), org.mockito.ArgumentMatchers.eq("signed-jwt"));

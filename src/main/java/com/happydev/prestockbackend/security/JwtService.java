@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -33,14 +34,15 @@ public class JwtService {
     public String generateToken(Authentication authentication) {
         Instant now = Instant.now();
         Instant expiry = now.plus(jwtProperties.getExpirationHours(), ChronoUnit.HOURS);
-        String role = authentication.getAuthorities().stream()
+        List<String> authorities = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .findFirst()
-                .orElse("ROLE_USER");
+                .toList();
+        String role = authorities.stream().findFirst().orElse("ROLE_USER");
 
         return Jwts.builder()
                 .subject(authentication.getName())
                 .claim("role", role)
+                .claim("authorities", authorities)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .signWith(signingKey)
@@ -58,15 +60,20 @@ public class JwtService {
             if (username == null || username.isBlank()) {
                 return Optional.empty();
             }
-            String role = claims.get("role", String.class);
-            if (role == null || role.isBlank()) {
-                role = "ROLE_USER";
+            List<?> rawAuthorities = claims.get("authorities", List.class);
+            List<String> authorities;
+            if (rawAuthorities != null && !rawAuthorities.isEmpty()) {
+                authorities = rawAuthorities.stream().map(String::valueOf).toList();
+            } else {
+                // Fallback para JWTs emitidos antes de agregar el claim "authorities"
+                String role = claims.get("role", String.class);
+                authorities = List.of(role == null || role.isBlank() ? "ROLE_USER" : role);
             }
-            return Optional.of(new JwtUserPrincipal(username, role));
+            return Optional.of(new JwtUserPrincipal(username, authorities));
         } catch (JwtException | IllegalArgumentException ex) {
             return Optional.empty();
         }
     }
 
-    public record JwtUserPrincipal(String username, String role) {}
+    public record JwtUserPrincipal(String username, List<String> authorities) {}
 }
