@@ -32,6 +32,16 @@ public class FeatureConfigServiceImpl implements FeatureConfigService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public boolean isEnabled(String featureCode) {
+        if (featureCode == null || !FeatureCatalog.exists(featureCode)) {
+            return false;
+        }
+        Map<String, Boolean> resolved = resolveEnabled(loadOverrides());
+        return Boolean.TRUE.equals(resolved.get(featureCode));
+    }
+
+    @Override
     @Transactional
     public List<FeatureFlagDto> updateAll(List<FeatureFlagDto> updates, String actorUsername) {
         Map<String, Boolean> resolved = resolveEnabled(loadOverrides());

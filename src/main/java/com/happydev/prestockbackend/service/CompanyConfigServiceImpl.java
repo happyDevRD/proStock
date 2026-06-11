@@ -48,6 +48,7 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                     if (companyConfig.getServiceOrderType() != null) {
                         existingConfig.setServiceOrderType(companyConfig.getServiceOrderType());
                     }
+                    existingConfig.setServiceOrderDeductStock(companyConfig.isServiceOrderDeductStock());
                     return companyConfigRepository.save(existingConfig);
                 })
                 .orElseGet(() -> {

@@ -49,6 +49,10 @@ public class StockMovement {
     private Sale sale;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_order_id")
+    private ServiceOrder serviceOrder;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id") // Quién realizó el movimiento (si tienes usuarios)
     private User user; // Necesitarás la entidad User, y probablemente Spring Security
 

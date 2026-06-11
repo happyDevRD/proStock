@@ -130,6 +130,9 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
 
         String description = "Venta #" + sale.getId() + " - "
                 + (sale.getNcf() != null ? sale.getNcf() : "Sin NCF");
+        if (sale.getServiceOrder() != null && sale.getServiceOrder().getOrderNumber() != null) {
+            description += " (OS " + sale.getServiceOrder().getOrderNumber() + ")";
+        }
         String reference = sale.getNcf() != null ? sale.getNcf() : "VTA-" + sale.getId();
 
         AccJournalEntry entry = createBaseEntry(

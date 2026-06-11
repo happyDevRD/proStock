@@ -82,6 +82,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/permissions/users/**")
                             .hasAnyAuthority("ROLE_GESTOR", "settings.manage_permissions")
                         .requestMatchers("/api/accounting/**").authenticated()
+                        .requestMatchers("/api/service-orders/**")
+                            .hasAnyAuthority("ROLE_GESTOR", "ROLE_ADMIN", "view.service_orders")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

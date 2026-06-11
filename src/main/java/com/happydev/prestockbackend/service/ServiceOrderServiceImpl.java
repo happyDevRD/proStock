@@ -5,15 +5,25 @@ import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.*;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -34,6 +44,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     private final ProductRepository productRepository;
     private final AuditService auditService;
     private final SaleRepository saleRepository;
+    private final StockMovementService stockMovementService;
+    private final StockMovementRepository stockMovementRepository;
+    private final CompanyConfigRepository companyConfigRepository;
 
     public ServiceOrderServiceImpl(ServiceOrderRepository orderRepository,
                                    ServiceOrderStageRepository stageRepository,
@@ -42,7 +55,10 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                                    CustomerRepository customerRepository,
                                    ProductRepository productRepository,
                                    AuditService auditService,
-                                   SaleRepository saleRepository) {
+                                   SaleRepository saleRepository,
+                                   StockMovementService stockMovementService,
+                                   StockMovementRepository stockMovementRepository,
+                                   CompanyConfigRepository companyConfigRepository) {
         this.orderRepository = orderRepository;
         this.stageRepository = stageRepository;
         this.noteRepository = noteRepository;
@@ -51,12 +67,89 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         this.productRepository = productRepository;
         this.auditService = auditService;
         this.saleRepository = saleRepository;
+        this.stockMovementService = stockMovementService;
+        this.stockMovementRepository = stockMovementRepository;
+        this.companyConfigRepository = companyConfigRepository;
     }
 
     @Override
     public List<ServiceOrderDto> findAll() {
         return orderRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(this::toListDto).toList();
+    }
+
+    @Override
+    public Page<ServiceOrderDto> findPage(
+            @NonNull Pageable pageable,
+            @Nullable ServiceOrderType type,
+            @Nullable ServiceOrderStatus status,
+            @Nullable Boolean activeOnly,
+            @Nullable String search
+    ) {
+        Specification<ServiceOrder> spec = ServiceOrderSpecifications.withFilters(type, status, activeOnly, search);
+        return orderRepository.findAll(spec, pageable).map(this::toListDto);
+    }
+
+    @Override
+    public ServiceOrderStatsDto getStats() {
+        ServiceOrderType companyType = resolveCompanyOrderType();
+        LocalDateTime monthStart = YearMonth.now().atDay(1).atStartOfDay();
+        long active = countActiveByType(companyType);
+        return new ServiceOrderStatsDto(
+                active,
+                orderRepository.countByOrderTypeAndStatus(companyType, ServiceOrderStatus.WAITING_CLIENT),
+                orderRepository.countByOrderTypeAndStatus(companyType, ServiceOrderStatus.READY),
+                orderRepository.countCompletedSinceByOrderType(companyType, monthStart)
+        );
+    }
+
+    @Override
+    public ServiceOrderReportDto getReport(@NonNull LocalDate startDate, @NonNull LocalDate endDate) {
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("La fecha final no puede ser anterior a la inicial.");
+        }
+        ServiceOrderType companyType = resolveCompanyOrderType();
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        long created = orderRepository.countCreatedInPeriodByOrderType(companyType, start, end);
+        long completed = orderRepository.countByOrderTypeAndStatusUpdatedInPeriod(
+                companyType, ServiceOrderStatus.COMPLETED, start, end);
+        long canceled = orderRepository.countByOrderTypeAndStatusUpdatedInPeriod(
+                companyType, ServiceOrderStatus.CANCELLED, start, end);
+        long activeNow = countActiveByType(companyType);
+
+        BigDecimal linkedRevenue = saleRepository.sumServiceOrderLinkedRevenueByOrderType(companyType, start, end);
+
+        List<ServiceOrder> completedOrders = orderRepository.findCompletedInPeriodByOrderType(companyType, start, end);
+        double avgDays = completedOrders.stream()
+                .mapToLong(o -> ChronoUnit.DAYS.between(o.getCreatedAt(), o.getUpdatedAt()))
+                .average()
+                .orElse(0.0);
+
+        List<ServiceOrderReportDto.ServiceOrderTypeReportRow> byType = List.of();
+        if (created > 0 || completed > 0) {
+            byType = List.of(new ServiceOrderReportDto.ServiceOrderTypeReportRow(companyType, created, completed));
+        }
+
+        return new ServiceOrderReportDto(
+                startDate,
+                endDate,
+                created,
+                completed,
+                canceled,
+                activeNow,
+                linkedRevenue,
+                avgDays,
+                byType
+        );
+    }
+
+    private long countActiveByType(ServiceOrderType type) {
+        return orderRepository.countByOrderTypeAndStatus(type, ServiceOrderStatus.OPEN)
+                + orderRepository.countByOrderTypeAndStatus(type, ServiceOrderStatus.IN_PROGRESS)
+                + orderRepository.countByOrderTypeAndStatus(type, ServiceOrderStatus.WAITING_CLIENT)
+                + orderRepository.countByOrderTypeAndStatus(type, ServiceOrderStatus.READY);
     }
 
     @Override
@@ -75,7 +168,8 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
 
     @Override
     public List<ServiceOrderDto> findByCustomer(@NonNull Long customerId) {
-        return orderRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+        ServiceOrderType companyType = resolveCompanyOrderType();
+        return orderRepository.findByCustomerIdAndOrderTypeOrderByCreatedAtDesc(customerId, companyType).stream()
                 .map(this::toListDto).toList();
     }
 
@@ -93,20 +187,20 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         List<LinkedSaleDto> linkedSales = saleRepository.findByServiceOrderIdOrderBySaleDateDesc(id).stream()
                 .map(s -> new LinkedSaleDto(s.getId(), s.getNcf(), s.getSaleDate(), s.getStatus(), s.getMontoTotal(), s.getPaidAmount()))
                 .toList();
-        List<ServiceOrderItemDto> items = itemRepository
-                .findByServiceOrderIdOrderByPositionAscCreatedAtAsc(id).stream()
-                .map(this::toItemDto)
-                .toList();
+        List<ServiceOrderItem> rawItems = itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(id);
+        List<ServiceOrderItemDto> items = toItemDtosWithBilling(id, rawItems);
         return toDetailDto(order, stages, notes, linkedSales, items);
     }
 
     @Override
     public ServiceOrderDto create(@NonNull CreateServiceOrderRequest req, @Nullable String actor) {
+        ServiceOrderType orderType = resolveOrderType(req.orderType());
+
         ServiceOrder order = new ServiceOrder();
-        order.setOrderType(req.orderType());
+        order.setOrderType(orderType);
         order.setTitle(req.title());
         order.setStatus(ServiceOrderStatus.OPEN);
-        order.setCurrentStage(INITIAL_STAGE.getOrDefault(req.orderType(), "RECEIVED"));
+        order.setCurrentStage(INITIAL_STAGE.getOrDefault(orderType, "RECEIVED"));
         order.setAppointmentDate(req.appointmentDate());
         order.setEstimatedDelivery(req.estimatedDelivery());
         order.setEstimatedAmount(req.estimatedAmount());
@@ -182,6 +276,13 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
             throw new IllegalStateException("No se puede avanzar etapa en una orden " + order.getStatus().name().toLowerCase());
         }
 
+        ServiceOrderStageCatalog.validateAdvance(
+                order.getOrderType(),
+                order.getCurrentStage(),
+                req.stage(),
+                req.status()
+        );
+
         order.setCurrentStage(req.stage());
         order.setStatus(req.status());
 
@@ -221,6 +322,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
             throw new IllegalStateException("La orden ya está " + order.getStatus().name().toLowerCase());
         }
         order.setStatus(ServiceOrderStatus.CANCELLED);
+        order.setCurrentStage("CANCELLED");
 
         ServiceOrderStage stageEntry = new ServiceOrderStage();
         stageEntry.setServiceOrder(order);
@@ -247,8 +349,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         }
         order.setStatus(ServiceOrderStatus.COMPLETED);
 
-        String finalStage = order.getOrderType() == ServiceOrderType.PHOTOGRAPHY ? "DELIVERED"
-                : order.getOrderType() == ServiceOrderType.REPAIR ? "DELIVERED" : "DELIVERED";
+        String finalStage = "DELIVERED";
         order.setCurrentStage(finalStage);
 
         ServiceOrderStage stageEntry = new ServiceOrderStage();
@@ -257,6 +358,8 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         stageEntry.setEnteredAt(LocalDateTime.now());
         stageEntry.setActor(actor);
         stageRepository.save(stageEntry);
+
+        deductStockOnComplete(order);
 
         auditService.record(actor, "SERVICE_ORDER_COMPLETED", "ServiceOrder", id,
                 "OS " + order.getOrderNumber() + " completada");
@@ -306,7 +409,41 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         item.setNotes(req.notes());
         item.setPosition(position);
 
-        return toItemDto(itemRepository.save(item));
+        return toItemDtosWithBilling(orderId, List.of(itemRepository.save(item))).get(0);
+    }
+
+    @Override
+    public ServiceOrderItemDto updateItem(
+            @NonNull Long orderId,
+            @NonNull Long itemId,
+            @NonNull UpdateServiceOrderItemRequest req
+    ) {
+        ServiceOrderItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("ServiceOrderItem", "id", itemId));
+        if (!item.getServiceOrder().getId().equals(orderId)) {
+            throw new ResourceNotFoundException("ServiceOrderItem", "id", itemId);
+        }
+
+        int invoiced = invoicedQuantityForItem(orderId, item);
+
+        if (req.quantity() != null) {
+            if (req.quantity() < invoiced) {
+                throw new IllegalArgumentException(
+                        "La cantidad no puede ser menor que lo ya facturado (" + invoiced + ").");
+            }
+            item.setQuantity(req.quantity());
+        }
+        if (req.unitPrice() != null) {
+            if (invoiced > 0) {
+                throw new IllegalStateException("No se puede cambiar el precio de un producto ya facturado.");
+            }
+            item.setUnitPrice(req.unitPrice());
+        }
+        if (req.notes() != null) {
+            item.setNotes(req.notes().isBlank() ? null : req.notes().trim());
+        }
+
+        return toItemDtosWithBilling(orderId, List.of(itemRepository.save(item))).get(0);
     }
 
     @Override
@@ -316,6 +453,12 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         if (!item.getServiceOrder().getId().equals(orderId)) {
             throw new ResourceNotFoundException("ServiceOrderItem", "id", itemId);
         }
+        int invoiced = invoicedQuantityForItem(orderId, item);
+        if (invoiced > 0) {
+            throw new IllegalStateException(
+                    "No se puede eliminar un producto que ya fue facturado (" + invoiced + " unidad"
+                            + (invoiced == 1 ? "" : "es") + ").");
+        }
         itemRepository.delete(item);
     }
 
@@ -324,6 +467,114 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     private ServiceOrder getOrThrow(Long id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceOrder", "id", id));
+    }
+
+    private void deductStockOnComplete(ServiceOrder order) {
+        boolean enabled = companyConfigRepository.findFirstByOrderByIdAsc()
+                .map(CompanyConfig::isServiceOrderDeductStock)
+                .orElse(false);
+        if (!enabled) {
+            return;
+        }
+
+        Long orderId = Objects.requireNonNull(order.getId());
+        List<ServiceOrderItem> items = itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(orderId);
+        if (items.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Integer> soldPool = soldQtyByProductForOrder(orderId);
+        Map<Long, Integer> pendingByProduct = new HashMap<>();
+        Map<Long, Product> productById = new HashMap<>();
+
+        for (ServiceOrderItem item : items) {
+            Product product = item.getProduct();
+            Long productId = Objects.requireNonNull(product.getId());
+            if (product.getTipoBienServicio() == TipoBienServicio.SERVICIO) {
+                continue;
+            }
+            productById.putIfAbsent(productId, product);
+            int invoiced = allocateFromPool(soldPool, productId, item.getQuantity());
+            int pending = item.getQuantity() - invoiced;
+            if (pending > 0) {
+                pendingByProduct.merge(productId, pending, Integer::sum);
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        for (Map.Entry<Long, Integer> entry : pendingByProduct.entrySet()) {
+            Long productId = entry.getKey();
+            int toDeduct = entry.getValue();
+            if (stockMovementRepository.existsByServiceOrder_IdAndProduct_Id(orderId, productId)) {
+                continue;
+            }
+            Product product = productById.get(productId);
+            if (product.getStock() < toDeduct) {
+                throw new IllegalStateException("Existencias insuficientes para: " + product.getName());
+            }
+
+            StockMovement movement = new StockMovement();
+            movement.setProduct(product);
+            movement.setMovementDate(now);
+            movement.setQuantityChange(-toDeduct);
+            movement.setType(StockMovementType.OUT);
+            movement.setReason("Orden de servicio completada: " + order.getOrderNumber());
+            movement.setServiceOrder(order);
+            stockMovementService.createMovement(movement);
+        }
+    }
+
+    private Map<Long, Integer> soldQtyByProductForOrder(Long orderId) {
+        Map<Long, Integer> soldQtyByProduct = new HashMap<>();
+        for (Sale sale : saleRepository.findByServiceOrderIdOrderBySaleDateDesc(orderId)) {
+            if (sale.getStatus() != SaleStatus.COMPLETED && sale.getStatus() != SaleStatus.PARTIALLY_PAID) {
+                continue;
+            }
+            for (SaleItem saleItem : sale.getItems()) {
+                Long productId = saleItem.getProduct().getId();
+                soldQtyByProduct.merge(productId, saleItem.getQuantity(), Integer::sum);
+            }
+        }
+        return soldQtyByProduct;
+    }
+
+    private List<ServiceOrderItemDto> toItemDtosWithBilling(Long orderId, List<ServiceOrderItem> items) {
+        Map<Long, Integer> soldPool = soldQtyByProductForOrder(orderId);
+        return items.stream()
+                .map(item -> {
+                    Long productId = Objects.requireNonNull(item.getProduct().getId());
+                    int invoiced = allocateFromPool(soldPool, productId, item.getQuantity());
+                    return toItemDto(item, invoiced);
+                })
+                .toList();
+    }
+
+    private int invoicedQuantityForItem(Long orderId, ServiceOrderItem target) {
+        List<ServiceOrderItem> items = itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(orderId);
+        Map<Long, Integer> soldPool = soldQtyByProductForOrder(orderId);
+        for (ServiceOrderItem item : items) {
+            Long productId = Objects.requireNonNull(item.getProduct().getId());
+            int invoiced = allocateFromPool(soldPool, productId, item.getQuantity());
+            if (item.getId().equals(target.getId())) {
+                return invoiced;
+            }
+        }
+        return 0;
+    }
+
+    private static int allocateFromPool(Map<Long, Integer> pool, Long productId, int quantity) {
+        int available = pool.getOrDefault(productId, 0);
+        int allocated = Math.min(quantity, available);
+        pool.put(productId, Math.max(0, available - allocated));
+        return allocated;
+    }
+
+    private static Map<ServiceOrderType, Long> toTypeCountMap(List<Object[]> rows) {
+        Map<ServiceOrderType, Long> map = new EnumMap<>(ServiceOrderType.class);
+        for (Object[] row : rows) {
+            map.put((ServiceOrderType) row[0], (Long) row[1]);
+        }
+        return map;
     }
 
     private String customerName(ServiceOrder o) {
@@ -366,17 +617,49 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         );
     }
 
-    private ServiceOrderItemDto toItemDto(ServiceOrderItem i) {
+    private ServiceOrderItemDto toItemDto(ServiceOrderItem i, int invoicedQuantity) {
+        int pendingQuantity = Math.max(0, i.getQuantity() - invoicedQuantity);
         BigDecimal subtotal = i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()));
+        BigDecimal pendingSubtotal = i.getUnitPrice().multiply(BigDecimal.valueOf(pendingQuantity));
         return new ServiceOrderItemDto(
                 i.getId(),
                 i.getProduct().getId(),
                 i.getProduct().getName(),
                 i.getProduct().getSku(),
                 i.getQuantity(),
+                invoicedQuantity,
+                pendingQuantity,
                 i.getUnitPrice(),
                 subtotal,
+                pendingSubtotal,
                 i.getNotes()
         );
+    }
+
+    private ServiceOrderType resolveOrderType(@Nullable ServiceOrderType requested) {
+        ServiceOrderType companyType = resolveCompanyOrderType();
+        if (requested == null) {
+            return companyType;
+        }
+        if (requested != companyType) {
+            throw new IllegalArgumentException(
+                    "El tipo de orden no coincide con el modelo configurado para la empresa (" + companyType + ").");
+        }
+        return requested;
+    }
+
+    private ServiceOrderType resolveCompanyOrderType() {
+        return companyConfigRepository.findFirstByOrderByIdAsc()
+                .map(CompanyConfig::getServiceOrderType)
+                .map(this::parseServiceOrderType)
+                .orElse(ServiceOrderType.GENERAL);
+    }
+
+    private ServiceOrderType parseServiceOrderType(String raw) {
+        try {
+            return ServiceOrderType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return ServiceOrderType.GENERAL;
+        }
     }
 }

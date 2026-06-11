@@ -122,6 +122,27 @@ class FeatureConfigServiceImplTest {
         assertEquals(FeatureCatalog.ALL.size(), result.size());
     }
 
+    @Test
+    void isEnabled_returnsDefaultWhenNoOverride() {
+        given(repository.findAll()).willReturn(List.of());
+        assertFalse(featureConfigService.isEnabled("module.service_orders"));
+        assertTrue(featureConfigService.isEnabled("module.pos"));
+    }
+
+    @Test
+    void isEnabled_returnsFalseForUnknownCode() {
+        assertFalse(featureConfigService.isEnabled("module.unknown"));
+    }
+
+    @Test
+    void isEnabled_appliesStoredOverride() {
+        CompanyFeatureConfig override = new CompanyFeatureConfig();
+        override.setFeatureCode("module.service_orders");
+        override.setEnabled(true);
+        given(repository.findAll()).willReturn(List.of(override));
+        assertTrue(featureConfigService.isEnabled("module.service_orders"));
+    }
+
     private FeatureFlagDto findByCode(List<FeatureFlagDto> list, String code) {
         return list.stream().filter(f -> f.code().equals(code)).findFirst()
                 .orElseThrow(() -> new AssertionError("No se encontró el código: " + code));

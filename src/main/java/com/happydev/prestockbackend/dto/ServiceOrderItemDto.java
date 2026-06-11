@@ -8,7 +8,10 @@ public record ServiceOrderItemDto(
         String productName,
         String productSku,
         Integer quantity,
+        Integer invoicedQuantity,
+        Integer pendingQuantity,
         BigDecimal unitPrice,
         BigDecimal subtotal,
+        BigDecimal pendingSubtotal,
         String notes
 ) {}

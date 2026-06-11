@@ -8,4 +8,6 @@ public interface FeatureConfigService {
     List<FeatureFlagDto> getAll();
 
     List<FeatureFlagDto> updateAll(List<FeatureFlagDto> updates, String actorUsername);
+
+    boolean isEnabled(String featureCode);
 }

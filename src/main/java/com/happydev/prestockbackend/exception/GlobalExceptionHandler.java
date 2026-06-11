@@ -186,10 +186,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     // 403 Forbidden - Access Denied
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorDetails> handleAccessDeniedException(AccessDeniedException ex, WebRequest request) {
+        String message = ex.getMessage() != null && !ex.getMessage().isBlank()
+                ? ex.getMessage()
+                : "No tienes permiso para realizar esta acción.";
         ErrorDetails errorDetails = new ErrorDetails(
                 LocalDateTime.now(),
-                "ACCESS_DENIED",
-                "No tienes permiso para realizar esta acción.",
+                ex instanceof FeatureDisabledException ? "FEATURE_DISABLED" : "ACCESS_DENIED",
+                message,
                 request.getDescription(false)
         );
         logger.warn("AccessDeniedException: {}", ex.getMessage());

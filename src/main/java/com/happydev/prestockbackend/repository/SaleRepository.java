@@ -2,6 +2,7 @@ package com.happydev.prestockbackend.repository;
 
 import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleStatus;
+import com.happydev.prestockbackend.entity.ServiceOrderType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -113,4 +114,34 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
     BigDecimal sumPendingBalance();
 
     List<Sale> findByServiceOrderIdOrderBySaleDateDesc(Long serviceOrderId);
+
+    @Query("""
+            SELECT COALESCE(SUM(s.montoTotal), 0) FROM Sale s
+            WHERE s.serviceOrder IS NOT NULL
+              AND s.serviceOrder.orderType = :orderType
+              AND s.status IN (
+                  com.happydev.prestockbackend.entity.SaleStatus.COMPLETED,
+                  com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID
+              )
+              AND s.saleDate >= :start AND s.saleDate < :end
+            """)
+    BigDecimal sumServiceOrderLinkedRevenueByOrderType(
+            @Param("orderType") ServiceOrderType orderType,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(s.montoTotal), 0) FROM Sale s
+            WHERE s.serviceOrder IS NOT NULL
+              AND s.status IN (
+                  com.happydev.prestockbackend.entity.SaleStatus.COMPLETED,
+                  com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID
+              )
+              AND s.saleDate >= :start AND s.saleDate < :end
+            """)
+    BigDecimal sumServiceOrderLinkedRevenue(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }

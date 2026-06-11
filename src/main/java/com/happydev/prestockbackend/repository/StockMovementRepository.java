@@ -56,4 +56,6 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
     // Obtener el último movimiento de stock de un producto
     @Query("SELECT sm FROM StockMovement sm WHERE sm.product.id = :productId ORDER BY sm.movementDate DESC")
     List<StockMovement> findLatestStockMovement(@Param("productId") Long productId, Pageable pageable);
+
+    boolean existsByServiceOrder_IdAndProduct_Id(Long serviceOrderId, Long productId);
 }

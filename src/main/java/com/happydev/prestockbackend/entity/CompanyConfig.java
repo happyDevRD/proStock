@@ -87,4 +87,7 @@ public class CompanyConfig {
 
     @Column(name = "service_order_type", nullable = false, length = 20)
     private String serviceOrderType = "PHOTOGRAPHY";
+
+    @Column(name = "service_order_deduct_stock", nullable = false)
+    private boolean serviceOrderDeductStock = false;
 }
