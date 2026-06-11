@@ -85,6 +85,12 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder purchaseOrder = purchaseOrderMapper.toEntity(purchaseOrderDto);
         purchaseOrder.setStatus(PurchaseOrderStatus.PENDING);
         purchaseOrder.setPaidAmount(BigDecimal.ZERO);
+        if (purchaseOrder.getTipoBienesServicios() == null) {
+            purchaseOrder.setTipoBienesServicios("09");
+        }
+        if (purchaseOrder.getTotalItbis() == null) {
+            purchaseOrder.setTotalItbis(BigDecimal.ZERO);
+        }
 
         if (purchaseOrder.getItems() != null) {
             for (PurchaseOrderItem item : purchaseOrder.getItems()) {
@@ -123,6 +129,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
 
         purchaseOrder.setOrderDate(purchaseOrderDto.getOrderDate());
+
+        purchaseOrder.setNcfProveedor(purchaseOrderDto.getNcfProveedor());
+        if (purchaseOrderDto.getTipoBienesServicios() != null) {
+            purchaseOrder.setTipoBienesServicios(purchaseOrderDto.getTipoBienesServicios());
+        }
+        purchaseOrder.setTotalItbis(purchaseOrderDto.getTotalItbis() != null
+                ? purchaseOrderDto.getTotalItbis() : BigDecimal.ZERO);
+        purchaseOrder.setFechaPago(purchaseOrderDto.getFechaPago());
+        purchaseOrder.setPaymentMethod(purchaseOrderDto.getPaymentMethod());
 
         if (purchaseOrderDto.getStatus() != null) {
             purchaseOrder.setStatus(purchaseOrderDto.getStatus());
@@ -300,9 +315,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         BigDecimal newPaid = supplierPaymentRepository.sumAmountByPurchaseOrderId(poId);
         po.setPaidAmount(newPaid);
-        po.setStatus(newPaid.compareTo(poTotal) >= 0
-                ? PurchaseOrderStatus.PAID
-                : PurchaseOrderStatus.PARTIALLY_PAID);
+        boolean fullyPaid = newPaid.compareTo(poTotal) >= 0;
+        po.setStatus(fullyPaid ? PurchaseOrderStatus.PAID : PurchaseOrderStatus.PARTIALLY_PAID);
+        if (fullyPaid) {
+            // Datos para el reporte DGII 606: fecha y forma del pago que saldó la orden
+            po.setFechaPago(saved.getPaymentDate().toLocalDate());
+            if (po.getPaymentMethod() == null) {
+                po.setPaymentMethod(paymentMethod);
+            }
+        }
         purchaseOrderRepository.save(po);
 
         recordSupplierPaymentJournalEntry(po, saved, actorUsername);

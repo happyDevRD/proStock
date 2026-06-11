@@ -1,5 +1,7 @@
 package com.happydev.prestockbackend.service;
 
+import com.happydev.prestockbackend.dto.Dgii606ReportDto;
+import com.happydev.prestockbackend.dto.Dgii606RowDto;
 import com.happydev.prestockbackend.dto.Dgii607ReportDto;
 import com.happydev.prestockbackend.dto.Dgii607RowDto;
 import com.happydev.prestockbackend.dto.Dgii608ReportDto;
@@ -7,12 +9,16 @@ import com.happydev.prestockbackend.dto.Dgii608RowDto;
 import com.happydev.prestockbackend.entity.CreditNote;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.entity.PaymentMethod;
+import com.happydev.prestockbackend.entity.PurchaseOrder;
+import com.happydev.prestockbackend.entity.PurchaseOrderItem;
 import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SalePayment;
 import com.happydev.prestockbackend.entity.SaleStatus;
+import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.entity.TipoIdentificacion;
 import com.happydev.prestockbackend.entity.TipoIngresos;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
+import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import org.springframework.lang.NonNull;
@@ -46,16 +52,137 @@ public class DgiiReportServiceImpl implements DgiiReportService {
     private final SaleRepository saleRepository;
     private final SalePaymentRepository salePaymentRepository;
     private final CreditNoteRepository creditNoteRepository;
+    private final PurchaseOrderRepository purchaseOrderRepository;
     private final CompanyConfigService companyConfigService;
 
     public DgiiReportServiceImpl(SaleRepository saleRepository,
                                  SalePaymentRepository salePaymentRepository,
                                  CreditNoteRepository creditNoteRepository,
+                                 PurchaseOrderRepository purchaseOrderRepository,
                                  CompanyConfigService companyConfigService) {
         this.saleRepository = saleRepository;
         this.salePaymentRepository = salePaymentRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.purchaseOrderRepository = purchaseOrderRepository;
         this.companyConfigService = companyConfigService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Dgii606ReportDto build606(@NonNull YearMonth period) {
+        Dgii606ReportDto report = new Dgii606ReportDto();
+        report.setRnc(companyRnc());
+        report.setPeriodo(period.format(PERIODO_DGII));
+
+        List<PurchaseOrder> orders = purchaseOrderRepository.findWithNcfInRange(
+                period.atDay(1), period.atEndOfMonth());
+        for (PurchaseOrder order : orders) {
+            report.getRows().add(toRow(order));
+        }
+
+        report.setCantidadRegistros(report.getRows().size());
+        report.setTotalMontoFacturado(report.getRows().stream()
+                .map(Dgii606RowDto::getTotalMontoFacturado)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        report.setTotalItbis(report.getRows().stream()
+                .map(Dgii606RowDto::getItbisFacturado)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        return report;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String render606Txt(@NonNull YearMonth period) {
+        Dgii606ReportDto report = build606(period);
+        StringBuilder txt = new StringBuilder();
+        txt.append(String.join("|",
+                "606", report.getRnc(), report.getPeriodo(),
+                String.valueOf(report.getCantidadRegistros())));
+        for (Dgii606RowDto row : report.getRows()) {
+            txt.append("\r\n").append(String.join("|",
+                    blankIfNull(row.getRncCedula()),
+                    blankIfNull(row.getTipoIdentificacion()),
+                    blankIfNull(row.getTipoBienesServicios()),
+                    blankIfNull(row.getNcf()),
+                    "",                                  // NCF o documento modificado
+                    blankIfNull(row.getFechaComprobante()),
+                    blankIfNull(row.getFechaPago()),
+                    money(row.getMontoFacturadoServicios()),
+                    money(row.getMontoFacturadoBienes()),
+                    money(row.getTotalMontoFacturado()),
+                    money(row.getItbisFacturado()),
+                    "",                                  // ITBIS retenido
+                    "",                                  // ITBIS sujeto a proporcionalidad
+                    "",                                  // ITBIS llevado al costo
+                    money(row.getItbisFacturado()),      // ITBIS por adelantar
+                    "",                                  // ITBIS percibido en compras
+                    "",                                  // tipo de retención en ISR
+                    "",                                  // monto retención renta
+                    "",                                  // ISR percibido en compras
+                    "",                                  // impuesto selectivo al consumo
+                    "",                                  // otros impuestos/tasas
+                    "",                                  // monto propina legal
+                    blankIfNull(row.getFormaPago())));
+        }
+        return txt.toString();
+    }
+
+    private Dgii606RowDto toRow(PurchaseOrder order) {
+        Dgii606RowDto row = new Dgii606RowDto();
+        if (order.getSupplier() != null) {
+            String doc = trimToNull(order.getSupplier().getRncCedula());
+            row.setRncCedula(doc != null ? doc.replaceAll("[^0-9A-Za-z]", "") : "");
+            row.setTipoIdentificacion(doc != null
+                    ? tipoIdentificacionCode(order.getSupplier().getTipoIdentificacion())
+                    : "");
+        } else {
+            row.setRncCedula("");
+            row.setTipoIdentificacion("");
+        }
+        row.setTipoBienesServicios(order.getTipoBienesServicios() != null
+                ? order.getTipoBienesServicios() : "09");
+        row.setNcf(order.getNcfProveedor());
+        row.setFechaComprobante(order.getOrderDate().format(FECHA_DGII));
+        row.setFechaPago(order.getFechaPago() != null
+                ? order.getFechaPago().format(FECHA_DGII) : "");
+
+        BigDecimal servicios = BigDecimal.ZERO;
+        BigDecimal bienes = BigDecimal.ZERO;
+        if (order.getItems() != null) {
+            for (PurchaseOrderItem item : order.getItems()) {
+                BigDecimal lineTotal = BigDecimal.valueOf(item.getUnitPrice())
+                        .multiply(BigDecimal.valueOf(item.getQuantity()));
+                boolean isServicio = item.getProduct() != null
+                        && item.getProduct().getTipoBienServicio() == TipoBienServicio.SERVICIO;
+                if (isServicio) {
+                    servicios = servicios.add(lineTotal);
+                } else {
+                    bienes = bienes.add(lineTotal);
+                }
+            }
+        }
+        row.setMontoFacturadoServicios(servicios.setScale(2, RoundingMode.HALF_UP));
+        row.setMontoFacturadoBienes(bienes.setScale(2, RoundingMode.HALF_UP));
+        row.setTotalMontoFacturado(servicios.add(bienes).setScale(2, RoundingMode.HALF_UP));
+        row.setItbisFacturado(nz(order.getTotalItbis()));
+        row.setFormaPago(formaPago606(order));
+        return row;
+    }
+
+    private String formaPago606(PurchaseOrder order) {
+        if (order.getFechaPago() == null) {
+            return "04"; // compra a crédito
+        }
+        PaymentMethod method = order.getPaymentMethod();
+        if (method == null) {
+            return "01";
+        }
+        return switch (method) {
+            case CASH -> "01";
+            case CHECK, TRANSFER -> "02";
+            case CARD -> "03";
+            case OTHER -> "07";
+        };
     }
 
     @Override

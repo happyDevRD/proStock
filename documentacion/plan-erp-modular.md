@@ -54,12 +54,13 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ⚠️ **Nota de ramas:** `proStockFront` trabaja en `continue-screens`
     (= `main` + `71cddb7`). Pendiente merge/PR a `main` cuando se valide.
 - **Esta sesión (2026-06-11):** reescritura de este plan (análisis crítico +
-  hoja de ruta en 3 carriles) y **arranque de Fase C1**: implementados los
-  reportes DGII **607 y 608** (backend + UI en Reportes + tests). Queda el
-  606 (necesita NCF de proveedor en compras) y la validación del TXT con la
-  herramienta oficial de la DGII.
-- **Próximo paso sugerido:** completar C1 (606 + validaciones de cierre de
-  mes) o arrancar **Fase Q1** (suite e2e + seeds de prueba).
+  hoja de ruta en 3 carriles) y **Fase C1 casi completa**: implementados los
+  reportes DGII **606, 607 y 608** (backend + UI en Reportes + tests +
+  migración V34). Quedan las validaciones de cierre de mes y —crítico— la
+  **validación de los TXT con la herramienta oficial de la DGII**.
+- **Próximo paso sugerido:** validar TXT con el pre-validador DGII (manual,
+  usuario), y arrancar **Fase Q1** (suite e2e + seeds de prueba) o las
+  validaciones de cierre de mes de C1.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 - **Issues conocidos, no bloqueantes:**
@@ -217,13 +218,25 @@ República Dominicana, luego en la región. Objetivos concretos:
       (se reutilizó el permiso existente en vez de crear `reports.dgii`).
 - [x] Tests unitarios del servicio (4 casos: 607 con ventas+NC y desglose
       de pagos, layout TXT, 608, consumidor sin documento).
-- [ ] ⚠️ **Validar el TXT con la Herramienta de Envío / pre-validador de la
-      DGII antes de la primera remisión real** (el layout sigue la Norma
-      07-18; confirmar contra la herramienta vigente).
-- [ ] Generación del 606 (compras) — requiere capturar NCF del proveedor en
-      `PurchaseOrder`/gastos (migración + UI); evaluar entidad de gastos
-      menores.
+- [x] **(2026-06-11)** Generación del 606 (compras): migración **V34**
+      (RNC/tipo identificación en `suppliers`; NCF proveedor, tipo
+      bienes/servicios 01-11 (default 09), ITBIS, fecha de pago y forma de
+      pago en `purchase_orders`). El 606 incluye órdenes con NCF del período,
+      separando montos de bienes vs servicios según
+      `Product.tipoBienServicio`. `fechaPago`/`paymentMethod` se setean
+      automáticamente al saldar la orden (`addPayment`); forma de pago 04
+      (a crédito) si no está saldada. Captura en UI: campos NCF/ITBIS en
+      `PurchaseOrderModal`, RNC/tipo identificación en `SuppliersView` (y
+      `dgiiToSupplierPayload` los llena desde la consulta DGII). Botón y
+      KPI 606 en `DgiiComplianceCard`.
+- [ ] ⚠️ **Validar los TXT (606/607/608) con la Herramienta de Envío /
+      pre-validador de la DGII antes de la primera remisión real** (el
+      layout sigue la Norma 07-18; confirmar contra la herramienta vigente).
+- [ ] Gastos sin orden de compra (gastos menores/servicios sin OC) — hoy el
+      606 solo cubre compras con OC; evaluar entidad de gasto simple.
 - [ ] Validaciones previas al cierre de mes (NCF faltantes, RNC inválidos).
+- [ ] Backfill: proveedores existentes no tienen RNC estructurado (estaba
+      solo en el texto de dirección) — editarlos una vez desde la UI.
 
 #### Fase C2 — Facturación electrónica e-CF (Ley 32-23) — ⏸️ EN PAUSA
 > **(2026-06-11)** El proceso de certificación e-CF requiere tener el
@@ -438,3 +451,17 @@ República Dominicana, luego en la región. Objetivos concretos:
   - Pendiente de C1: 606 (capturar NCF de proveedor en compras), validar el
     TXT contra el pre-validador oficial de DGII, validaciones de cierre de
     mes.
+- **Continuación: 606 (compras) implementado.** Migración **V34**
+  (`suppliers.rnc_cedula`/`tipo_identificacion`;
+  `purchase_orders.ncf_proveedor`/`tipo_bienes_servicios`/`total_itbis`/
+  `fecha_pago`/`payment_method`). Backend: `build606`/`render606Txt` en
+  `DgiiReportService` (bienes vs servicios según `Product.tipoBienServicio`,
+  forma de pago 01-07, 04 si está a crédito), endpoints `/api/reports/dgii/
+  606[/txt]`; `addPayment` de OC ahora setea `fechaPago`/`paymentMethod` al
+  saldar; create/update de OC aceptan los campos nuevos. Frontend: campos
+  NCF proveedor + ITBIS en `PurchaseOrderModal`, RNC/tipo identificación en
+  `SuppliersView` y en `dgiiToSupplierPayload`, 606 en `DgiiComplianceCard`.
+  Validación: 2 tests nuevos del 606 (split bienes/servicios + layout TXT,
+  compra a crédito); suite backend completa y `npm run validate` verdes.
+  Notas: el 606 solo cubre compras con OC (gastos menores pendiente);
+  proveedores existentes requieren backfill manual del RNC.

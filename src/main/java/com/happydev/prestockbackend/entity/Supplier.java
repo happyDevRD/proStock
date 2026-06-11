@@ -34,6 +34,13 @@ public class Supplier {
     @Column
     private String address;
 
+    @Column(name = "rnc_cedula", length = 20)
+    private String rncCedula;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_identificacion", length = 30)
+    private TipoIdentificacion tipoIdentificacion;
+
     // Relación con productos (no serializar en JSON: evita grafo infinito supplier → product → category → products → …)
     @JsonIgnore
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)

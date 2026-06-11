@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.dto;
 
+import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.PurchaseOrderStatus;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -23,4 +24,9 @@ public class PurchaseOrderDto {
     private List<PurchaseOrderItemDto> items;
     private BigDecimal paidAmount;
     private Double total;
+    private String ncfProveedor;
+    private String tipoBienesServicios;
+    private BigDecimal totalItbis;
+    private LocalDate fechaPago;
+    private PaymentMethod paymentMethod;
 }

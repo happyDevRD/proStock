@@ -59,6 +59,8 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setContactEmail(supplierDetails.getContactEmail());
         supplier.setPhone(supplierDetails.getPhone());
         supplier.setAddress(supplierDetails.getAddress());
+        supplier.setRncCedula(supplierDetails.getRncCedula());
+        supplier.setTipoIdentificacion(supplierDetails.getTipoIdentificacion());
         // Actualiza otros campos si es necesario.
 
         Supplier saved = supplierRepository.save(Objects.requireNonNull(supplier));

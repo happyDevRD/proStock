@@ -11,7 +11,14 @@ import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SalePayment;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.entity.TipoIdentificacion;
+import com.happydev.prestockbackend.dto.Dgii606ReportDto;
+import com.happydev.prestockbackend.entity.Product;
+import com.happydev.prestockbackend.entity.PurchaseOrder;
+import com.happydev.prestockbackend.entity.PurchaseOrderItem;
+import com.happydev.prestockbackend.entity.Supplier;
+import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
+import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +52,9 @@ class DgiiReportServiceImplTest {
 
     @Mock
     private CreditNoteRepository creditNoteRepository;
+
+    @Mock
+    private PurchaseOrderRepository purchaseOrderRepository;
 
     @Mock
     private CompanyConfigService companyConfigService;
@@ -168,6 +178,73 @@ class DgiiReportServiceImplTest {
         String[] lines = txt.split("\r\n");
         assertEquals("608|131123456|202606|1", lines[0]);
         assertEquals("B0100000001|20260605|04", lines[1]);
+    }
+
+    @Test
+    void build606SplitsGoodsAndServicesAndRendersTxt() {
+        Supplier supplier = new Supplier();
+        supplier.setRncCedula("401-50563-9");
+        supplier.setTipoIdentificacion(TipoIdentificacion.RNC);
+
+        Product bien = new Product();
+        bien.setTipoBienServicio(TipoBienServicio.BIEN);
+        Product servicio = new Product();
+        servicio.setTipoBienServicio(TipoBienServicio.SERVICIO);
+
+        PurchaseOrderItem itemBien = new PurchaseOrderItem();
+        itemBien.setProduct(bien);
+        itemBien.setQuantity(10);
+        itemBien.setUnitPrice(50.0);
+        PurchaseOrderItem itemServicio = new PurchaseOrderItem();
+        itemServicio.setProduct(servicio);
+        itemServicio.setQuantity(1);
+        itemServicio.setUnitPrice(200.0);
+
+        PurchaseOrder order = new PurchaseOrder();
+        order.setSupplier(supplier);
+        order.setNcfProveedor("B0100009999");
+        order.setTipoBienesServicios("09");
+        order.setOrderDate(java.time.LocalDate.of(2026, 6, 10));
+        order.setFechaPago(java.time.LocalDate.of(2026, 6, 15));
+        order.setPaymentMethod(PaymentMethod.TRANSFER);
+        order.setTotalItbis(new BigDecimal("126.00"));
+        order.setItems(new java.util.ArrayList<>(List.of(itemBien, itemServicio)));
+
+        when(purchaseOrderRepository.findWithNcfInRange(any(), any()))
+                .thenReturn(List.of(order));
+
+        Dgii606ReportDto report = service.build606(period);
+
+        assertEquals(1, report.getCantidadRegistros());
+        assertEquals(new BigDecimal("700.00"), report.getTotalMontoFacturado());
+        assertEquals(new BigDecimal("126.00"), report.getTotalItbis());
+        assertEquals(new BigDecimal("200.00"), report.getRows().get(0).getMontoFacturadoServicios());
+        assertEquals(new BigDecimal("500.00"), report.getRows().get(0).getMontoFacturadoBienes());
+        assertEquals("02", report.getRows().get(0).getFormaPago());
+
+        String txt = service.render606Txt(period);
+        String[] lines = txt.split("\r\n");
+        assertEquals("606|131123456|202606|1", lines[0]);
+        assertEquals(
+                "401505639|1|09|B0100009999||20260610|20260615|200.00|500.00|700.00|126.00||||126.00||||||||02",
+                lines[1]);
+    }
+
+    @Test
+    void build606MarksUnpaidPurchasesAsCredit() {
+        PurchaseOrder order = new PurchaseOrder();
+        order.setNcfProveedor("B0100008888");
+        order.setOrderDate(java.time.LocalDate.of(2026, 6, 3));
+        order.setTotalItbis(BigDecimal.ZERO);
+
+        when(purchaseOrderRepository.findWithNcfInRange(any(), any()))
+                .thenReturn(List.of(order));
+
+        Dgii606ReportDto report = service.build606(period);
+
+        assertEquals("04", report.getRows().get(0).getFormaPago());
+        assertEquals("", report.getRows().get(0).getFechaPago());
+        assertEquals("", report.getRows().get(0).getRncCedula());
     }
 
     @Test

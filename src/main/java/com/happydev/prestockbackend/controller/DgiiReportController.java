@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.Dgii606ReportDto;
 import com.happydev.prestockbackend.dto.Dgii607ReportDto;
 import com.happydev.prestockbackend.dto.Dgii608ReportDto;
 import com.happydev.prestockbackend.service.DgiiReportService;
@@ -28,6 +29,18 @@ public class DgiiReportController {
 
     public DgiiReportController(DgiiReportService dgiiReportService) {
         this.dgiiReportService = dgiiReportService;
+    }
+
+    @GetMapping("/606")
+    public ResponseEntity<Dgii606ReportDto> get606(
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth period) {
+        return ResponseEntity.ok(dgiiReportService.build606(period));
+    }
+
+    @GetMapping("/606/txt")
+    public ResponseEntity<byte[]> download606Txt(
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth period) {
+        return txtDownload("606", period, dgiiReportService.render606Txt(period));
     }
 
     @GetMapping("/607")
