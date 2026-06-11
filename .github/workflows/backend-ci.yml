@@ -9,6 +9,20 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: prestockdb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +35,19 @@ jobs:
       - name: Compile
         run: ./gradlew compileJava
 
-      - name: Test
-        run: ./gradlew test --tests "*SaleControllerExportTest" --tests "*DgiiTaxUtilsTest"
+      - name: Test (suite completa contra Postgres)
+        run: ./gradlew test
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/prestockdb
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+
+      - name: Publicar reporte de tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test/
 
   publish:
     needs: ci

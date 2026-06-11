@@ -58,9 +58,14 @@ República Dominicana, luego en la región. Objetivos concretos:
   reportes DGII **606, 607 y 608** (backend + UI en Reportes + tests +
   migración V34). Quedan las validaciones de cierre de mes y —crítico— la
   **validación de los TXT con la herramienta oficial de la DGII**.
+- **Fase Q1 (núcleo) hecha también el 2026-06-11:** suite e2e Playwright
+  (5 tests: auth, venta POS con NCF, permisos cashier), CI backend con
+  Postgres y suite completa, CI frontend con typecheck+tests+job e2e como
+  gate del publish. Encontró y corrigió un bug real (bucle de efectos →
+  pantalla en blanco para usuarios sin acceso a inventario).
 - **Próximo paso sugerido:** validar TXT con el pre-validador DGII (manual,
-  usuario), y arrancar **Fase Q1** (suite e2e + seeds de prueba) o las
-  validaciones de cierre de mes de C1.
+  usuario); ampliar e2e (pago parcial, nota de crédito, orden de servicio)
+  o pasar a Fase Q2/4.2.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 - **Issues conocidos, no bloqueantes:**
@@ -278,17 +283,35 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ### Carril Q — Calidad y plataforma
 
-#### Fase Q1 — Red de seguridad de pruebas ⭐ hacer antes de crecer más
-- [ ] Suite e2e Playwright commiteada y en CI: login, venta completa POS
-      (con y sin cliente), pago parcial → completar, nota de crédito, orden
-      de servicio → facturar, permisos (cashier no ve inventario — regresión
-      del bug de Fase 3).
-- [ ] Backend: tests de servicio para flujos fiscales (NCF, ITBIS
-      incluido/excluido, nota de crédito, auto-complete de pagos) — son los
-      que no pueden fallar nunca.
-- [ ] Gate de CI: e2e + tests verdes para mergear a `main`.
-- [ ] Datos de prueba seed reproducibles (incluye usuario `cashier` de
-      pruebas — resuelve el bloqueo de validación por roles de Fase 4.1).
+#### Fase Q1 — Red de seguridad de pruebas ⭐ — 🟡 EN CURSO (núcleo hecho 2026-06-11)
+- [x] **Suite e2e Playwright commiteada** (`e2e/` + `playwright.config.ts`,
+      puerto aislado 3210): login ok/fallido, **venta POS completa con NCF**
+      (busca producto sembrado, cobra, verifica `E32…` en la factura),
+      **permisos cashier** (ítem Inventario deshabilitado, URL directa
+      redirige, contenido nunca visible — regresión del bug de Fase 3) y
+      cashier puede usar POS. 5 tests, ~7s contra stack real.
+- [x] **Seeds reproducibles**: el perfil `local` ya siembra
+      admin/admin1234, manager/manager1234, cashier/cashier1234
+      (`DevSecurityBootstrapConfig` — esto desbloquea la validación por
+      roles pendiente de Fase 4.1); los e2e siembran por API categoría
+      "E2E", "Suplidor E2E", producto único por corrida y secuencia NCF 32.
+- [x] **CI backend reparado**: corría solo 2 clases de test; ahora corre la
+      suite completa contra un service container Postgres 16.
+- [x] **CI frontend reforzado**: ahora corre typecheck + tests unitarios
+      (antes solo lint+build), y nuevo **job e2e** que levanta Postgres +
+      backend real (clona `proStock`, público) + Playwright. `publish`
+      ahora requiere `ci` **y** `e2e` verdes → gate real para la imagen.
+- [x] **Bug real encontrado y corregido por la suite**: dos `useEffect` de
+      `App.tsx` entraban en bucle para usuarios sin acceso a inventario
+      (el redirect a fallback vs el normalizador de submódulo) → pantalla
+      en blanco permanente en `/inventory/articles` (sin fuga de datos).
+      Fix: el normalizador solo aplica si `canAccessView(inventory)`.
+- [ ] Ampliar e2e: pago parcial → completar, nota de crédito, orden de
+      servicio → facturar.
+- [ ] Backend: más tests de servicio de flujos fiscales (ITBIS
+      incluido/excluido end-to-end, auto-complete de pagos).
+- [ ] Branch protection en GitHub para exigir los checks en `main`
+      (config manual del repo).
 
 #### Fase Q2 — Pago de deuda técnica frontend
 - [ ] Partir `api.ts` (1,710 líneas) por dominio (`api/sales.ts`,
@@ -428,6 +451,21 @@ República Dominicana, luego en la región. Objetivos concretos:
   POS offline, impresión térmica, contabilidad integrada.
 - Pendiente al cierre: merge de `continue-screens` → `main` en
   `proStockFront`; decidir próxima fase (recomendado: C1 o Q1).
+- **Fase Q1 (núcleo):** suite e2e Playwright en `proStockFront/e2e/`
+  (auth, venta POS completa con verificación de NCF en factura, permisos
+  cashier ×2), corre en puerto aislado 3210 contra backend real con perfil
+  `local` (usuarios sembrados por `DevSecurityBootstrapConfig`; el seed e2e
+  crea por API la secuencia NCF 32, categoría/suplidor E2E y un producto
+  por corrida). CI: backend ahora corre la suite completa con Postgres 16
+  como service container (antes solo 2 clases); frontend agrega typecheck +
+  tests unitarios + job e2e (Postgres + clon de proStock + Playwright
+  chromium) y `publish` exige ambos. Vitest excluye `e2e/**`. **Bug real
+  encontrado por la suite y corregido en `App.tsx`**: el efecto que
+  normaliza el submódulo de inventario y el efecto de redirección por
+  permisos entraban en bucle para usuarios sin `view.inventory` → pantalla
+  en blanco permanente en `/inventory/articles`; ahora el normalizador
+  solo aplica si `canAccessView(authUser, "inventory")`. Validado: 5/5 e2e
+  verdes (~7s) + `npm run validate` + suite backend completa.
 - Usuario aclaró que la **Fase C2 (e-CF) queda en pausa**: el proceso de
   certificación requiere tener el software en venta primero; se retoma con
   su visto bueno. Plan pusheado (`proStock@2af9fe5`).
