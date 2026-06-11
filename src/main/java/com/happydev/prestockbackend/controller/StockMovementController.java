@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -26,8 +27,16 @@ public class StockMovementController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<StockMovementDto>> getAllMovements(@NonNull Pageable pageable) {
-        Page<StockMovementDto> movements = stockMovementService.getAllMovements(pageable).map(this::toDto);
+    public ResponseEntity<Page<StockMovementDto>> getAllMovements(
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @RequestParam(required = false) StockMovementType type,
+            @NonNull Pageable pageable
+    ) {
+        Page<StockMovementDto> movements = stockMovementService
+                .findMovements(pageable, productId, dateFrom, dateTo, type)
+                .map(this::toDto);
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 

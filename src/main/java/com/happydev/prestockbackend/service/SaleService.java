@@ -1,5 +1,7 @@
 package com.happydev.prestockbackend.service;
 
+import com.happydev.prestockbackend.dto.CreateCreditNoteRequest;
+import com.happydev.prestockbackend.dto.CreditNoteDto;
 import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDto;
@@ -25,7 +27,8 @@ public interface SaleService {
             Long customerId,
             LocalDate dateFrom,
             LocalDate dateTo,
-            @Nullable SaleStatus statusFilter
+            @Nullable SaleStatus statusFilter,
+            boolean overdueOnly
     );
     Optional<SaleDto> findSaleByNcf(@NonNull String ncf);
     Optional<SaleDto> findSaleById(@NonNull Long id);
@@ -63,4 +66,12 @@ public interface SaleService {
     SaleDto unlinkFromServiceOrder(@NonNull Long saleId);
 
     List<SaleDto> findByServiceOrderId(@NonNull Long serviceOrderId);
+
+    CreditNoteDto createCreditNote(
+            @NonNull Long saleId,
+            @NonNull CreateCreditNoteRequest request,
+            @Nullable String actorUsername
+    );
+
+    List<CreditNoteDto> getCreditNotesForSale(@NonNull Long saleId);
 }

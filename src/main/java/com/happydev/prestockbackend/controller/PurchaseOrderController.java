@@ -2,6 +2,7 @@ package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.AddPaymentRequest;
 import com.happydev.prestockbackend.dto.PurchaseOrderDto;
+import com.happydev.prestockbackend.dto.ReceivePurchaseOrderRequest;
 import com.happydev.prestockbackend.dto.SupplierPaymentDto;
 import com.happydev.prestockbackend.service.PurchaseOrderService;
 import jakarta.validation.Valid;
@@ -65,8 +66,13 @@ public class PurchaseOrderController {
     }
 
     @PutMapping("/{id}/receive")
-    public ResponseEntity<PurchaseOrderDto> receivePurchaseOrder(@PathVariable @NonNull Long id) {
-        return ResponseEntity.ok(purchaseOrderService.receivePurchaseOrder(id));
+    public ResponseEntity<PurchaseOrderDto> receivePurchaseOrder(
+            @PathVariable @NonNull Long id,
+            @RequestBody(required = false) @Valid ReceivePurchaseOrderRequest request) {
+        if (request == null) {
+            return ResponseEntity.ok(purchaseOrderService.receivePurchaseOrder(id));
+        }
+        return ResponseEntity.ok(purchaseOrderService.receivePurchaseOrder(id, request));
     }
 
     // -------------------------------------------------------

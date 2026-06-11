@@ -3,9 +3,11 @@ package com.happydev.prestockbackend.service;
 import com.happydev.prestockbackend.entity.StockMovement;
 import com.happydev.prestockbackend.entity.StockMovementType;
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,13 @@ public interface StockMovementService {
     StockMovement createMovement(@NonNull StockMovement movement);
     List<StockMovement> getAllMovements();
     Page<StockMovement> getAllMovements(@NonNull Pageable pageable); // Paginación
+    Page<StockMovement> findMovements(
+            @NonNull Pageable pageable,
+            @Nullable Long productId,
+            @Nullable LocalDate dateFrom,
+            @Nullable LocalDate dateTo,
+            @Nullable StockMovementType type
+    );
     Optional<StockMovement> getMovementById(@NonNull Long id);
     List<StockMovement> getMovementsByProduct(@NonNull Long productId);
     List<StockMovement> getMovementsByProductAndDateRange(@NonNull Long productId, @NonNull LocalDateTime startDate, @NonNull LocalDateTime endDate);

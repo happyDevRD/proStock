@@ -1,6 +1,10 @@
 package com.happydev.prestockbackend.service;
 
 
+import com.happydev.prestockbackend.dto.CreateCreditNoteItemRequest;
+import com.happydev.prestockbackend.dto.CreateCreditNoteRequest;
+import com.happydev.prestockbackend.dto.CreditNoteDto;
+import com.happydev.prestockbackend.dto.CreditNoteItemDto;
 import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDayDto;
@@ -9,6 +13,7 @@ import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
+import com.happydev.prestockbackend.repository.CreditNoteRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
@@ -57,6 +62,7 @@ public class SaleServiceImpl implements SaleService {
     private final AuditService auditService;
     private final SalePaymentRepository salePaymentRepository;
     private final ServiceOrderRepository serviceOrderRepository;
+    private final CreditNoteRepository creditNoteRepository;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -68,7 +74,8 @@ public class SaleServiceImpl implements SaleService {
                            InvoiceQrService invoiceQrService,
                            AuditService auditService,
                            SalePaymentRepository salePaymentRepository,
-                           ServiceOrderRepository serviceOrderRepository) {
+                           ServiceOrderRepository serviceOrderRepository,
+                           CreditNoteRepository creditNoteRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -80,6 +87,7 @@ public class SaleServiceImpl implements SaleService {
         this.auditService = auditService;
         this.salePaymentRepository = salePaymentRepository;
         this.serviceOrderRepository = serviceOrderRepository;
+        this.creditNoteRepository = creditNoteRepository;
     }
 
     @Override
@@ -100,11 +108,12 @@ public class SaleServiceImpl implements SaleService {
             Long customerId,
             LocalDate dateFrom,
             LocalDate dateTo,
-            @Nullable SaleStatus statusFilter
+            @Nullable SaleStatus statusFilter,
+            boolean overdueOnly
     ) {
         LocalDateTime startDateTime = dateFrom != null ? dateFrom.atStartOfDay() : null;
         LocalDateTime endDateTime = dateTo != null ? dateTo.atTime(LocalTime.of(23, 59, 59, 999_000_000)) : null;
-        Specification<Sale> spec = buildInvoiceSpec(ncf, customerId, startDateTime, endDateTime, statusFilter);
+        Specification<Sale> spec = buildInvoiceSpec(ncf, customerId, startDateTime, endDateTime, statusFilter, overdueOnly);
         return saleRepository.findAll(spec, pageable).map(saleMapper::toDto);
     }
 
@@ -120,11 +129,17 @@ public class SaleServiceImpl implements SaleService {
             Long customerId,
             LocalDateTime startDate,
             LocalDateTime endDate,
-            @Nullable SaleStatus statusFilter
+            @Nullable SaleStatus statusFilter,
+            boolean overdueOnly
     ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            if (statusFilter != null) {
+            if (overdueOnly) {
+                predicates.add(cb.equal(root.get("status"), SaleStatus.PARTIALLY_PAID));
+                predicates.add(cb.isNotNull(root.get("dueDate")));
+                predicates.add(cb.lessThan(root.get("dueDate"), LocalDate.now()));
+                predicates.add(cb.greaterThan(root.get("montoTotal"), root.get("paidAmount")));
+            } else if (statusFilter != null) {
                 predicates.add(cb.equal(root.get("status"), statusFilter));
             } else {
                 // Default: include both COMPLETED and PARTIALLY_PAID
@@ -456,12 +471,16 @@ public class SaleServiceImpl implements SaleService {
         BigDecimal totalItbis = BigDecimal.ZERO;
 
         for (SaleItem item : sale.getItems()) {
+            int effectiveQty = item.getQuantity() - item.getQuantityReturned();
+            if (effectiveQty <= 0) {
+                continue;
+            }
             Long productId = Objects.requireNonNull(item.getProduct().getId());
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
             BigDecimal lineBase = DgiiTaxUtils.roundMoney(
-                    item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+                    item.getUnitPrice().multiply(BigDecimal.valueOf(effectiveQty)));
             IndicadorFacturacion indicador = product.getIndicadorFacturacion() == null
                     ? IndicadorFacturacion.EXENTO
                     : product.getIndicadorFacturacion();
@@ -779,5 +798,173 @@ public class SaleServiceImpl implements SaleService {
     @Override
     public List<SaleDto> findByServiceOrderId(@NonNull Long serviceOrderId) {
         return saleMapper.toDtoList(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(serviceOrderId));
+    }
+
+    @Override
+    @Transactional
+    public CreditNoteDto createCreditNote(
+            @NonNull Long saleId,
+            @NonNull CreateCreditNoteRequest request,
+            @Nullable String actorUsername
+    ) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+
+        if (sale.getStatus() != SaleStatus.COMPLETED && sale.getStatus() != SaleStatus.PARTIALLY_PAID) {
+            throw new IllegalStateException(
+                    "Solo se pueden emitir notas de crédito sobre facturas completadas o con saldo pendiente.");
+        }
+        if (sale.getNcf() == null || sale.getNcf().isBlank()) {
+            throw new IllegalStateException("La venta debe tener NCF asignado para emitir nota de crédito.");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new IllegalArgumentException("Indique al menos un ítem a devolver.");
+        }
+
+        Map<Long, SaleItem> itemById = sale.getItems().stream()
+                .filter(i -> i.getId() != null)
+                .collect(Collectors.toMap(SaleItem::getId, i -> i));
+
+        BigDecimal oldGravado = sale.getMontoGravadoTotal();
+        BigDecimal oldExento = sale.getMontoExento();
+        BigDecimal oldItbis = sale.getTotalItbis();
+        BigDecimal oldTotal = sale.getMontoTotal();
+
+        LocalDateTime now = LocalDateTime.now();
+        CreditNote creditNote = new CreditNote();
+        creditNote.setSale(sale);
+        creditNote.setTipoComprobante("34");
+        creditNote.setNcfModificado(sale.getNcf());
+        creditNote.setReason(request.getReason());
+        creditNote.setCreatedAt(now);
+        creditNote.setCreatedBy(actorUsername);
+
+        for (CreateCreditNoteItemRequest line : request.getItems()) {
+            if (line.getSaleItemId() == null || line.getQuantity() == null) {
+                throw new IllegalArgumentException("Cada línea debe incluir saleItemId y quantity.");
+            }
+            SaleItem saleItem = itemById.get(line.getSaleItemId());
+            if (saleItem == null) {
+                throw new IllegalArgumentException("Ítem de venta inválido: " + line.getSaleItemId());
+            }
+
+            int remaining = saleItem.getQuantity() - saleItem.getQuantityReturned();
+            int returnQty = line.getQuantity();
+            if (returnQty <= 0) {
+                throw new IllegalArgumentException("Cantidad inválida para el ítem " + line.getSaleItemId());
+            }
+            if (returnQty > remaining) {
+                String label = saleItem.getProductName() != null ? saleItem.getProductName() : "producto";
+                throw new IllegalArgumentException(
+                        "La cantidad a devolver excede lo disponible para: " + label
+                                + " (máx. " + remaining + ").");
+            }
+
+            Long productId = Objects.requireNonNull(saleItem.getProduct().getId());
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+
+            if (product.getTipoBienServicio() != TipoBienServicio.SERVICIO) {
+                StockMovement movement = new StockMovement();
+                movement.setProduct(product);
+                movement.setMovementDate(now);
+                movement.setQuantityChange(returnQty);
+                movement.setType(StockMovementType.RETURN);
+                movement.setReason(request.getReason() != null && !request.getReason().isBlank()
+                        ? "Nota de crédito: " + request.getReason().trim()
+                        : "Nota de crédito");
+                movement.setSale(sale);
+                stockMovementService.createMovement(movement);
+            }
+
+            saleItem.setQuantityReturned(saleItem.getQuantityReturned() + returnQty);
+
+            CreditNoteItem cnItem = new CreditNoteItem();
+            cnItem.setCreditNote(creditNote);
+            cnItem.setSaleItem(saleItem);
+            cnItem.setProduct(product);
+            cnItem.setQuantity(returnQty);
+            cnItem.setUnitPrice(saleItem.getUnitPrice());
+            cnItem.setProductName(saleItem.getProductName());
+            cnItem.setProductSku(saleItem.getProductSku());
+            creditNote.getItems().add(cnItem);
+        }
+
+        recalculateTaxTotals(sale);
+
+        creditNote.setMontoGravadoTotal(DgiiTaxUtils.roundMoney(oldGravado.subtract(sale.getMontoGravadoTotal())));
+        creditNote.setMontoExento(DgiiTaxUtils.roundMoney(oldExento.subtract(sale.getMontoExento())));
+        creditNote.setTotalItbis(DgiiTaxUtils.roundMoney(oldItbis.subtract(sale.getTotalItbis())));
+        creditNote.setMontoTotal(DgiiTaxUtils.roundMoney(oldTotal.subtract(sale.getMontoTotal())));
+
+        if (creditNote.getMontoTotal().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("El monto de la nota de crédito debe ser mayor que cero.");
+        }
+
+        sequenceService.findByTipoComprobante("34").ifPresent(seq -> {
+            try {
+                creditNote.setNcf(sequenceService.getNextSequence("34"));
+            } catch (RuntimeException ignored) {
+                // Secuencia vencida o agotada: la nota queda sin NCF propio.
+            }
+        });
+
+        CreditNote savedNote = creditNoteRepository.save(creditNote);
+
+        if (sale.getPaidAmount().compareTo(sale.getMontoTotal()) > 0) {
+            sale.setPaidAmount(DgiiTaxUtils.roundMoney(sale.getMontoTotal()));
+        }
+        if (sale.getStatus() == SaleStatus.COMPLETED
+                && sale.getPaidAmount().compareTo(sale.getMontoTotal()) < 0) {
+            sale.setStatus(SaleStatus.PARTIALLY_PAID);
+        }
+        saleRepository.save(sale);
+
+        auditService.record(actorUsername, "CREDIT_NOTE_CREATED", "Sale", saleId,
+                Map.of(
+                        "creditNoteId", savedNote.getId() != null ? savedNote.getId().toString() : "",
+                        "amount", creditNote.getMontoTotal().toPlainString(),
+                        "ncf", creditNote.getNcf() != null ? creditNote.getNcf() : ""
+                ));
+
+        return toCreditNoteDto(savedNote);
+    }
+
+    @Override
+    public List<CreditNoteDto> getCreditNotesForSale(@NonNull Long saleId) {
+        if (!saleRepository.existsById(saleId)) {
+            throw new ResourceNotFoundException("Sale", "id", saleId);
+        }
+        return creditNoteRepository.findBySale_IdOrderByCreatedAtDesc(saleId).stream()
+                .map(this::toCreditNoteDto)
+                .collect(Collectors.toList());
+    }
+
+    private CreditNoteDto toCreditNoteDto(CreditNote note) {
+        CreditNoteDto dto = new CreditNoteDto();
+        dto.setId(note.getId());
+        dto.setSaleId(note.getSale() != null ? note.getSale().getId() : null);
+        dto.setNcf(note.getNcf());
+        dto.setTipoComprobante(note.getTipoComprobante());
+        dto.setNcfModificado(note.getNcfModificado());
+        dto.setReason(note.getReason());
+        dto.setMontoGravadoTotal(note.getMontoGravadoTotal());
+        dto.setMontoExento(note.getMontoExento());
+        dto.setTotalItbis(note.getTotalItbis());
+        dto.setMontoTotal(note.getMontoTotal());
+        dto.setCreatedAt(note.getCreatedAt());
+        dto.setCreatedBy(note.getCreatedBy());
+        dto.setItems(note.getItems().stream().map(item -> {
+            CreditNoteItemDto itemDto = new CreditNoteItemDto();
+            itemDto.setId(item.getId());
+            itemDto.setSaleItemId(item.getSaleItem() != null ? item.getSaleItem().getId() : null);
+            itemDto.setProductId(item.getProduct() != null ? item.getProduct().getId() : null);
+            itemDto.setQuantity(item.getQuantity());
+            itemDto.setUnitPrice(item.getUnitPrice());
+            itemDto.setProductName(item.getProductName());
+            itemDto.setProductSku(item.getProductSku());
+            return itemDto;
+        }).collect(Collectors.toList()));
+        return dto;
     }
 }

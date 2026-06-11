@@ -1,6 +1,8 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.PurchaseOrderDto;
+import com.happydev.prestockbackend.dto.ReceivePurchaseOrderItemRequest;
+import com.happydev.prestockbackend.dto.ReceivePurchaseOrderRequest;
 import com.happydev.prestockbackend.dto.SupplierPaymentDto;
 import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
@@ -18,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -167,36 +170,97 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     @Override
     public PurchaseOrderDto receivePurchaseOrder(@NonNull Long id) {
+        return receivePurchaseOrder(id, null);
+    }
+
+    @Override
+    public PurchaseOrderDto receivePurchaseOrder(@NonNull Long id, ReceivePurchaseOrderRequest request) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", id));
 
-        if (purchaseOrder.getStatus() != PurchaseOrderStatus.PENDING) {
-            throw new IllegalStateException("Cannot receive a purchase order that is not in PENDING status.");
+        if (purchaseOrder.getStatus() != PurchaseOrderStatus.PENDING
+                && purchaseOrder.getStatus() != PurchaseOrderStatus.PARTIALLY_RECEIVED) {
+            throw new IllegalStateException("Solo se pueden recibir órdenes pendientes o parcialmente recibidas.");
         }
 
+        boolean fullReceive = request == null
+                || request.getItems() == null
+                || request.getItems().isEmpty();
+
+        Map<Long, Integer> requestedByItemId = new HashMap<>();
+        if (!fullReceive) {
+            for (ReceivePurchaseOrderItemRequest line : request.getItems()) {
+                Long itemId = Objects.requireNonNull(line.getItemId(), "itemId is required");
+                Integer qty = Objects.requireNonNull(line.getQuantity(), "quantity is required");
+                if (qty <= 0) {
+                    throw new IllegalArgumentException("La cantidad a recibir debe ser mayor que cero.");
+                }
+                requestedByItemId.merge(itemId, qty, Integer::sum);
+            }
+        }
+
+        int receivedLines = 0;
         for (PurchaseOrderItem item : purchaseOrder.getItems()) {
+            int remaining = item.getQuantity() - item.getQuantityReceived();
+            if (remaining <= 0) {
+                continue;
+            }
+
+            int toReceive = fullReceive
+                    ? remaining
+                    : requestedByItemId.getOrDefault(item.getId(), 0);
+            if (toReceive <= 0) {
+                continue;
+            }
+            if (toReceive > remaining) {
+                throw new IllegalArgumentException(
+                        "La cantidad a recibir excede lo pendiente en la línea #" + item.getId() + ".");
+            }
+
             Product product = item.getProduct();
             StockMovement movement = new StockMovement();
             movement.setProduct(product);
             movement.setMovementDate(LocalDateTime.now());
-            movement.setQuantityChange(item.getQuantity());
+            movement.setQuantityChange(toReceive);
             movement.setType(StockMovementType.IN);
-            movement.setReason("Purchase order received");
+            movement.setReason(fullReceive
+                    ? "Recepción de orden de compra"
+                    : "Recepción parcial de orden de compra");
             movement.setPurchaseOrder(purchaseOrder);
             stockMovementService.createMovement(movement);
+
+            item.setQuantityReceived(item.getQuantityReceived() + toReceive);
+            receivedLines++;
         }
 
-        purchaseOrder.setStatus(PurchaseOrderStatus.RECEIVED);
-        purchaseOrder.setReceptionDate(LocalDateTime.now());
+        if (receivedLines == 0) {
+            throw new IllegalArgumentException("Indica al menos una cantidad pendiente para recibir.");
+        }
+
+        boolean allReceived = purchaseOrder.getItems().stream()
+                .allMatch(i -> i.getQuantityReceived() >= i.getQuantity());
+
+        if (allReceived) {
+            purchaseOrder.setStatus(PurchaseOrderStatus.RECEIVED);
+        } else {
+            purchaseOrder.setStatus(PurchaseOrderStatus.PARTIALLY_RECEIVED);
+        }
+
+        if (purchaseOrder.getReceptionDate() == null) {
+            purchaseOrder.setReceptionDate(LocalDateTime.now());
+        }
+
         PurchaseOrder updated = purchaseOrderRepository.save(purchaseOrder);
 
-        int n = purchaseOrder.getItems() != null ? purchaseOrder.getItems().size() : 0;
         auditService.record(
                 SecurityAuditUtils.currentUsernameOrNull(),
-                "PURCHASE_ORDER_RECEIVED",
+                allReceived ? "PURCHASE_ORDER_RECEIVED" : "PURCHASE_ORDER_PARTIALLY_RECEIVED",
                 "PurchaseOrder",
                 updated.getId(),
-                Map.of("items", Integer.toString(n))
+                Map.of(
+                        "items", Integer.toString(receivedLines),
+                        "complete", Boolean.toString(allReceived)
+                )
         );
         return purchaseOrderMapper.toDto(updated);
     }

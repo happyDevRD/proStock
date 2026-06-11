@@ -33,9 +33,10 @@ public class InvoiceController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(required = false) SaleStatus status,
+            @RequestParam(required = false, defaultValue = "false") boolean overdueOnly,
             @NonNull Pageable pageable
     ) {
-        Page<SaleDto> page = saleService.findInvoices(pageable, ncf, customerId, dateFrom, dateTo, status);
+        Page<SaleDto> page = saleService.findInvoices(pageable, ncf, customerId, dateFrom, dateTo, status, overdueOnly);
         return ResponseEntity.ok(page);
     }
 

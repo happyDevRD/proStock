@@ -26,6 +26,9 @@ public class PurchaseOrderItem {
     @Column(nullable = false)
     private int quantity;
 
+    @Column(name = "quantity_received", nullable = false)
+    private int quantityReceived = 0;
+
     @Column(name = "unit_price", nullable = false)
     private double unitPrice; // Precio unitario al momento de la compra
 

@@ -19,6 +19,9 @@ public class SaleItemDto {
     @Positive(message = "Quantity must be positive")
     private int quantity;
 
+    /** Unidades devueltas acumuladas (notas de crédito). Solo lectura en respuestas. */
+    private Integer quantityReturned;
+
     @NotNull(message = "Price cannot be null")
     @Positive(message = "Price must be positive")
     private BigDecimal unitPrice;

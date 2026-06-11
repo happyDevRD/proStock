@@ -18,6 +18,8 @@ public class PurchaseOrderItemDto {
     @Positive
     private int quantity;
 
+    private int quantityReceived;
+
     private double unitPrice; //Se podría omitir, si se trae del producto, pero es mejor tenerlo.
 
 }

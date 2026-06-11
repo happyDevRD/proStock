@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.time.LocalDateTime;
 
-public interface StockMovementRepository extends JpaRepository<StockMovement, Long> {
+public interface StockMovementRepository extends JpaRepository<StockMovement, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<StockMovement> {
 
     // Obtener todos los movimientos de stock de un producto
     List<StockMovement> findByProduct_IdOrderByMovementDateDesc(Long productId);

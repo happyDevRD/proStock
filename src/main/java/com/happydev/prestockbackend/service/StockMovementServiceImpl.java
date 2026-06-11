@@ -6,12 +6,18 @@ import com.happydev.prestockbackend.entity.StockMovementType;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.StockMovementRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.PageRequest;
@@ -66,6 +72,45 @@ public class StockMovementServiceImpl implements StockMovementService {
     @Transactional(readOnly = true)
     public Page<StockMovement> getAllMovements(@NonNull Pageable pageable) {
         return stockMovementRepository.findAll(pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<StockMovement> findMovements(
+            @NonNull Pageable pageable,
+            @Nullable Long productId,
+            @Nullable LocalDate dateFrom,
+            @Nullable LocalDate dateTo,
+            @Nullable StockMovementType type
+    ) {
+        Specification<StockMovement> spec = buildMovementSpec(productId, dateFrom, dateTo, type);
+        return stockMovementRepository.findAll(spec, pageable);
+    }
+
+    private Specification<StockMovement> buildMovementSpec(
+            @Nullable Long productId,
+            @Nullable LocalDate dateFrom,
+            @Nullable LocalDate dateTo,
+            @Nullable StockMovementType type
+    ) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (productId != null) {
+                predicates.add(cb.equal(root.get("product").get("id"), productId));
+            }
+            if (type != null) {
+                predicates.add(cb.equal(root.get("type"), type));
+            }
+            if (dateFrom != null) {
+                LocalDateTime start = dateFrom.atStartOfDay();
+                predicates.add(cb.greaterThanOrEqualTo(root.get("movementDate"), start));
+            }
+            if (dateTo != null) {
+                LocalDateTime end = dateTo.atTime(LocalTime.of(23, 59, 59, 999_000_000));
+                predicates.add(cb.lessThanOrEqualTo(root.get("movementDate"), end));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     @Override

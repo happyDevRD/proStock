@@ -1,6 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.AddPaymentRequest;
+import com.happydev.prestockbackend.dto.CreateCreditNoteRequest;
+import com.happydev.prestockbackend.dto.CreditNoteDto;
 import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDto;
@@ -158,5 +160,21 @@ public class SaleController {
     @GetMapping("/by-service-order/{serviceOrderId}")
     public ResponseEntity<List<SaleDto>> findByServiceOrder(@PathVariable @NonNull Long serviceOrderId) {
         return ResponseEntity.ok(saleService.findByServiceOrderId(serviceOrderId));
+    }
+
+    @PostMapping("/{id}/credit-notes")
+    public ResponseEntity<CreditNoteDto> createCreditNote(
+            @PathVariable @NonNull Long id,
+            @Valid @RequestBody @NonNull CreateCreditNoteRequest request,
+            Principal principal
+    ) {
+        String actor = principal != null ? principal.getName() : null;
+        CreditNoteDto created = saleService.createCreditNote(id, request, actor);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{id}/credit-notes")
+    public ResponseEntity<List<CreditNoteDto>> getCreditNotes(@PathVariable @NonNull Long id) {
+        return ResponseEntity.ok(saleService.getCreditNotesForSale(id));
     }
 }

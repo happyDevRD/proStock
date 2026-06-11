@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.PurchaseOrderDto;
+import com.happydev.prestockbackend.dto.ReceivePurchaseOrderRequest;
 import com.happydev.prestockbackend.dto.SupplierPaymentDto;
 import com.happydev.prestockbackend.entity.PaymentMethod;
 import org.springframework.lang.NonNull;
@@ -19,6 +20,7 @@ public interface PurchaseOrderService {
     PurchaseOrderDto updatePurchaseOrder(@NonNull Long id, @NonNull PurchaseOrderDto purchaseOrderDto);
     void deletePurchaseOrder(@NonNull Long id);
     PurchaseOrderDto receivePurchaseOrder(@NonNull Long id);
+    PurchaseOrderDto receivePurchaseOrder(@NonNull Long id, ReceivePurchaseOrderRequest request);
 
     // Payments
     SupplierPaymentDto addPayment(Long poId, BigDecimal amount, PaymentMethod paymentMethod, String notes, String actorUsername);
