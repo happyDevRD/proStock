@@ -27,25 +27,47 @@ Objetivos concretos:
 - **Fase 1 (fundación de modularización): ✅ COMPLETADA y pusheada**
   - Backend `proStock` commit `705581b`
   - Frontend `proStockFront` commit `40c6818`
-- **Fase 2 (Centro de Módulos): ✅ implementada en frontend, pendiente push**
-  - `ModulesView.tsx` (nuevo) + `lib/modules.ts` (nuevo): pantalla
-    "marketplace" con tarjetas por módulo (toggle + sub-features) agrupadas
-    desde `/api/features`, más sección "Próximamente" (Empleados/RRHH,
-    Integraciones WhatsApp) basada en las fases 5/6.
-  - `SettingsView.tsx`: nueva pestaña "Módulos"; se removió la tarjeta
-    "Funcionalidades" inline de la pestaña General (su lógica se movió a
-    `ModulesView`).
-  - Sin cambios de backend (el DTO `FeatureFlagDto` ya tenía todo lo
-    necesario: code/category/name/description/enabled/dependsOn).
-  - Validado: typecheck + lint + test + build, todos verdes. **No probado
-    visualmente en navegador** (no hay herramienta de browser disponible en
-    esta sesión).
-- **Próximo paso:** decidir con el usuario si seguimos con Fase 3 (Menú y
-  navegación) o Fase 4 (Dashboard).
+- **Fase 2 (Centro de Módulos): ✅ COMPLETADA y pusheada**
+  - Frontend `proStockFront` commit `d356601`
+- **Fase 3 (Menú y navegación): ✅ implementada en frontend, pendiente commit/push**
+  - `TopBar.tsx`: command palette ampliado a las 14 vistas, filtrado por
+    permiso (`canAccessView`) y feature flag (`VIEW_TO_FEATURE`/
+    `isFeatureEnabled`), con navegación real por teclado (↑/↓/Enter, Esc para
+    cerrar).
+  - `Sidebar.tsx`: Favoritos — estrella al hacer hover sobre cada ítem,
+    persistidos en `localStorage` (`prostock.ui.favoriteViews`), con grupo
+    "Favoritos" fijo arriba del menú.
+  - `NAV_GROUPS`/`navItems` revisados: la agrupación actual (Principal /
+    Operaciones / Gestión / Servicios / Análisis / Sistema) sigue siendo
+    adecuada para los módulos planeados; no se requirieron cambios.
+  - **Bug de seguridad encontrado y corregido durante las pruebas**: un
+    usuario sin permisos `inventory.module.*` (ej. `cashier`) era redirigido
+    permanentemente a `/inventory/articles` y veía el `InventoryView`
+    completo (tabla editable de productos) al iniciar sesión. Causa: un
+    `useEffect` en `App.tsx` validaba `canAccessInventoryModule` en cada
+    render sin importar la vista activa (porque `pathToLocation` siempre
+    devuelve `inventoryModule: "articles"` para rutas que no son
+    `/inventory/*`). Corregido: el efecto ahora solo aplica cuando
+    `view === "inventory"`, y se agregaron guards
+    `canAccessView(authUser, "...")` a `pos`, `invoice` e `inventory` en
+    `mainContent` (igual que `suppliers`/`customers`/`users`/etc.).
+  - Validado: typecheck + lint + test + build verdes. Probado visualmente con
+    Playwright/Chromium para roles `admin` y `cashier`.
+- **Próximo paso:** commitear y pushear Fase 3 (frontend) cuando el usuario
+  confirme, luego decidir si seguimos con Fase 4 (Dashboard) o Fase 5
+  (Empleados/RRHH).
 - **Issue conocido, no bloqueante:** `AccessDeniedException` devuelve HTTP
   401 en vez de 403 en toda la app (confirmado de nuevo en esta sesión).
   Corregir la próxima vez que se toque `SecurityConfig`/manejo global de
   excepciones.
+- **Nuevo issue conocido, no bloqueante:** en `App.tsx`, las vistas
+  `reports`, `ar`, `ap` y `settings` dentro de `mainContent` aún no tienen un
+  guard `canAccessView` explícito (a diferencia de `pos`/`invoice`/
+  `inventory`/`suppliers`/`customers`/`users`/`service_orders`/`accounting`/
+  `setup`, que sí lo tienen tras el fix de esta sesión). El `useEffect` de
+  redirección por vista (~línea 198) ya las protege, pero podría haber un
+  flash de un frame antes de redirigir. Revisar en una futura pasada de
+  hardening de permisos.
 
 ## 3. Fundación existente (Fase 0-1, ya implementada)
 
@@ -104,10 +126,16 @@ módulos nuevos de las fases siguientes.
 - [x] Reutilizar permiso `settings.manage_features` (modo solo lectura si
       no se tiene el permiso, igual que Roles y Permisos).
 
-### Fase 3 — Menú y navegación
-- [ ] Revisar agrupación de `NAV_GROUPS` pensando en los módulos nuevos.
-- [ ] Buscador rápido / command palette (Cmd+K) para saltar entre vistas.
-- [ ] Favoritos / accesos pinneados por usuario.
+### Fase 3 — Menú y navegación ✅ (frontend implementado, pendiente push)
+- [x] Revisar agrupación de `NAV_GROUPS` pensando en los módulos nuevos —
+      revisado, no se requirieron cambios.
+- [x] Buscador rápido / command palette (atajo `/`) para saltar entre
+      vistas — ampliado a las 14 vistas con filtrado por permiso/feature flag
+      y navegación por teclado.
+- [x] Favoritos / accesos pinneados por usuario — implementado en
+      `Sidebar.tsx`, persistido en `localStorage`.
+- [x] (extra, encontrado durante pruebas) Corregido bug de permisos: usuarios
+      sin acceso a inventario ya no son redirigidos ni ven `InventoryView`.
 
 ### Fase 4 — Dashboard mucho más completo
 - [ ] Nuevos KPIs: flujo de caja, antigüedad de CxC/CxP, top
@@ -165,3 +193,16 @@ módulos nuevos de las fases siguientes.
 - Implementada Fase 2 en frontend: `ModulesView.tsx`, `lib/modules.ts`,
   pestaña "Módulos" en `SettingsView`. Typecheck/lint/test/build verdes.
   Pendiente: commit + push, y validación visual en navegador.
+- Fase 2 pusheada (`proStockFront@d356601`).
+- Usuario eligió continuar con Fase 3 (Menú y navegación).
+- Implementada Fase 3 en frontend: command palette ampliado (14 vistas,
+  filtrado por permiso/feature flag, navegación por teclado) en `TopBar.tsx`;
+  Favoritos persistidos en Sidebar; revisión de `NAV_GROUPS` (sin cambios).
+- Durante las pruebas (Playwright, rol `cashier`) se encontró y corrigió un
+  bug de permisos: usuarios sin acceso a inventario eran redirigidos
+  permanentemente a `/inventory/articles` y veían el `InventoryView`
+  completo. Fix en `App.tsx` (efecto de módulo de inventario scoped a
+  `view === "inventory"`, + guards `canAccessView` en `pos`/`invoice`/
+  `inventory`).
+- Typecheck/lint/test/build verdes; validación visual con Playwright para
+  roles `admin` y `cashier`. Pendiente: commit + push (frontend).
