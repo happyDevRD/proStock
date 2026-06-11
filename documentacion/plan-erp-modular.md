@@ -53,11 +53,13 @@ República Dominicana, luego en la región. Objetivos concretos:
     links, facturación parcial en UI, sincronización offline más tolerante.
   - ⚠️ **Nota de ramas:** `proStockFront` trabaja en `continue-screens`
     (= `main` + `71cddb7`). Pendiente merge/PR a `main` cuando se valide.
-- **Esta sesión (2026-06-11):** reescritura de este plan — análisis crítico
-  (sección 3) y hoja de ruta re-priorizada con enfoque comercial (sección 5).
-- **Próximo paso sugerido:** decidir entre **Fase C1 (Cumplimiento DGII:
-  reportes 606/607/608)** — el gap comercial más urgente — o **Fase Q1
-  (calidad: suite e2e + tests críticos)** antes de seguir sumando features.
+- **Esta sesión (2026-06-11):** reescritura de este plan (análisis crítico +
+  hoja de ruta en 3 carriles) y **arranque de Fase C1**: implementados los
+  reportes DGII **607 y 608** (backend + UI en Reportes + tests). Queda el
+  606 (necesita NCF de proveedor en compras) y la validación del TXT con la
+  herramienta oficial de la DGII.
+- **Próximo paso sugerido:** completar C1 (606 + validaciones de cierre de
+  mes) o arrancar **Fase Q1** (suite e2e + seeds de prueba).
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 - **Issues conocidos, no bloqueantes:**
@@ -199,14 +201,28 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ### Carril C — Cumplimiento y comercialización
 
-#### Fase C1 — Reportes DGII 606/607/608 ⭐ máxima prioridad
-- [ ] Generación del 607 (ventas) desde `Sale`/NCF del período, formato
-      oficial de envío (TXT/Excel según herramienta DGII vigente).
+#### Fase C1 — Reportes DGII 606/607/608 ⭐ máxima prioridad — 🟡 EN CURSO
+- [x] **(2026-06-11)** Generación del 607 (ventas) desde `Sale`/NCF +
+      notas de crédito del período: `DgiiReportService` con preview JSON
+      (`GET /api/reports/dgii/607?period=YYYY-MM`) y TXT formato de envío
+      pipe-delimited (`/607/txt`), con desglose de formas de pago desde
+      `SalePayment` (efectivo/cheque-transferencia/tarjeta/crédito/otras).
+- [x] **(2026-06-11)** 608 (NCF anulados): ventas CANCELED con NCF del
+      período (`/api/reports/dgii/608` + `/608/txt`, tipo anulación 04 por
+      defecto). Hoy normalmente vacío: las COMPLETED no se pueden cancelar
+      (las devoluciones van por nota de crédito al 607) — correcto.
+- [x] **(2026-06-11)** Sección "Cumplimiento DGII" en Reportes
+      (`DgiiComplianceCard`): selector de mes persistido, KPIs del período,
+      preview del 607 y descarga TXT de ambos. Protegido por `view.reports`
+      (se reutilizó el permiso existente en vez de crear `reports.dgii`).
+- [x] Tests unitarios del servicio (4 casos: 607 con ventas+NC y desglose
+      de pagos, layout TXT, 608, consumidor sin documento).
+- [ ] ⚠️ **Validar el TXT con la Herramienta de Envío / pre-validador de la
+      DGII antes de la primera remisión real** (el layout sigue la Norma
+      07-18; confirmar contra la herramienta vigente).
 - [ ] Generación del 606 (compras) — requiere capturar NCF del proveedor en
-      `PurchaseOrder`/gastos; evaluar entidad de gastos menores.
-- [ ] 608 (NCF anulados) desde anulaciones/notas de crédito.
-- [ ] Pantalla "Cumplimiento DGII" en Reportes con período, preview y
-      descarga; permiso `reports.dgii`.
+      `PurchaseOrder`/gastos (migración + UI); evaluar entidad de gastos
+      menores.
 - [ ] Validaciones previas al cierre de mes (NCF faltantes, RNC inválidos).
 
 #### Fase C2 — Facturación electrónica e-CF (Ley 32-23) — ⏸️ EN PAUSA
@@ -399,3 +415,26 @@ República Dominicana, luego en la región. Objetivos concretos:
   POS offline, impresión térmica, contabilidad integrada.
 - Pendiente al cierre: merge de `continue-screens` → `main` en
   `proStockFront`; decidir próxima fase (recomendado: C1 o Q1).
+- Usuario aclaró que la **Fase C2 (e-CF) queda en pausa**: el proceso de
+  certificación requiere tener el software en venta primero; se retoma con
+  su visto bueno. Plan pusheado (`proStock@2af9fe5`).
+- **Arranque de Fase C1 (reportes DGII):** implementados **607 y 608**:
+  - Backend: `DgiiReportService`/`Impl` (preview DTO + render TXT formato de
+    envío), `DgiiReportController` (`/api/reports/dgii/{607,608}[/txt]`,
+    `@PreAuthorize` con `view.reports`), queries nuevas en `SaleRepository`
+    (ventas con NCF por estado/rango), `CreditNoteRepository` (rango con
+    fetch de venta/cliente) y `SalePaymentRepository` (`findBySaleIdIn`).
+    607 incluye ventas COMPLETED con NCF + notas de crédito (NCF modificado),
+    con desglose de formas de pago y "venta a crédito" = saldo no cobrado.
+    Sin migraciones — todos los datos ya existían.
+  - Frontend: `DgiiComplianceCard` en Reportes — selector de mes (persistido
+    en `localStorage`), KPIs (registros 607, monto, ITBIS, anulados 608),
+    tabla preview del 607 y botones de descarga TXT. Tipos y funciones
+    nuevas en `api.ts` (`getDgii607Report`/`getDgii608Report`/
+    `downloadDgiiTxt`).
+  - Validación: 4 tests unitarios nuevos (`DgiiReportServiceImplTest`);
+    suite backend completa verde (`DB_PASSWORD=admin ./gradlew test`);
+    frontend `npm run validate` verde.
+  - Pendiente de C1: 606 (capturar NCF de proveedor en compras), validar el
+    TXT contra el pre-validador oficial de DGII, validaciones de cierre de
+    mes.

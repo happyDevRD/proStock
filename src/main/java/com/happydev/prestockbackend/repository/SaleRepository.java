@@ -21,6 +21,21 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
     Optional<Sale> findByIdempotencyKey(String idempotencyKey);
 
     @Query("""
+            SELECT s FROM Sale s
+            LEFT JOIN FETCH s.customer
+            WHERE s.status = :status
+              AND s.ncf IS NOT NULL
+              AND s.saleDate >= :start
+              AND s.saleDate <= :end
+            ORDER BY s.ncf
+            """)
+    List<Sale> findWithNcfByStatusInRange(
+            @Param("status") SaleStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
             SELECT COUNT(s) FROM Sale s
             WHERE s.status = :status
               AND s.saleDate >= COALESCE(:start, s.saleDate)

@@ -13,6 +13,8 @@ import java.util.List;
 public interface SalePaymentRepository extends JpaRepository<SalePayment, Long> {
     List<SalePayment> findBySaleIdOrderByPaymentDateAsc(Long saleId);
 
+    List<SalePayment> findBySaleIdIn(List<Long> saleIds);
+
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM SalePayment p WHERE p.sale.id = :saleId")
     BigDecimal sumAmountBySaleId(@Param("saleId") Long saleId);
 }
