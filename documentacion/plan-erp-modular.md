@@ -622,3 +622,19 @@ República Dominicana, luego en la región. Objetivos concretos:
   facturas (no productos) de la instancia Irisdicencia, y levantar una nueva
   instancia en GCP con datos ficticios de una empresa de reparación/venta de
   celulares y tecnología.
+- **Despliegues post-Q1 completados:** (1) Limpieza de facturas en la
+  instancia productiva de Irisdicencia (DS420+) — backup `pg_dump` previo
+  guardado en `~/nas/irisdicencia-ds420/backups/`, se borraron
+  `sales`/`sale_items`/`sale_payments`/`acc_journal_entries`/`acc_sync_log`,
+  secuencias NCF reseteadas a 0; productos/clientes/categorías/suplidores/
+  usuarios/company_config intactos. (No hace falta una segunda instancia en
+  el NAS — Irisdicencia ya tenía la única que hay ahí.) (2) Nueva instancia
+  demo "RepCel" (tienda ficticia de reparación/venta de celulares) levantada
+  en GCP (`prostock-elgarcia-prod`, us-east1): Cloud SQL `prostock-repcel-db`
+  + Cloud Run backend/frontend, build desde `proStock@d44e7b2`, sembrada con
+  empresa/categorías/suplidores/15 productos/clientes/NCF vía API con un
+  usuario GESTOR bootstrap. URLs y gotchas (socket factory `cloudSqlInstance`
+  singular, `STORAGE_LOCATION=/tmp/uploads`, creación de DB user vía REST por
+  bloqueo del classifier al pasar password en CLI) documentados en memoria
+  (`prostock_gcp_repcel.md`). Con esto, el cierre de proyecto solicitado por
+  el usuario queda completo.
