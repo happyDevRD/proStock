@@ -585,3 +585,17 @@ República Dominicana, luego en la región. Objetivos concretos:
   ahora en **8/8 verdes** (~13s); `npm run validate` verde. Con esto,
   los 3 flujos pendientes de Q1 ("pago parcial → completar, nota de
   crédito, orden de servicio → facturar") quedan completos.
+- **Bug real encontrado y corregido por la suite (CI):** en CI la creación de
+  la orden falló primero con `403 FEATURE_DISABLED` (`module.service_orders`
+  está deshabilitado por defecto en una BD nueva) — corregido agregando
+  `ensureFeatureEnabled(token, "module.service_orders")` en `beforeAll`
+  (`7a252f0`). Tras eso, el spec seguía fallando con timeout esperando ver
+  la orden en el Kanban: `resolveCompanyOrderType()` en
+  `ServiceOrderServiceImpl` devolvía `GENERAL` cuando `company_config` no
+  tiene fila (BD nueva, antes del wizard de configuración), pero el
+  frontend asume `PHOTOGRAPHY` como default (`companyConfig?.serviceOrderType
+  ?? "PHOTOGRAPHY"`, igual que el default real del campo en `CompanyConfig`).
+  La orden quedaba creada con `orderType=GENERAL` y era invisible en el
+  Kanban filtrado por `PHOTOGRAPHY`. Corregido cambiando el fallback a
+  `PHOTOGRAPHY` (`904fce7`). Validado contra una BD Postgres limpia (sin fila
+  en `company_config`): el spec pasa (1/1).
