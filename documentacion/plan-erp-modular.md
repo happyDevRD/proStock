@@ -51,8 +51,10 @@ República Dominicana, luego en la región. Objetivos concretos:
   - Frontend `proStockFront@71cddb7`: integración de órdenes de servicio en
     dashboard/clientes/facturas/reportes/POS, Kanban paginado con deep
     links, facturación parcial en UI, sincronización offline más tolerante.
-  - ⚠️ **Nota de ramas:** `proStockFront` trabaja en `continue-screens`
-    (= `main` + `71cddb7`). Pendiente merge/PR a `main` cuando se valide.
+  - ✅ **(2026-06-12)** `continue-screens` mergeada (fast-forward) y
+    pusheada a `main` (`proStockFront@ab9d607`). CI completo verde
+    (`ci`+`e2e`+`publish`), imagen `prostock-frontend-irisdicencia`
+    actualizada en GHCR.
 - **Esta sesión (2026-06-11):** reescritura de este plan (análisis crítico +
   hoja de ruta en 3 carriles) y **Fase C1 casi completa**: implementados los
   reportes DGII **606, 607 y 608** (backend + UI en Reportes + tests +
@@ -553,5 +555,12 @@ República Dominicana, luego en la región. Objetivos concretos:
   hasta V34) + `npm run e2e` → 7/7 verdes (probado con
   `precios_incluyen_itbis` en `false` y `true`); `typecheck`/`lint`/`test`/
   `build` verdes. Dejado en `false` (default) al cerrar la sesión.
-- Pendiente: commit + push de `proStockFront` (sigue en `continue-screens`,
-  pendiente merge a `main`).
+- **Mergeado `continue-screens` → `main`** (fast-forward, `ab9d607`),
+  pusheado. CI en `main` corrió completo y verde: `ci`, `e2e` (7/7) y
+  `publish` (imagen `ghcr.io/happydevrd/prostock-frontend-irisdicencia`
+  actualizada). `proStock@master` también al día (`7c41212`, docs).
+- Pendiente al cierre: el deploy de Irisdicencia (DS420+) sigue corriendo la
+  imagen anterior hasta que se actualice manualmente (Watchtower/pull); no
+  se tocó el NAS en esta sesión. Próximo: validar TXT 606/607/608 con DGII
+  (manual, usuario), o ampliar e2e con orden de servicio → facturar (Q1),
+  o pasar a Q2 (deuda técnica frontend).
