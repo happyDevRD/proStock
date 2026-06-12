@@ -168,6 +168,127 @@ class SaleServiceImplTest {
     }
 
     @Test
+    void completeSale_ComputesBreakdownAcrossAllItbisRates() {
+        Product itbis16Product = new Product();
+        itbis16Product.setId(11L);
+        itbis16Product.setName("Producto ITBIS 16");
+        itbis16Product.setStock(50);
+        itbis16Product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_16);
+        itbis16Product.setTipoBienServicio(TipoBienServicio.BIEN);
+
+        Product itbis0Product = new Product();
+        itbis0Product.setId(12L);
+        itbis0Product.setName("Producto ITBIS 0");
+        itbis0Product.setStock(50);
+        itbis0Product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_0);
+        itbis0Product.setTipoBienServicio(TipoBienServicio.BIEN);
+
+        SaleItem itbis18Item = new SaleItem();
+        itbis18Item.setId(31L);
+        itbis18Item.setProduct(taxableProduct);
+        itbis18Item.setQuantity(1);
+        itbis18Item.setUnitPrice(new BigDecimal("100.00"));
+
+        SaleItem itbis16Item = new SaleItem();
+        itbis16Item.setId(32L);
+        itbis16Item.setProduct(itbis16Product);
+        itbis16Item.setQuantity(1);
+        itbis16Item.setUnitPrice(new BigDecimal("100.00"));
+
+        SaleItem itbis0Item = new SaleItem();
+        itbis0Item.setId(33L);
+        itbis0Item.setProduct(itbis0Product);
+        itbis0Item.setQuantity(1);
+        itbis0Item.setUnitPrice(new BigDecimal("100.00"));
+
+        SaleItem exentoItem = new SaleItem();
+        exentoItem.setId(34L);
+        exentoItem.setProduct(exentoProduct);
+        exentoItem.setQuantity(1);
+        exentoItem.setUnitPrice(new BigDecimal("100.00"));
+
+        Sale mixedSale = new Sale();
+        mixedSale.setId(102L);
+        mixedSale.setSaleDate(LocalDateTime.of(2026, 4, 27, 12, 0));
+        mixedSale.setStatus(SaleStatus.PENDING);
+        mixedSale.setTipoComprobante("31");
+        mixedSale.setItems(List.of(itbis18Item, itbis16Item, itbis0Item, exentoItem));
+        for (SaleItem item : mixedSale.getItems()) {
+            item.setSale(mixedSale);
+        }
+        mixedSale.setPaymentMethod(PaymentMethod.CASH);
+
+        CompanyConfig config = new CompanyConfig();
+        config.setRnc("101010101");
+
+        when(saleRepository.findById(102L)).thenReturn(Optional.of(mixedSale));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(taxableProduct));
+        when(productRepository.findById(11L)).thenReturn(Optional.of(itbis16Product));
+        when(productRepository.findById(12L)).thenReturn(Optional.of(itbis0Product));
+        when(productRepository.findById(20L)).thenReturn(Optional.of(exentoProduct));
+        when(sequenceService.getNextSequence("31")).thenReturn("E310000000160");
+        when(companyConfigRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(config));
+        when(invoiceQrService.buildPayloadUrl(any(), any(), any(), any(), any(), any(), any())).thenReturn("https://qr.test/mixed");
+        when(invoiceQrService.generateBase64Qr("https://qr.test/mixed")).thenReturn("base64qrMixed");
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleMapper.toDto(any(Sale.class))).thenAnswer(invocation -> {
+            Sale saved = invocation.getArgument(0);
+            SaleDto dto = new SaleDto();
+            dto.setId(saved.getId());
+            dto.setMontoGravadoTotal(saved.getMontoGravadoTotal());
+            dto.setMontoExento(saved.getMontoExento());
+            dto.setTotalItbis(saved.getTotalItbis());
+            dto.setMontoTotal(saved.getMontoTotal());
+            return dto;
+        });
+        when(stockMovementService.createMovement(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SaleDto result = saleService.completeSale(102L, "cashier");
+
+        // 3 líneas gravadas (18%, 16%, 0%) de 100 c/u + 1 línea exenta de 100
+        assertEquals(new BigDecimal("300.00"), result.getMontoGravadoTotal());
+        assertEquals(new BigDecimal("100.00"), result.getMontoExento());
+        assertEquals(new BigDecimal("34.00"), result.getTotalItbis()); // 18 + 16 + 0
+        assertEquals(new BigDecimal("434.00"), result.getMontoTotal());
+        verify(stockMovementService, times(4)).createMovement(any());
+    }
+
+    @Test
+    void completeSale_AppliesGlobalDiscountProportionallyAcrossGravadoAndExento() {
+        sale.setDiscountAmount(new BigDecimal("25.00"));
+        CompanyConfig config = new CompanyConfig();
+        config.setRnc("101010101");
+
+        when(saleRepository.findById(99L)).thenReturn(Optional.of(sale));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(taxableProduct));
+        when(productRepository.findById(20L)).thenReturn(Optional.of(exentoProduct));
+        when(sequenceService.getNextSequence("31")).thenReturn("E310000000150");
+        when(companyConfigRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(config));
+        when(invoiceQrService.buildPayloadUrl(any(), any(), any(), any(), any(), any(), any())).thenReturn("https://qr.test/discount");
+        when(invoiceQrService.generateBase64Qr("https://qr.test/discount")).thenReturn("base64qrDiscount");
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleMapper.toDto(any(Sale.class))).thenAnswer(invocation -> {
+            Sale saved = invocation.getArgument(0);
+            SaleDto dto = new SaleDto();
+            dto.setId(saved.getId());
+            dto.setMontoGravadoTotal(saved.getMontoGravadoTotal());
+            dto.setMontoExento(saved.getMontoExento());
+            dto.setTotalItbis(saved.getTotalItbis());
+            dto.setMontoTotal(saved.getMontoTotal());
+            return dto;
+        });
+        when(stockMovementService.createMovement(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SaleDto result = saleService.completeSale(99L, "cashier");
+
+        // Base total 250.00 (200 gravado + 50 exento), descuento 25.00 -> factor 0.9
+        assertEquals(new BigDecimal("180.00"), result.getMontoGravadoTotal());
+        assertEquals(new BigDecimal("45.00"), result.getMontoExento());
+        assertEquals(new BigDecimal("32.40"), result.getTotalItbis());
+        assertEquals(new BigDecimal("257.40"), result.getMontoTotal());
+    }
+
+    @Test
     void completeSale_DoesNotMoveStockForServicio() {
         Product serviceProduct = new Product();
         serviceProduct.setId(30L);
