@@ -337,8 +337,13 @@ República Dominicana, luego en la región. Objetivos concretos:
       (el redirect a fallback vs el normalizador de submódulo) → pantalla
       en blanco permanente en `/inventory/articles` (sin fuga de datos).
       Fix: el normalizador solo aplica si `canAccessView(inventory)`.
-- [ ] Ampliar e2e: pago parcial → completar, nota de crédito, orden de
-      servicio → facturar.
+- [x] **Ampliar e2e: pago parcial → completar, nota de crédito, orden de
+      servicio → facturar** (2026-06-12). 3 specs nuevos:
+      `pos-partial-payment.spec.ts`, `credit-note.spec.ts`,
+      `service-order-billing.spec.ts` (crea orden vacía por API, agrega un
+      producto desde el panel de detalle, factura desde "Facturar
+      pendientes" → POS precargado → venta completada con NCF 32 → verifica
+      `linkedSales` en la orden). Suite ahora en 8 tests, ~13s.
 - [ ] Backend: más tests de servicio de flujos fiscales (ITBIS
       incluido/excluido end-to-end, auto-complete de pagos).
 - [ ] Branch protection en GitHub para exigir los checks en `main`
@@ -564,3 +569,19 @@ República Dominicana, luego en la región. Objetivos concretos:
   se tocó el NAS en esta sesión. Próximo: validar TXT 606/607/608 con DGII
   (manual, usuario), o ampliar e2e con orden de servicio → facturar (Q1),
   o pasar a Q2 (deuda técnica frontend).
+- **Continuación Fase Q1 (cierre del ítem "orden de servicio → facturar"):**
+  nuevo spec `e2e/service-order-billing.spec.ts` + helpers
+  `createTestServiceOrder`/`getServiceOrder` en `e2e/helpers/backend.ts`.
+  Flujo: crea orden vacía por API → en el Kanban (`/service_orders`) agrega
+  el producto sembrado vía panel de detalle ("Agregar" → buscar → "Agregar
+  producto") → "Facturar pendientes" abre POS con el ticket precargado
+  (banner "Facturando orden OS-...") → completa venta → factura con NCF
+  `E32...` → verifica por API que `linkedSales` de la orden incluye la
+  venta. Nota: la primera versión sembraba el ítem de la orden por API
+  antes de navegar, pero el panel de detalle usa `initialData` + `staleTime`
+  de 30s en React Query, así que no refetchea y muestra "Productos (0)";
+  agregar el ítem vía UI dispara `invalidate()` y evita el problema (no es
+  un bug real, solo una particularidad del seeding por API). Suite e2e
+  ahora en **8/8 verdes** (~13s); `npm run validate` verde. Con esto,
+  los 3 flujos pendientes de Q1 ("pago parcial → completar, nota de
+  crédito, orden de servicio → facturar") quedan completos.
