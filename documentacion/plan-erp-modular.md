@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-11
+- **Última actualización:** 2026-06-12
 - **Fase 1 (fundación de modularización): ✅** `proStock@705581b`,
   `proStockFront@40c6818`
 - **Fase 2 (Centro de Módulos): ✅** `proStockFront@d356601`
@@ -63,9 +63,38 @@ República Dominicana, luego en la región. Objetivos concretos:
   Postgres y suite completa, CI frontend con typecheck+tests+job e2e como
   gate del publish. Encontró y corrigió un bug real (bucle de efectos →
   pantalla en blanco para usuarios sin acceso a inventario).
-- **Próximo paso sugerido:** validar TXT con el pre-validador DGII (manual,
-  usuario); ampliar e2e (pago parcial, nota de crédito, orden de servicio)
-  o pasar a Fase Q2/4.2.
+- **(2026-06-12) Fase Q1 — ampliación e2e (pago parcial + nota de crédito):
+  ✅ completada y validada**, pendiente commit/push.
+  - Nuevos specs `proStockFront/e2e/pos-partial-payment.spec.ts` (abono
+    parcial deja la venta `PARTIALLY_PAID`, segundo cobro la completa con
+    NCF) y `credit-note.spec.ts` (venta completa → devolución → nota de
+    crédito NCF 34), con helpers nuevos en `e2e/helpers/backend.ts`
+    (`findSaleByProduct`, `getSaleCreditNotes`).
+  - `POS.tsx`: tras guardar borrador/registrar abono ahora se invalida la
+    query `["sales"]` (`refreshSalesCache`) para que "Facturas abiertas" se
+    actualice sin recargar — necesario para que el flujo de abono → cargar
+    factura → completar funcione en el mismo test.
+  - **Bug fiscal real encontrado y corregido** (afecta a cualquier empresa
+    con `precios_incluyen_itbis = true`, ver Carril C/Q3): el POS enviaba al
+    backend el precio CON ITBIS incluido como `unitPrice`, y
+    `recalculateTaxTotals` del backend siempre trata `unitPrice` como base
+    sin ITBIS y le suma el impuesto otra vez → **doble cobro de ITBIS**
+    (ej. catálogo RD$100 → backend registraba RD$118). Corregido en
+    `buildSalePayload` (extrae la base con `baseFromInclusive` antes de
+    enviar) y en `handleLoadDraft`/carga de ítems de orden de servicio
+    (`inclusiveFromBase` para reconvertir el precio base del backend al
+    precio de catálogo mostrado). También se ajustó `computeCartTotals` en
+    modo inclusivo para calcular el ITBIS como `base * tasa` (igual que el
+    backend) en vez de `total - base`, eliminando un desajuste de 1 centavo
+    por redondeo. Nuevo test unitario `src/lib/posTax.test.ts`.
+  - Validado contra stack local (Postgres dev + `./gradlew bootRun` perfil
+    `local` + `npm run e2e`): 7/7 e2e verdes, con
+    `precios_incluyen_itbis` tanto en `false` (default) como `true`.
+    `npm run typecheck`, `lint`, `test` y `build` también verdes.
+- **Próximo paso sugerido:** commit + push de lo anterior; validar TXT
+  606/607/608 con el pre-validador DGII (manual, usuario); ampliar e2e
+  (orden de servicio → facturar) o pasar a Fase Q2/4.2. Mergear
+  `continue-screens` → `main` cuando se valide.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 - **Issues conocidos, no bloqueantes:**
@@ -503,3 +532,26 @@ República Dominicana, luego en la región. Objetivos concretos:
   compra a crédito); suite backend completa y `npm run validate` verdes.
   Notas: el 606 solo cubre compras con OC (gastos menores pendiente);
   proveedores existentes requieren backfill manual del RNC.
+
+### 2026-06-12
+- **Continuación Fase Q1 (ampliar e2e):** retomado trabajo no commiteado de
+  `proStockFront` (rama `continue-screens`): specs
+  `pos-partial-payment.spec.ts` y `credit-note.spec.ts` + helpers
+  `findSaleByProduct`/`getSaleCreditNotes` + `refreshSalesCache` en
+  `POS.tsx`.
+- **Bug fiscal encontrado y corregido** (no relacionado con los specs en sí,
+  pero descubierto al validarlos contra una BD local con
+  `precios_incluyen_itbis = true`): doble cobro de ITBIS en ventas cuando
+  los precios de catálogo incluyen el impuesto — el backend volvía a sumar
+  ITBIS sobre un precio que ya lo incluía (RD$100 → RD$118 registrados).
+  Corregido en `POS.tsx` (`buildSalePayload`, `handleLoadDraft`, carga de
+  ítems de orden de servicio) y `posTax.ts` (`inclusiveFromBase` nueva +
+  `computeCartTotals` modo inclusivo ahora calcula ITBIS como `base * tasa`
+  para coincidir con el backend, eliminando un desajuste de 1 centavo).
+  Nuevo test `src/lib/posTax.test.ts`.
+- Validado localmente: backend perfil `local` (Postgres dev existente,
+  hasta V34) + `npm run e2e` → 7/7 verdes (probado con
+  `precios_incluyen_itbis` en `false` y `true`); `typecheck`/`lint`/`test`/
+  `build` verdes. Dejado en `false` (default) al cerrar la sesión.
+- Pendiente: commit + push de `proStockFront` (sigue en `continue-screens`,
+  pendiente merge a `main`).
