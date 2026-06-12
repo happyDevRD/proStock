@@ -314,7 +314,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ### Carril Q — Calidad y plataforma
 
-#### Fase Q1 — Red de seguridad de pruebas ⭐ — 🟡 EN CURSO (núcleo hecho 2026-06-11)
+#### Fase Q1 — Red de seguridad de pruebas ⭐ — ✅ CERRADA 2026-06-12 (núcleo hecho 2026-06-11)
 - [x] **Suite e2e Playwright commiteada** (`e2e/` + `playwright.config.ts`,
       puerto aislado 3210): login ok/fallido, **venta POS completa con NCF**
       (busca producto sembrado, cobra, verifica `E32…` en la factura),
@@ -344,10 +344,21 @@ República Dominicana, luego en la región. Objetivos concretos:
       producto desde el panel de detalle, factura desde "Facturar
       pendientes" → POS precargado → venta completada con NCF 32 → verifica
       `linkedSales` en la orden). Suite ahora en 8 tests, ~13s.
-- [ ] Backend: más tests de servicio de flujos fiscales (ITBIS
-      incluido/excluido end-to-end, auto-complete de pagos).
-- [ ] Branch protection en GitHub para exigir los checks en `main`
-      (config manual del repo).
+- [x] **Backend: más tests de flujos fiscales** (2026-06-12):
+      `completeSale_ComputesBreakdownAcrossAllItbisRates` (mezcla 18%/16%/0%/
+      exento en una sola venta) y
+      `completeSale_AppliesGlobalDiscountProportionallyAcrossGravadoAndExento`
+      (descuento global repartido proporcionalmente antes de recalcular
+      ITBIS) — cierran el gap de cobertura de `recalculateTaxTotals()`. El
+      "auto-complete de pagos" (pago que cubre el saldo finaliza la venta con
+      NCF) ya estaba cubierto por `addPayment_FullAmountWithComprobante_*`.
+      Suite backend: 130 tests, verde.
+- [~] Branch protection en GitHub para exigir los checks en `main`:
+      **no aplicado** — `proStockFront` es privado y GitHub bloquea branch
+      protection sin plan Pro; `proStock` (público) sí lo permite pero es un
+      cambio de configuración persistente del repo que requiere decisión
+      explícita del usuario, no se tocó. Pendiente como tarea manual si se
+      decide pagar Pro o aceptar el riesgo en `proStock`.
 
 #### Fase Q2 — Pago de deuda técnica frontend
 - [ ] Partir `api.ts` (1,710 líneas) por dominio (`api/sales.ts`,
@@ -598,4 +609,16 @@ República Dominicana, luego en la región. Objetivos concretos:
   La orden quedaba creada con `orderType=GENERAL` y era invisible en el
   Kanban filtrado por `PHOTOGRAPHY`. Corregido cambiando el fallback a
   `PHOTOGRAPHY` (`904fce7`). Validado contra una BD Postgres limpia (sin fila
-  en `company_config`): el spec pasa (1/1).
+  en `company_config`): el spec pasa (1/1). CI re-corrido sobre el commit
+  `7a252f0` → verde (`ci`, `e2e` 8/8, `publish`).
+- **Cierre de Fase Q1:** agregados 2 tests de servicio para flujos fiscales
+  (`completeSale_ComputesBreakdownAcrossAllItbisRates`,
+  `completeSale_AppliesGlobalDiscountProportionallyAcrossGravadoAndExento`,
+  `21f0192`) — suite backend en 130 tests verde. Branch protection en GitHub
+  quedó **sin aplicar** (repo privado sin plan Pro / decisión pendiente del
+  usuario para `proStock` público). Con esto, **Fase Q1 cerrada**. Siguiente:
+  la prioridad pasa a cerrar despliegues — preparar instancia "tienda de
+  teléfonos" en el DS420+ (Irisdicencia, junto a la de fotografía), limpiar
+  facturas (no productos) de la instancia Irisdicencia, y levantar una nueva
+  instancia en GCP con datos ficticios de una empresa de reparación/venta de
+  celulares y tecnología.
