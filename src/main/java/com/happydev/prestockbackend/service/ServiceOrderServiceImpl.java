@@ -649,10 +649,14 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     }
 
     private ServiceOrderType resolveCompanyOrderType() {
+        // Si no existe company_config (instalación nueva, antes del wizard de configuración),
+        // usar PHOTOGRAPHY: coincide con el default del campo en CompanyConfig y con el
+        // fallback del frontend (companyConfig?.serviceOrderType ?? "PHOTOGRAPHY"). Si no
+        // coinciden, las órdenes creadas no aparecen en el Kanban (filtrado por tipo).
         return companyConfigRepository.findFirstByOrderByIdAsc()
                 .map(CompanyConfig::getServiceOrderType)
                 .map(this::parseServiceOrderType)
-                .orElse(ServiceOrderType.GENERAL);
+                .orElse(ServiceOrderType.PHOTOGRAPHY);
     }
 
     private ServiceOrderType parseServiceOrderType(String raw) {
