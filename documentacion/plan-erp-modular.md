@@ -93,10 +93,17 @@ República Dominicana, luego en la región. Objetivos concretos:
     `local` + `npm run e2e`): 7/7 e2e verdes, con
     `precios_incluyen_itbis` tanto en `false` (default) como `true`.
     `npm run typecheck`, `lint`, `test` y `build` también verdes.
-- **Próximo paso sugerido:** commit + push de lo anterior; validar TXT
+- **(2026-06-15) Fase Q2 (deuda técnica frontend) ✅ COMPLETA:** ver detalle
+  en la bitácora de hoy — split de `src/api.ts` en 13 módulos,
+  descomposición de `POS.tsx` (2,478→1,301), `InventoryView.tsx`
+  (1,795→1,014) y `Dashboard.tsx` (1,331→561) en componentes por
+  responsabilidad, y lazy-loading por vista (bundle principal
+  641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
+  Pendiente commit/push.
+- **Próximo paso sugerido:** commit + push de Fase Q2; validar TXT
   606/607/608 con el pre-validador DGII (manual, usuario); ampliar e2e
-  (orden de servicio → facturar) o pasar a Fase Q2/4.2. Mergear
-  `continue-screens` → `main` cuando se valide.
+  (orden de servicio → facturar) o pasar a Fase Q3 (hardening de seguridad)
+  / Fase 4.2. Mergear `continue-screens` → `main` cuando se valide.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 - **Issues conocidos, no bloqueantes:**
@@ -360,7 +367,7 @@ República Dominicana, luego en la región. Objetivos concretos:
       explícita del usuario, no se tocó. Pendiente como tarea manual si se
       decide pagar Pro o aceptar el riesgo en `proStock`.
 
-#### Fase Q2 — Pago de deuda técnica frontend — 🟡 EN CURSO
+#### Fase Q2 — Pago de deuda técnica frontend — ✅ COMPLETA (2026-06-15)
 - [x] **(2026-06-15)** Partido `src/api.ts` (1,790 líneas) en 13 módulos por
       dominio bajo `src/api/` (`client`, `auth`, `users`, `products`,
       `inventory`, `purchase-orders`, `sales`, `customers`, `dgii`,
@@ -383,9 +390,41 @@ República Dominicana, luego en la región. Objetivos concretos:
       teclado, escaneo de código de barras), delega el render a los 5
       componentes nuevos. `npm run typecheck/lint/test/build` verdes.
       Pendiente commit/push.
-- [ ] `InventoryView` (1,792) y `Dashboard` (1,331): misma medicina,
-      aprovechando las subcarpetas por dominio ya creadas.
-- [ ] Lazy-loading por vista (code splitting) — hoy todo va en un bundle.
+- [x] **(2026-06-15)** Descompuesto `InventoryView.tsx` (1,795 → 1,014
+      líneas): extraídos a `src/components/inventory/`
+      `InventoryArticlesTab` (~643 líneas: KPIs, filtros, tabla de
+      artículos con selección/orden/paginación, antes con `SortIndicator`
+      local), `InventoryPurchasesTab` (~145 líneas: órdenes pendientes +
+      recepción), `InventoryAdjustmentsTab` (~231 líneas: conteo físico +
+      formulario de ajuste + historial reciente) y `BulkPromoModal`
+      (~105 líneas: promoción masiva). `InventoryView.tsx` queda como
+      contenedor: estado/efectos/handlers de catálogo, compras, ajustes y
+      promoción masiva, delega el render de las pestañas
+      articles/purchases/adjustments a los 3 componentes nuevos y el modal
+      a `BulkPromoModal` (la pestaña movements se deja igual, ya delegaba en
+      `InventoryMovementsPanel`). `npm run typecheck/lint/test/build` verdes.
+- [x] **(2026-06-15)** Descompuesto `Dashboard.tsx` (1,331 → 561 líneas):
+      extraídos a `src/components/dashboard/` los widgets `ChartWidget`,
+      `AtajosWidget` (+ helper `ATAJOS`), `EstadoWidget`,
+      `VentasRecientesWidget`, `StockCriticoWidget`, los wrappers de layout
+      `SortableItem` y `DashboardSection`, y `constants.ts` (tipos
+      `KpiId`/`ContentId`/`SectionId`/`DateRange`, `SECTION_CONFIG`, claves
+      de storage, helpers de fecha/saludo y `SALE_STATUS_CONFIG`/
+      `PAYMENT_LABELS`). `Dashboard.tsx` queda como contenedor: estado de
+      layout (orden/visibilidad de KPIs y widgets vía dnd-kit), filtro de
+      rango de fechas, query de resumen del período y `kpiData`/
+      `renderContent`. `npm run typecheck/lint/test/build` verdes.
+- [x] **(2026-06-15)** Lazy-loading por vista (code splitting): todas las
+      vistas principales (`Dashboard`, `POS`, `InventoryView`,
+      `InitialSetupWizard`, `InvoiceView`/`InvoiceHistoryView`,
+      `SuppliersView`, `CustomersView`, `ServiceOrdersView`, `UsersView`,
+      `ReportsView`, `AccountsReceivableView`/`AccountsPayableView`,
+      `AccountingView`, `SettingsView`) ahora se cargan con `React.lazy` +
+      `Suspense` (fallback "Cargando...") en `App.tsx`; `LoginView` sigue
+      eager (necesaria antes de autenticar). Bundle principal bajó de
+      **641 kB → 75 kB** (gzip 161 kB → 22 kB); cada vista es su propio
+      chunk (10–95 kB). Desaparece la advertencia de Vite de chunk >500 kB.
+      `npm run typecheck/lint/test/build` verdes. **Cierra Fase Q2.**
 
 #### Fase Q3 — Hardening de seguridad
 - [ ] `AccessDeniedException` → 403 (issue conocido).
