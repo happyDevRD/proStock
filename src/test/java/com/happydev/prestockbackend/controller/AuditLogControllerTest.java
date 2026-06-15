@@ -3,6 +3,7 @@ package com.happydev.prestockbackend.controller;
 import com.happydev.prestockbackend.entity.AuditLog;
 import com.happydev.prestockbackend.repository.AuditLogRepository;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -28,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = AuditLogController.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
-                classes = JwtAuthenticationFilter.class
+                classes = {JwtAuthenticationFilter.class, LoginRateLimitFilter.class}
         )
 )
 @AutoConfigureMockMvc(addFilters = false)

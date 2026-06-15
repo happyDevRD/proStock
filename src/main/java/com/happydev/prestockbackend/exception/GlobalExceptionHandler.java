@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -198,6 +200,33 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         logger.warn("AccessDeniedException: {}", ex.getMessage());
         return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
+
+    // 423 Locked - Cuenta bloqueada temporalmente (login)
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ErrorDetails> handleLockedException(LockedException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "ACCOUNT_LOCKED",
+                ex.getMessage(),
+                request.getDescription(false)
+        );
+        logger.warn("LockedException: {}", ex.getMessage());
+        return new ResponseEntity<>(errorDetails, HttpStatus.LOCKED);
+    }
+
+    // 401 Unauthorized - Credenciales inválidas (login)
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorDetails> handleAuthenticationException(AuthenticationException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "BAD_CREDENTIALS",
+                "Usuario o contraseña inválidos.",
+                request.getDescription(false)
+        );
+        logger.warn("AuthenticationException: {}", ex.getMessage());
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+    }
+
     // 400 - ConstraintViolationException (Validaciones a nivel de entidad)
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorDetails> handleConstraintViolationException(ConstraintViolationException ex, WebRequest request) {

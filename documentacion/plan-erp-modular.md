@@ -100,20 +100,22 @@ República Dominicana, luego en la región. Objetivos concretos:
   responsabilidad, y lazy-loading por vista (bundle principal
   641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
   ✅ commiteado y pusheado (`proStockFront@8c98968`, `proStock@a9942f4`).
-- **Próximo paso sugerido:** validar TXT 606/607/608 con el pre-validador
-  DGII (manual, usuario); ampliar e2e (orden de servicio → facturar) o pasar
-  a Fase Q3 (hardening de seguridad) / Fase 4.2. Mergear `continue-screens`
-  → `main` cuando se valide.
+- **(2026-06-15) Fase Q3 (hardening de seguridad) — en progreso, 4/7 items
+  ✅:** items 1 (AccessDeniedException→403, verificado con test nuevo), 2
+  (guards `canAccessView` en `reports`/`ar`/`ap`/`settings`), 3 (rate
+  limiting + lockout temporal en `/api/auth/login`) y 7 (limpieza de
+  `postgres-socket-factory`) completados — ver detalle en el checklist de
+  Fase Q3 más abajo. `DB_PASSWORD=admin ./gradlew test`/`clean build` y `npm
+  run typecheck/lint/test/build` verdes. **Pendiente de commit/push.**
+  Restan: 4 (2FA TOTP), 5 (política de contraseñas + expiración de sesión
+  configurables), 6 (diseño de cifrado de credenciales de integraciones) —
+  mayor alcance, evaluar prioridad con el usuario.
+- **Próximo paso sugerido:** commitear/pushear cambios de Fase Q3 (4/7
+  items); luego continuar con items 4-6 de Fase Q3, o validar TXT 606/607/608
+  con el pre-validador DGII (manual, usuario), o ampliar e2e. Mergear
+  `continue-screens` → `main` cuando se valide.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
-- **Issues conocidos, no bloqueantes:**
-  - `AccessDeniedException` devuelve HTTP 401 en vez de 403 en toda la app.
-    Corregir al tocar `SecurityConfig`/manejo global de excepciones.
-  - En `App.tsx`, las vistas `reports`/`ar`/`ap`/`settings` de `mainContent`
-    no tienen guard `canAccessView` explícito (protegidas solo por el
-    `useEffect` de redirección — posible flash de un frame).
-  - `build.gradle` aún incluye `com.google.cloud.sql:postgres-socket-factory`
-    (legado de Cloud SQL, ya decomisionado) — eliminar en la próxima pasada.
 
 ## 3. Análisis crítico (2026-06-11)
 
@@ -427,14 +429,46 @@ República Dominicana, luego en la región. Objetivos concretos:
       `npm run typecheck/lint/test/build` verdes. **Cierra Fase Q2.**
 
 #### Fase Q3 — Hardening de seguridad
-- [ ] `AccessDeniedException` → 403 (issue conocido).
-- [ ] Guards `canAccessView` explícitos en `reports`/`ar`/`ap`/`settings`.
-- [ ] Rate limiting en `/api/auth/login` + lockout temporal.
+- [x] `AccessDeniedException` → 403 (issue conocido). **Verificado, ya estaba
+      correcto:** se agregó `SecurityAccessDeniedTest` (3 casos con
+      `@SpringBootTest`/MockMvc + JWT real) que confirma anónimo→401,
+      autenticado sin authority en regla de `authorizeHttpRequests`→403
+      (handler por defecto de Spring Security) y denegación por
+      `@PreAuthorize`→403 con body `{"code":"ACCESS_DENIED",...}` vía
+      `GlobalExceptionHandler`. La nota del roadmap quedó desactualizada;
+      no se requirió cambio en `SecurityConfig`. `./gradlew test` verde.
+- [x] Guards `canAccessView` explícitos en `reports`/`ar`/`ap`/`settings`.
+      Se agregó `canAccessView(authUser, "reports"|"ar"|"ap"|"settings")` a
+      los 4 bloques en `App.tsx` (antes solo dependían del `useEffect` de
+      redirección, con posible flash de un frame). `npm run
+      typecheck/lint/test/build` verdes.
+- [x] Rate limiting en `/api/auth/login` + lockout temporal. Dos capas:
+      (a) lockout persistente por cuenta — nuevas columnas
+      `failed_login_attempts`/`locked_until` en `users` (migración V35),
+      configurables vía `LoginSecurityProperties`
+      (`app.security.login.max-attempts`, `...lockout-minutes`, default 5/15);
+      `AuthController.login()` ahora rechaza con 423 si la cuenta está
+      bloqueada (`LockedException`/`ACCOUNT_LOCKED`), registra intentos
+      fallidos y resetea el contador en login exitoso; (b) rate limiting por
+      IP — `LoginRateLimitFilter` (ventana deslizante en memoria,
+      configurable vía `app.security.login.rate-limit.max-requests`/
+      `...window-seconds`, default 10/60s), responde 429
+      `LOGIN_RATE_LIMITED`. De paso se corrigió un bug latente: las
+      credenciales inválidas en `/login` no tenían handler dedicado y caían
+      al catch-all → 500; ahora `AuthenticationException`→401
+      `BAD_CREDENTIALS` vía `GlobalExceptionHandler`. Tests nuevos:
+      `LoginRateLimitFilterTest`, 3 casos nuevos en `AuthControllerTest`
+      (bad credentials, cuenta bloqueada, reseteo de intentos). `DB_PASSWORD=admin
+      ./gradlew test` → 134 tests, 0 failures.
 - [ ] 2FA TOTP opcional por usuario (obligatorio configurable para ADMIN).
 - [ ] Política de contraseñas + expiración de sesión configurables.
 - [ ] Diseño de cifrado de credenciales de integraciones (necesario para
       C4 y Fase 6).
-- [ ] Limpiar dependencia legacy `postgres-socket-factory` (GCP).
+- [x] Limpiar dependencia legacy `postgres-socket-factory` (GCP). Removida de
+      `build.gradle` (`runtimeOnly 'com.google.cloud.sql:postgres-socket-factory:1.22.0'`);
+      sin referencias restantes en `application*.properties` tras la
+      migración a Docker/DS420+. `DB_PASSWORD=admin ./gradlew clean build` →
+      BUILD SUCCESSFUL.
 
 ### Carril F — Features (continuación de fases originales)
 

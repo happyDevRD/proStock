@@ -6,6 +6,7 @@ import com.happydev.prestockbackend.entity.User;
 import com.happydev.prestockbackend.entity.UserRole;
 import com.happydev.prestockbackend.exception.GlobalExceptionHandler;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import com.happydev.prestockbackend.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +39,7 @@ import java.security.Principal;
         controllers = UserController.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
-                classes = JwtAuthenticationFilter.class
+                classes = {JwtAuthenticationFilter.class, LoginRateLimitFilter.class}
         )
 )
 @Import(GlobalExceptionHandler.class)

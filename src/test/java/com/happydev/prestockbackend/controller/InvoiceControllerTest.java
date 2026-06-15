@@ -4,6 +4,7 @@ import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.exception.GlobalExceptionHandler;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import com.happydev.prestockbackend.service.SaleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = InvoiceController.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
-                classes = JwtAuthenticationFilter.class
+                classes = {JwtAuthenticationFilter.class, LoginRateLimitFilter.class}
         )
 )
 @Import(GlobalExceptionHandler.class)

@@ -3,6 +3,7 @@ package com.happydev.prestockbackend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happydev.prestockbackend.entity.NcfSequence;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import com.happydev.prestockbackend.service.SequenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = NcfSequenceController.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
-                classes = JwtAuthenticationFilter.class
+                classes = {JwtAuthenticationFilter.class, LoginRateLimitFilter.class}
         )
 )
 @WithMockUser(username = "admin", roles = {"ADMIN"})

@@ -3,6 +3,7 @@ package com.happydev.prestockbackend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happydev.prestockbackend.entity.CompanyConfig;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import com.happydev.prestockbackend.service.CompanyConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = CompanyConfigController.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
-                classes = JwtAuthenticationFilter.class
+                classes = {JwtAuthenticationFilter.class, LoginRateLimitFilter.class}
         )
 )
 @WithMockUser(username = "admin", roles = {"ADMIN"})

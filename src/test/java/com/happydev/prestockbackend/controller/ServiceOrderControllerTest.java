@@ -8,6 +8,7 @@ import com.happydev.prestockbackend.dto.ServiceOrderStatsDto;
 import com.happydev.prestockbackend.entity.ServiceOrderStatus;
 import com.happydev.prestockbackend.entity.ServiceOrderType;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import com.happydev.prestockbackend.service.ServiceOrderAccessGuard;
 import com.happydev.prestockbackend.service.ServiceOrderService;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = ServiceOrderController.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
-                classes = JwtAuthenticationFilter.class
+                classes = {JwtAuthenticationFilter.class, LoginRateLimitFilter.class}
         )
 )
 @AutoConfigureMockMvc(addFilters = false)
