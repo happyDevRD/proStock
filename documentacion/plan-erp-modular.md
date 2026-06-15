@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-12
+- **Última actualización:** 2026-06-15
 - **Fase 1 (fundación de modularización): ✅** `proStock@705581b`,
   `proStockFront@40c6818`
 - **Fase 2 (Centro de Módulos): ✅** `proStockFront@d356601`
@@ -360,9 +360,15 @@ República Dominicana, luego en la región. Objetivos concretos:
       explícita del usuario, no se tocó. Pendiente como tarea manual si se
       decide pagar Pro o aceptar el riesgo en `proStock`.
 
-#### Fase Q2 — Pago de deuda técnica frontend
-- [ ] Partir `api.ts` (1,710 líneas) por dominio (`api/sales.ts`,
-      `api/inventory.ts`, …) manteniendo re-exports para no romper imports.
+#### Fase Q2 — Pago de deuda técnica frontend — 🟡 EN CURSO
+- [x] **(2026-06-15)** Partido `src/api.ts` (1,790 líneas) en 13 módulos por
+      dominio bajo `src/api/` (`client`, `auth`, `users`, `products`,
+      `inventory`, `purchase-orders`, `sales`, `customers`, `dgii`,
+      `permissions`, `company-config`, `accounting`, `service-orders`) +
+      `src/api/index.ts` como barrel (`export *`). Los ~88 imports existentes
+      de `../api`/`./api`/`../../api` siguen funcionando sin cambios (Vite
+      resuelve el directorio con `index.ts`). `typecheck`, `lint`, `test` y
+      `build` verdes. Pendiente commit/push.
 - [ ] Descomponer `POS.tsx` (2,453 líneas): checkout sheet, facturas
       abiertas, cliente rápido y carrito como componentes/hooks propios.
 - [ ] `InventoryView` (1,792) y `Dashboard` (1,331): misma medicina,
@@ -452,6 +458,17 @@ República Dominicana, luego en la región. Objetivos concretos:
   cumplimiento o calidad.
 
 ## 7. Bitácora de sesiones
+
+### 2026-06-15
+- **Arranque de Fase Q2 (deuda técnica frontend):** dividido `src/api.ts`
+  (1,790 líneas) en 13 módulos por dominio bajo `src/api/` + barrel
+  `src/api/index.ts` (`export *`), sin tocar los ~88 sitios que importan
+  `from "../api"`/`./api`/`../../api"` (Vite resuelve el directorio con
+  `index.ts` automáticamente). Orden de dependencias entre módulos: `sales`
+  y `service-orders` antes de `purchase-orders`/`company-config` por los
+  tipos `ApiPaymentMethod`/`ApiServiceOrderType` que importan (type-only,
+  sin ciclos). `npm run typecheck/lint/test/build` verdes. Pendiente
+  commit/push y continuar con la descomposición de `POS.tsx`.
 
 ### 2026-06-10
 - Completada Fase 1: overrides de permisos por usuario (backend + UI),
