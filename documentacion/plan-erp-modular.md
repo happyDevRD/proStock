@@ -203,6 +203,95 @@ República Dominicana, luego en la región. Objetivos concretos:
 - **Catálogo online ligado a inventario:** página pública de catálogo por
   instancia (sin llegar a e-commerce completo al inicio).
 
+### 3.4 Propuesta de pricing / go-to-market (2026-06-15)
+
+> Borrador inicial de empaquetado y precios, anclado contra competencia
+> real en RD (Alegra: Emprendedor US$19/Pyme US$35/PRO US$69/PLUS US$89,
+> todos con e-CF incluido; microempresas locales sin e-CF: RD$1,500-3,500/mes).
+> Cambio usado: ~RD$60/USD. **Mientras no exista e-CF (brecha crítica #2),
+> proStock se posiciona por debajo de Alegra** — es el gancho de entrada;
+> al cerrar e-CF, subir precios y agregar paquetes de comprobantes (ver
+> abajo).
+
+**Planes (RD$, mensual / anual con ~2 meses gratis):**
+
+| | **Básico** (Facturación) | **Profesional** | **Empresarial** |
+|---|---|---|---|
+| Precio mensual | RD$1,200 | RD$2,500 | RD$4,800 |
+| Precio anual | RD$12,000/año | RD$25,000/año | RD$48,000/año |
+| Usuarios incluidos | 1-2 | hasta 5 | ilimitados |
+| Sucursales | 1 | 1 | hasta 3* |
+| POS + facturación NCF/ITBIS | ✅ | ✅ | ✅ |
+| Inventario | básico | completo (lotes, categorías) | completo |
+| Órdenes de servicio (Kanban) | ❌ | ✅ | ✅ |
+| CxC/CxP, antigüedad | ❌ | ✅ | ✅ |
+| Contabilidad (cuentas, asientos) | ❌ | ✅ | ✅ |
+| Permisos granulares por usuario | rol fijo | ✅ | ✅ |
+| Export Excel / reportes DGII 606-607** | ❌ | ✅ | ✅ |
+| Soporte | email, horario laboral | prioritario | prioritario + WhatsApp |
+
+\* multi-sucursal no existe aún (Fase 7) — no ofrecer hasta tenerlo.
+\** 606/607 es la brecha crítica #1, aún pendiente — no ofrecer hasta
+cerrarlo (o el plan se vende solo sin esto).
+
+**Cargo único de implementación:** RD$8,000–15,000 (instalación del
+stack Docker por cliente, configuración fiscal NCF/ITBIS, carga de
+catálogo inicial, capacitación) — necesario porque hoy no hay onboarding
+self-service (brecha crítica #5).
+
+**Justificación de los números:**
+- Básico (RD$1,200) queda bajo el rango local sin e-CF (RD$1,500-3,500) y
+  bajo Alegra Emprendedor (≈RD$1,150 *con* e-CF) — coherente con no tener
+  e-CF todavía.
+- Profesional (RD$2,500) compite con Alegra Pyme (≈RD$2,100), justificado
+  por el vertical de servicios (Kanban, depósitos) que Alegra no tiene.
+- Empresarial (RD$4,800) queda bajo Alegra PRO/PLUS (≈RD$4,100-5,300),
+  apunta a clientes tipo Irisdicencia.
+
+**Al cerrar e-CF (Fase C2):** subir todos los planes ~RD$300-500 (cubre
+costo del PSE) e incluir un paquete base de e-CF/mes (100/300/ilimitado
+según plan) con excedente a RD$X/documento — ahí aplica el modelo
+"paquete de comprobantes" de la competencia.
+
+#### Cómo cobrar más (add-ons y otras palancas, 2026-06-15)
+
+> Cuatro palancas para subir el ingreso por cliente sin depender solo del
+> precio de plan. Orden por velocidad de implementación, no por impacto.
+
+1. **Add-ons mensuales (la más rápida — no rediseña planes):**
+   - **WhatsApp** (Fase 6: recordatorios de cobro, confirmación de citas)
+     — RD$300-500/mes sobre cualquier plan.
+   - **Insights/IA** (sección 3.3: pronóstico de demanda, detección de
+     anomalías, asistente en lenguaje natural) — RD$500-800/mes para
+     Profesional/Empresarial. Monetiza directo el diferenciador de IA en
+     vez de regalarlo en el plan base.
+   - **Usuarios extra** más allá de los incluidos — RD$150-250/usuario/mes
+     (estándar del mercado, fácil de entender para el cliente).
+
+2. **Cobrar por valor entregado (mayor leverage, requiere C4 — pagos
+   integrados):**
+   - **Comisión por transacción** en links de pago integrados (Azul/
+     CardNet) — 0.5-1% sobre el monto cobrado. Escala con el éxito del
+     cliente, modelo tipo Stripe/Alegra Pagos.
+   - **Portal del cliente final** (3.3): diferenciador fuerte para el
+     vertical de servicios (Irisdicencia y similares) — puede justificar
+     el salto Profesional→Empresarial completo, no solo un add-on.
+
+3. **Servicios profesionales (margen alto, no compite con el SaaS):**
+   migración de datos desde Excel/otro sistema, integraciones a medida,
+   capacitación presencial — cobrar aparte del setup fee base, por hora o
+   por proyecto.
+
+4. **Multi-sucursal** (cuando exista, Fase 7): cobrar **por sucursal
+   adicional** (RD$1,000-1,500/sucursal/mes) en vez de incluir "hasta 3"
+   en Empresarial — el crecimiento del cliente se convierte en crecimiento
+   de ingreso automáticamente.
+
+**Prioridad recomendada:** WhatsApp + portal de cliente (ambos parte del
+vertical de servicios, el diferenciador real frente a Alegra) — el cliente
+*pide* esto y espera pagar extra, a diferencia de subir el precio base
+del plan (más simple, pero riesgo de churn sin valor adicional visible).
+
 ## 4. Fundación existente (Fase 0-1, ya implementada)
 
 ### Feature flags por instancia (Fase 1)
