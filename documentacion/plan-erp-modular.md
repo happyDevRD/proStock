@@ -369,8 +369,20 @@ República Dominicana, luego en la región. Objetivos concretos:
       de `../api`/`./api`/`../../api` siguen funcionando sin cambios (Vite
       resuelve el directorio con `index.ts`). `typecheck`, `lint`, `test` y
       `build` verdes. Pendiente commit/push.
-- [ ] Descomponer `POS.tsx` (2,453 líneas): checkout sheet, facturas
-      abiertas, cliente rápido y carrito como componentes/hooks propios.
+- [x] **(2026-06-15)** Descompuesto `POS.tsx` (2,478 → 1,301 líneas):
+      extraídos a `src/components/pos/` los componentes
+      `PosCartLineItem` (línea de carrito + descuento por línea),
+      `PosQuickClientModal` (alta rápida de cliente), `PosOpenInvoicesModal`
+      ("Facturas abiertas" con filtro/búsqueda), `PosCheckoutSheet` (hoja de
+      cobro con métodos de pago) y `PosCatalogPanel` (toolbar + 3 layouts de
+      catálogo: estándar/restaurante/compacto), más `posConstants.ts` (tipos
+      `CartLine`/`PosLayout`/`DiscountDraft`/`PaymentMethodConfig` y
+      constantes `PAYMENT_METHODS`/`LAYOUT_OPTIONS`/`CATEGORY_COLORS`/
+      `PRODUCTS_CACHE_KEY`/`SKELETON_COUNT`). `POS.tsx` queda como contenedor:
+      estado, efectos y handlers (carrito, borradores, checkout, atajos de
+      teclado, escaneo de código de barras), delega el render a los 5
+      componentes nuevos. `npm run typecheck/lint/test/build` verdes.
+      Pendiente commit/push.
 - [ ] `InventoryView` (1,792) y `Dashboard` (1,331): misma medicina,
       aprovechando las subcarpetas por dominio ya creadas.
 - [ ] Lazy-loading por vista (code splitting) — hoy todo va en un bundle.
@@ -467,8 +479,22 @@ República Dominicana, luego en la región. Objetivos concretos:
   `index.ts` automáticamente). Orden de dependencias entre módulos: `sales`
   y `service-orders` antes de `purchase-orders`/`company-config` por los
   tipos `ApiPaymentMethod`/`ApiServiceOrderType` que importan (type-only,
-  sin ciclos). `npm run typecheck/lint/test/build` verdes. Pendiente
-  commit/push y continuar con la descomposición de `POS.tsx`.
+  sin ciclos). `npm run typecheck/lint/test/build` verdes. Commiteado
+  (`proStockFront@62d37c7`); pendiente push.
+- **Continuación Q2 — descomposición de `POS.tsx`:** de 2,478 a 1,301
+  líneas. Extraídos 6 archivos nuevos en `src/components/pos/`:
+  `posConstants.ts` (tipos `CartLine`/`PosLayout`/`DiscountDraft`/
+  `PaymentMethodConfig` + constantes `PAYMENT_METHODS`/`LAYOUT_OPTIONS`/
+  `CATEGORY_COLORS`/`PRODUCTS_CACHE_KEY`/`SKELETON_COUNT`),
+  `PosCartLineItem` (línea de carrito con descuento), `PosQuickClientModal`
+  (alta rápida de cliente), `PosOpenInvoicesModal` ("Facturas abiertas" con
+  búsqueda/filtro), `PosCheckoutSheet` (hoja de cobro) y `PosCatalogPanel`
+  (toolbar + layouts estándar/restaurante/compacto). `POS.tsx` conserva todo
+  el estado/efectos/handlers (carrito, borradores, checkout, atajos F2/F3//,
+  escaneo de barcode) y delega el render. `npm run typecheck/lint/test/build`
+  verdes (build: bundle principal 638 kB, sigue pendiente el lazy-loading por
+  vista). Pendiente commit/push. Sigue: `InventoryView` (1,792) y `Dashboard`
+  (1,331), luego code-splitting por vista — cierra Fase Q2.
 
 ### 2026-06-10
 - Completada Fase 1: overrides de permisos por usuario (backend + UI),
