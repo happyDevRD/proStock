@@ -99,11 +99,11 @@ República Dominicana, luego en la región. Objetivos concretos:
   (1,795→1,014) y `Dashboard.tsx` (1,331→561) en componentes por
   responsabilidad, y lazy-loading por vista (bundle principal
   641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
-  Pendiente commit/push.
-- **Próximo paso sugerido:** commit + push de Fase Q2; validar TXT
-  606/607/608 con el pre-validador DGII (manual, usuario); ampliar e2e
-  (orden de servicio → facturar) o pasar a Fase Q3 (hardening de seguridad)
-  / Fase 4.2. Mergear `continue-screens` → `main` cuando se valide.
+  ✅ commiteado y pusheado (`proStockFront@8c98968`, `proStock@a9942f4`).
+- **Próximo paso sugerido:** validar TXT 606/607/608 con el pre-validador
+  DGII (manual, usuario); ampliar e2e (orden de servicio → facturar) o pasar
+  a Fase Q3 (hardening de seguridad) / Fase 4.2. Mergear `continue-screens`
+  → `main` cuando se valide.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 - **Issues conocidos, no bloqueantes:**
