@@ -52,4 +52,7 @@ public class SaleDto {
 
     private Long serviceOrderId;
     private String serviceOrderNumber;
+
+    private Long locationId;
+    private String locationName;
 }

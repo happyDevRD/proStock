@@ -49,7 +49,10 @@ public final class FeatureCatalog {
                     "Seguimiento de órdenes de servicio (reparación, fotografía, etc.)", false, Set.of()),
 
             new FeatureDefinition("module.quotes", "QUOTES", "Cotizaciones",
-                    "Módulo de cotizaciones / presupuestos y conversión a venta", false, Set.of())
+                    "Módulo de cotizaciones / presupuestos y conversión a venta", false, Set.of()),
+
+            new FeatureDefinition("module.locations", "LOCATIONS", "Multi-sucursal",
+                    "Gestión de sucursales y almacenes, stock por ubicación y transferencias", false, Set.of())
     );
 
     private static final Map<String, FeatureDefinition> BY_CODE = ALL.stream()

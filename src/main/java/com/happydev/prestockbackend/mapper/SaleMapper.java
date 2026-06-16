@@ -11,14 +11,17 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface SaleMapper {
-    /** Cliente se asigna en el servicio (evita entidad transitoria cuando {@code customerId} es null). */
+    /** Cliente, serviceOrder y location se asignan en el servicio. */
     @Mapping(target = "customer", ignore = true)
     @Mapping(target = "serviceOrder", ignore = true)
+    @Mapping(target = "location", ignore = true)
     Sale toEntity(SaleDto saleDto);
 
     @Mapping(target = "customerId", source = "customer.id")
     @Mapping(target = "serviceOrderId", source = "serviceOrder.id")
     @Mapping(target = "serviceOrderNumber", source = "serviceOrder.orderNumber")
+    @Mapping(target = "locationId", source = "location.id")
+    @Mapping(target = "locationName", source = "location.name")
     SaleDto toDto(Sale sale);
 
     List<SaleDto> toDtoList(List<Sale> sales);

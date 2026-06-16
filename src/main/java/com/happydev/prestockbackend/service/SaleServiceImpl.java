@@ -17,11 +17,13 @@ import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
+import com.happydev.prestockbackend.repository.LocationRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleItemRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.repository.ServiceOrderRepository;
+import com.happydev.prestockbackend.repository.StockLocationRepository;
 import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.persistence.criteria.Predicate;
@@ -67,6 +69,8 @@ public class SaleServiceImpl implements SaleService {
     private final ServiceOrderRepository serviceOrderRepository;
     private final CreditNoteRepository creditNoteRepository;
     private final SaleItemRepository saleItemRepository;
+    private final LocationRepository locationRepository;
+    private final StockLocationRepository stockLocationRepository;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -80,7 +84,9 @@ public class SaleServiceImpl implements SaleService {
                            SalePaymentRepository salePaymentRepository,
                            ServiceOrderRepository serviceOrderRepository,
                            CreditNoteRepository creditNoteRepository,
-                           SaleItemRepository saleItemRepository) {
+                           SaleItemRepository saleItemRepository,
+                           LocationRepository locationRepository,
+                           StockLocationRepository stockLocationRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -94,6 +100,8 @@ public class SaleServiceImpl implements SaleService {
         this.serviceOrderRepository = serviceOrderRepository;
         this.creditNoteRepository = creditNoteRepository;
         this.saleItemRepository = saleItemRepository;
+        this.locationRepository = locationRepository;
+        this.stockLocationRepository = stockLocationRepository;
     }
 
     @Override
@@ -204,6 +212,11 @@ public class SaleServiceImpl implements SaleService {
             sale.setCustomer(customer);
         }
 
+        if (saleDto.getLocationId() != null) {
+            locationRepository.findById(saleDto.getLocationId())
+                    .ifPresent(sale::setLocation);
+        }
+
         if (sale.getItems() != null) {
             for (SaleItem item : sale.getItems()) {
                 item.setSale(sale);
@@ -258,6 +271,11 @@ public class SaleServiceImpl implements SaleService {
             sale.setCustomer(customer);
         } else {
             sale.setCustomer(null);
+        }
+
+        if (saleDto.getLocationId() != null) {
+            locationRepository.findById(saleDto.getLocationId())
+                    .ifPresent(sale::setLocation);
         }
 
         if (saleDto.getStatus() != null) {
@@ -561,7 +579,22 @@ public class SaleServiceImpl implements SaleService {
                 movement.setType(StockMovementType.OUT);
                 movement.setReason("Sale completed");
                 movement.setSale(sale);
+                // Track source location for multi-branch reporting
+                if (sale.getLocation() != null) {
+                    movement.setSourceLocationId(sale.getLocation().getId());
+                }
                 stockMovementService.createMovement(movement);
+
+                // Decrement per-location stock
+                Location saleLocation = sale.getLocation() != null ? sale.getLocation()
+                        : locationRepository.findByIsDefaultTrue().orElse(null);
+                if (saleLocation != null) {
+                    stockLocationRepository.findByProductIdAndLocationId(product.getId(), saleLocation.getId())
+                            .ifPresent(sl -> {
+                                sl.setQuantity(Math.max(0, sl.getQuantity() - item.getQuantity()));
+                                stockLocationRepository.save(sl);
+                            });
+                }
             }
         }
 

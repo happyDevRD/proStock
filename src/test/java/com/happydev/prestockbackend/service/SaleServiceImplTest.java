@@ -17,10 +17,12 @@ import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
+import com.happydev.prestockbackend.repository.LocationRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleItemRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
+import com.happydev.prestockbackend.repository.StockLocationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,6 +72,10 @@ class SaleServiceImplTest {
     private AuditService auditService;
     @Mock
     private SalePaymentRepository salePaymentRepository;
+    @Mock
+    private LocationRepository locationRepository;
+    @Mock
+    private StockLocationRepository stockLocationRepository;
 
     @InjectMocks
     private SaleServiceImpl saleService;

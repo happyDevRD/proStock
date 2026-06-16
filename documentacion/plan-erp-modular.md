@@ -670,10 +670,9 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       según permiso. "Convertir a venta" → POS precargado.
       `proStock@e9c2106`, `proStockFront@14470e9`.
 
-#### Fase 11 — Multi-sucursal / multi-almacén
-- [ ] Almacenes múltiples, stock por almacén, transferencias, ventas por
-      sucursal en reportes. Cambio de modelo de datos grande — diseñar
-      con calma; sube el techo de cliente alcanzable.
+#### Fase 11 — Multi-sucursal / multi-almacén ✅ COMPLETO (2026-06-16)
+- [x] Almacenes múltiples, stock por almacén, transferencias, ventas por
+      sucursal. Ver Bitácora 2026-06-16.
 
 #### Fase 12 — Portal del cliente final
 - [ ] Acceso del cliente del negocio a sus facturas, estados de cuenta y
@@ -917,3 +916,31 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   bloqueo del classifier al pasar password en CLI) documentados en memoria
   (`prostock_gcp_repcel.md`). Con esto, el cierre de proyecto solicitado por
   el usuario queda completo.
+
+### 2026-06-16
+- **Fase 11 — Multi-sucursal / multi-almacén ✅ COMPLETO.** Implementación
+  end-to-end en una sesión:
+  - **Backend (`proStock`):** `FeatureCatalog` + entrada `module.locations`
+    (feature flag, defaultEnabled=false). `LocationService`/`Impl` (CRUD,
+    toggle activo, validación de default location). `StockTransferService`/
+    `Impl` (crear borrador, completar con doble-escritura en `stock_locations`
+    y movimiento TRANSFER con quantityChange=0, cancelar, eliminar).
+    `LocationController` y `StockTransferController` con `@PreAuthorize`
+    granular (`locations.view`, `locations.edit`, `locations.transfer`).
+    `SaleServiceImpl` wiring: resuelve `locationId` a entity en create/update,
+    descuenta `stock_locations` en `finalizeSaleAsCompleted`. `SaleDto`/
+    `SaleMapper` enriquecidos con `locationId`/`locationName`.
+    `StockLocationRepository` con query JOIN FETCH por location.
+    `SaleServiceImplTest`: añadidos `@Mock` para `LocationRepository` y
+    `StockLocationRepository` (fix NullPointerException en 4 tests).
+    Patrón dual-write: `products.stock` = total global (no cambia en
+    transferencias), `stock_locations` = desglose por ubicación.
+  - **Frontend (`proStockFront`):** `src/api/locations.ts` (tipos + funciones
+    CRUD/transfer). `useActiveLocation` hook (lee/escribe
+    `prostock.ui.activeLocationId` en localStorage, auto-defaultea a la
+    ubicación principal). `LocationsView` (2 tabs: Sucursales/Almacenes con
+    CRUD y tabla de stock; Transferencias paginadas con crear/completar/
+    cancelar/eliminar). Routing, sidebar (grupo "Servicios"), feature flag
+    gating vía `VIEW_TO_FEATURE`, permisos en `permissions.ts`. POS envía
+    `locationId` silenciosamente (sin cambio visual). `npm run typecheck` y
+    `npm run build` verdes. Commits pendientes de push.
