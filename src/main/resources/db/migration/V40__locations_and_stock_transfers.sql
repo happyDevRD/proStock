@@ -59,18 +59,21 @@ ALTER TABLE sales ADD COLUMN location_id BIGINT REFERENCES locations(id);
 UPDATE sales SET location_id = (SELECT id FROM locations WHERE is_default = TRUE);
 
 -- Permisos del módulo
-INSERT INTO permissions (code, description) VALUES
-    ('locations.view',     'Ver sucursales y almacenes'),
-    ('locations.edit',     'Crear y editar sucursales'),
-    ('locations.transfer', 'Realizar transferencias de stock entre ubicaciones')
+INSERT INTO permissions (code, category, name, description) VALUES
+    ('locations.view',     'LOCATIONS', 'Ver sucursales',         'Ver sucursales y almacenes'),
+    ('locations.edit',     'LOCATIONS', 'Editar sucursales',      'Crear y editar sucursales'),
+    ('locations.transfer', 'LOCATIONS', 'Transferir stock',       'Realizar transferencias de stock entre ubicaciones')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO role_permissions (role, permission_code)
-VALUES
-    ('ADMIN',   'locations.view'),
-    ('ADMIN',   'locations.edit'),
-    ('ADMIN',   'locations.transfer'),
-    ('GESTOR',  'locations.view'),
-    ('GESTOR',  'locations.edit'),
-    ('GESTOR',  'locations.transfer')
+INSERT INTO role_permissions (role, permission_id)
+SELECT role_name, p.id
+FROM (VALUES
+    ('ADMIN',  'locations.view'),
+    ('ADMIN',  'locations.edit'),
+    ('ADMIN',  'locations.transfer'),
+    ('GESTOR', 'locations.view'),
+    ('GESTOR', 'locations.edit'),
+    ('GESTOR', 'locations.transfer')
+) AS role_map(role_name, permission_code)
+JOIN permissions p ON p.code = role_map.permission_code
 ON CONFLICT DO NOTHING;

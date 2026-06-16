@@ -41,6 +41,12 @@ public class LocationController {
         return ResponseEntity.ok(locationService.getStockForLocation(id));
     }
 
+    @GetMapping("/{id}/low-stock")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'locations.view')")
+    public ResponseEntity<List<LocationStockItemDto>> getLowStock(@PathVariable Long id) {
+        return ResponseEntity.ok(locationService.getLowStockForLocation(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'locations.edit')")
     public ResponseEntity<LocationDto> create(@Valid @RequestBody CreateLocationRequest request) {

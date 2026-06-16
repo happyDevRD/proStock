@@ -19,4 +19,6 @@ public interface LocationService {
     void toggleActive(Long id);
 
     List<LocationStockItemDto> getStockForLocation(Long locationId);
+
+    List<LocationStockItemDto> getLowStockForLocation(Long locationId);
 }

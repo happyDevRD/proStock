@@ -99,6 +99,21 @@ public class LocationServiceImpl implements LocationService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<LocationStockItemDto> getLowStockForLocation(Long locationId) {
+        locationRepository.findById(locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location", "id", locationId));
+        return stockLocationRepository.findLowStockByLocation(locationId).stream()
+                .map(sl -> new LocationStockItemDto(
+                        sl.getProduct().getId(),
+                        sl.getProduct().getName(),
+                        sl.getProduct().getSku(),
+                        sl.getQuantity(),
+                        sl.getProduct().getMinStock()))
+                .toList();
+    }
+
     private LocationDto toDto(Location l) {
         return new LocationDto(l.getId(), l.getName(), l.getCode(), l.getType(),
                 l.getAddress(), l.getPhone(), l.isActive(), l.isDefault(), l.getCreatedAt());
