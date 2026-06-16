@@ -18,6 +18,13 @@ public record SaleSummaryDto(
         BigDecimal todayAverageTicket,
         BigDecimal totalPendingBalance,
         List<SaleSummaryDayDto> topDaysByRevenue,
-        List<SaleSummaryDayDto> revenueTrend
+        List<SaleSummaryDayDto> revenueTrend,
+        // comparación período anterior
+        BigDecimal previousRevenue,
+        long previousCount,
+        BigDecimal previousTicket,
+        // top listas
+        List<TopProductDto> topProducts,
+        List<TopCustomerDto> topCustomers
 ) {
 }

@@ -46,7 +46,10 @@ public final class FeatureCatalog {
                     "Plan de cuentas, asientos contables y estados financieros", true, Set.of()),
 
             new FeatureDefinition("module.service_orders", "SERVICE_ORDERS", "Órdenes de servicio",
-                    "Seguimiento de órdenes de servicio (reparación, fotografía, etc.)", false, Set.of())
+                    "Seguimiento de órdenes de servicio (reparación, fotografía, etc.)", false, Set.of()),
+
+            new FeatureDefinition("module.quotes", "QUOTES", "Cotizaciones",
+                    "Módulo de cotizaciones / presupuestos y conversión a venta", false, Set.of())
     );
 
     private static final Map<String, FeatureDefinition> BY_CODE = ALL.stream()

@@ -9,6 +9,8 @@ import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDayDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDto;
+import com.happydev.prestockbackend.dto.TopCustomerDto;
+import com.happydev.prestockbackend.dto.TopProductDto;
 import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.SaleMapper;
@@ -16,6 +18,7 @@ import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
+import com.happydev.prestockbackend.repository.SaleItemRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.repository.ServiceOrderRepository;
@@ -63,6 +66,7 @@ public class SaleServiceImpl implements SaleService {
     private final SalePaymentRepository salePaymentRepository;
     private final ServiceOrderRepository serviceOrderRepository;
     private final CreditNoteRepository creditNoteRepository;
+    private final SaleItemRepository saleItemRepository;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -75,7 +79,8 @@ public class SaleServiceImpl implements SaleService {
                            AuditService auditService,
                            SalePaymentRepository salePaymentRepository,
                            ServiceOrderRepository serviceOrderRepository,
-                           CreditNoteRepository creditNoteRepository) {
+                           CreditNoteRepository creditNoteRepository,
+                           SaleItemRepository saleItemRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -88,6 +93,7 @@ public class SaleServiceImpl implements SaleService {
         this.salePaymentRepository = salePaymentRepository;
         this.serviceOrderRepository = serviceOrderRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.saleItemRepository = saleItemRepository;
     }
 
     @Override
@@ -716,6 +722,46 @@ public class SaleServiceImpl implements SaleService {
         long partiallyPaidCount = saleRepository.countPartiallyPaid();
         BigDecimal totalPendingBalance = saleRepository.sumPendingBalance();
 
+        // Período anterior
+        BigDecimal previousRevenue = BigDecimal.ZERO;
+        long previousCount = 0;
+        BigDecimal previousTicket = BigDecimal.ZERO;
+
+        if (startDate != null && endDate != null) {
+            long durationSeconds = java.time.Duration.between(startDate, endDate).getSeconds();
+            LocalDateTime prevEnd = startDate.minusSeconds(1);
+            LocalDateTime prevStart = prevEnd.minusSeconds(durationSeconds);
+            previousRevenue = saleRepository.sumCompletedRevenueBetween(prevStart, prevEnd);
+            previousCount = saleRepository.countCompletedBetween(prevStart, prevEnd);
+            previousTicket = previousCount > 0
+                    ? previousRevenue.divide(BigDecimal.valueOf(previousCount), 2, java.math.RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+        }
+
+        // Top products
+        List<TopProductDto> topProducts = saleItemRepository
+                .findTopProductsByRevenue(startDate, endDate)
+                .stream()
+                .map(row -> new TopProductDto(
+                        row[0] != null ? ((Number) row[0]).longValue() : null,
+                        (String) row[1],
+                        new BigDecimal(row[2].toString()),
+                        ((Number) row[3]).longValue()
+                ))
+                .collect(Collectors.toList());
+
+        // Top customers
+        List<TopCustomerDto> topCustomers = saleRepository
+                .findTopCustomersByRevenue(startDate, endDate)
+                .stream()
+                .map(row -> new TopCustomerDto(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        new BigDecimal(row[2].toString()),
+                        ((Number) row[3]).longValue()
+                ))
+                .collect(Collectors.toList());
+
         return new SaleSummaryDto(
                 totalCount,
                 completedCount,
@@ -731,7 +777,12 @@ public class SaleServiceImpl implements SaleService {
                 todayAverageTicket,
                 totalPendingBalance,
                 topDays,
-                revenueTrend
+                revenueTrend,
+                previousRevenue,
+                previousCount,
+                previousTicket,
+                topProducts,
+                topCustomers
         );
     }
 

@@ -130,6 +130,26 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
 
     List<Sale> findByServiceOrderIdOrderBySaleDateDesc(Long serviceOrderId);
 
+    @Query(value = """
+            SELECT s.customer_id,
+                   CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+                   COALESCE(SUM(s.monto_total), 0) AS revenue,
+                   COUNT(s.id) AS sale_count
+            FROM sales s
+            JOIN customers c ON c.id = s.customer_id
+            WHERE s.status = 'COMPLETED'
+              AND s.sale_date >= COALESCE(:start, s.sale_date)
+              AND s.sale_date <= COALESCE(:end, s.sale_date)
+              AND s.customer_id IS NOT NULL
+            GROUP BY s.customer_id, c.first_name, c.last_name
+            ORDER BY revenue DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    java.util.List<Object[]> findTopCustomersByRevenue(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
     @Query("""
             SELECT COALESCE(SUM(s.montoTotal), 0) FROM Sale s
             WHERE s.serviceOrder IS NOT NULL

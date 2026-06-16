@@ -100,20 +100,17 @@ República Dominicana, luego en la región. Objetivos concretos:
   responsabilidad, y lazy-loading por vista (bundle principal
   641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
   ✅ commiteado y pusheado (`proStockFront@8c98968`, `proStock@a9942f4`).
-- **(2026-06-15) Fase Q3 (hardening de seguridad) — 6/7 items ✅:**
-  items 1 (AccessDeniedException→403), 2 (guards `canAccessView`), 3 (rate
-  limiting + lockout), 4 (2FA TOTP completo — backend V36 + UI frontend),
-  7 (limpieza postgres-socket-factory) committeados y listos; pendientes
-  de push. Item 4 UI: LoginView en 2 pasos (credenciales → código TOTP),
-  pestaña "Seguridad" en Ajustes con TwoFactorCard (QR, secreto enmascarable,
-  flujos de activación/desactivación), redirect automático a la pestaña si
-  `totpSetupRequired=true` al login. `typecheck/lint/test/build` verdes.
-  Restan: 5 (política de contraseñas + expiración de sesión configurables),
-  6 (diseño de cifrado de credenciales de integraciones) — mayor alcance,
-  evaluar prioridad con el usuario.
-- **Próximo paso sugerido:** push de commits Q3 (pide confirmación al usuario);
-  luego items 5-6 de Q3, validar TXT 606/607/608 con pre-validador DGII
-  (manual, usuario), o ampliar e2e.
+- **(2026-06-15) Fase Q3 (hardening de seguridad) ✅ COMPLETA — 7/7 items:**
+  1 (AccessDeniedException→403), 2 (guards canAccessView), 3 (rate limiting
+  + lockout), 4 (2FA TOTP completo, backend V36 + UI), 5 (política de
+  contraseñas + expiración, V37), 6 (cifrado de credenciales de
+  integraciones, V38), 7 (limpieza postgres-socket-factory). Todos
+  committeados: `proStock@4bbae59`, `proStockFront@9aef3d3`. 165 tests, 0
+  fallos. Pendiente de push (confirmar con usuario).
+- **Próximo paso sugerido:** push de commits Q3 (confirmar con usuario);
+  luego validar TXT 606/607/608 con pre-validador DGII (manual), ampliar
+  e2e (Q1 pendiente: branch protection), o iniciar Carril F (cotizaciones,
+  multi-sucursal).
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 
@@ -573,9 +570,25 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       (setup: QR + secreto enmascarable + verificación; disable: código
       actual); `totpSetupRequired=true` abre la pestaña automáticamente.
       `proStockFront@02744c7`, typecheck/lint/test/build verdes.
-- [ ] Política de contraseñas + expiración de sesión configurables.
-- [ ] Diseño de cifrado de credenciales de integraciones (necesario para
-      C4 y Fase 6).
+- [x] Política de contraseñas + expiración configurables. `PasswordPolicyProperties`
+      (min-length/require-uppercase/lowercase/digit/special/max-age-days, todos
+      por env var con defaults permisivos), `PasswordPolicyService` (valida
+      fortaleza + isExpired), migración V37 (`password_changed_at`), validación
+      en `UserServiceImpl.createUser`/`updateUser`, endpoint
+      `POST /api/auth/change-password` (valida actual, aplica política, actualiza
+      hash + timestamp), `LoginResponse.passwordExpired` (flag no bloqueante).
+      GlobalExceptionHandler: 422 `PASSWORD_POLICY_VIOLATION`. UI: `ChangePasswordCard`
+      en pestaña Seguridad (siempre visible; banner + auto-open si `passwordExpired`
+      tras login). 9 tests `PasswordPolicyServiceTest`, 4 nuevos en `AuthControllerTest`.
+- [x] Cifrado de credenciales de integraciones. Migración V38 tabla
+      `integration_credentials` (provider, credential_key, encrypted_value, updated_at,
+      UNIQUE(provider, credential_key)), `IntegrationCredential` entity,
+      `IntegrationCredentialService` (get/set/delete con encrypt/decrypt vía
+      `TotpService`, upsert), `IntegrationCredentialController`
+      (`GET/PUT/DELETE /api/integrations/{provider}/credentials/{key}`, solo
+      ADMIN/GESTOR). UI: `IntegrationCredentialsCard` en pestaña Seguridad con
+      3 proveedores definidos (WhatsApp, Azul, CardNet), valor enmascarado, inline
+      edit/delete. 3 tests `IntegrationCredentialControllerTest`.
 - [x] Limpiar dependencia legacy `postgres-socket-factory` (GCP). Removida de
       `build.gradle` (`runtimeOnly 'com.google.cloud.sql:postgres-socket-factory:1.22.0'`);
       sin referencias restantes en `application*.properties` tras la
