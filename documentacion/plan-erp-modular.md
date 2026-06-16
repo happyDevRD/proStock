@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-15
+- **Última actualización:** 2026-06-15 (tarde)
 - **Fase 1 (fundación de modularización): ✅** `proStock@705581b`,
   `proStockFront@40c6818`
 - **Fase 2 (Centro de Módulos): ✅** `proStockFront@d356601`
@@ -107,10 +107,31 @@ República Dominicana, luego en la región. Objetivos concretos:
   integraciones, V38), 7 (limpieza postgres-socket-factory). Todos
   committeados: `proStock@4bbae59`, `proStockFront@9aef3d3`. 165 tests, 0
   fallos. Pendiente de push (confirmar con usuario).
-- **Próximo paso sugerido:** push de commits Q3 (confirmar con usuario);
-  luego validar TXT 606/607/608 con pre-validador DGII (manual), ampliar
-  e2e (Q1 pendiente: branch protection), o iniciar Carril F (cotizaciones,
-  multi-sucursal).
+- **(2026-06-15 tarde) Fase 4.2 (KPIs de dashboard) ✅ COMPLETA — local,
+  pendiente push:**
+  - `SaleSummaryDto` extendido con `previousRevenue/Count/Ticket` (período
+    anterior de igual duración, calculado en `SaleServiceImpl`) + `topProducts`/
+    `topCustomers` (top 5 por ingresos vía native queries en
+    `SaleItemRepository`/`SaleRepository`).
+  - Dashboard: flechas de tendencia `+X%/-X%` en los 3 KPIs del período
+    (ventas, ingresos, ticket promedio).
+  - `TopListsWidget` (tab "Resumen del período"): top 5 productos y top 5
+    clientes con barra proporcional.
+  - `proStock@e9c2106`, `proStockFront@14470e9`.
+- **(2026-06-15 tarde) Fase 10 (Cotizaciones) ✅ COMPLETA — local,
+  pendiente push:**
+  - Migración V39 (`quotes`/`quote_items`, 5 permisos, roles).
+  - `Quote` entity (DRAFT→SENT→ACCEPTED→CONVERTED / EXPIRED / CANCELED),
+    `QuoteItem`, `QuoteService`, `QuoteController` (9 endpoints),
+    `module.quotes` en `FeatureCatalog`. `expireOverdue()` programado.
+  - `QuotesView`: lista paginada, filtro por estado, modal de creación/edición
+    con búsqueda de producto inline, acciones contextuales por estado.
+  - "Convertir a venta": llama `/convert`, precarga el POS con los ítems.
+  - `proStock@e9c2106`, `proStockFront@14470e9`.
+- **Pendiente de push:** `proStock` (commits Q3 + F10/F4.2) y `proStockFront`
+  (commits Q3 + F10/F4.2). Confirmar con usuario.
+- **Próximo paso sugerido:** push de commits; luego validar TXT 606/607/608
+  con pre-validador DGII (manual), o iniciar Fase 11 (multi-sucursal).
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 
@@ -597,12 +618,17 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
 
 ### Carril F — Features (continuación de fases originales)
 
-#### Fase 4.2 — KPIs nuevos de dashboard (requiere backend)
-- [ ] Antigüedad CxC/CxP (0-30/31-60/61-90/90+) — el backend ya calcula
-      aging en CxC/CxP views; exponer agregado para dashboard.
-- [ ] Top productos y top clientes del período.
-- [ ] Flujo de caja (ingresos vs egresos en el tiempo).
-- [ ] Comparación vs período anterior (variación %).
+#### Fase 4.2 — KPIs nuevos de dashboard (requiere backend) — 🟡 PARCIAL
+- [x] Top productos y top clientes del período. `TopListsWidget` (top 5,
+      barra proporcional), queries nativas en `SaleItemRepository`/
+      `SaleRepository`.
+- [x] Comparación vs período anterior (variación %). Flechas de tendencia
+      `+X%/-X%` en los 3 KPIs del período (ventas/ingresos/ticket).
+      `proStock@e9c2106`, `proStockFront@14470e9`.
+- [ ] Antigüedad CxC/CxP (0-30/31-60/61-90/90+) — exponer agregado
+      de aging para el dashboard (el backend ya lo calcula en CxC/CxP views).
+- [ ] Flujo de caja (ingresos vs egresos en el tiempo) — requiere
+      combinar ventas + órdenes de compra pagadas.
 
 #### Fase 4.3 — Layouts de dashboard por rol
 - [ ] Defaults por rol sobre el sistema de personalización de 4.1.
@@ -631,9 +657,18 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
 #### Fase 9 — Reportes avanzados / BI
 - [ ] Reportes programados (email mensual al dueño), más exports.
 
-#### Fase 10 — Cotizaciones
-- [ ] Documento cotización → conversión a venta/factura con un clic,
-      vigencia, estados (enviada/aceptada/vencida). Flujo muy pedido.
+#### Fase 10 — Cotizaciones ✅ COMPLETA (2026-06-15)
+- [x] Entidad `Quote`/`QuoteItem`, migración V39, permisos y roles.
+      Estados: DRAFT→SENT→ACCEPTED→CONVERTED; EXPIRED (expiración automática
+      `@Scheduled` a medianoche); CANCELED. `module.quotes` en FeatureCatalog.
+- [x] `QuoteController`: list/get/create/update/send/accept/cancel/convert/
+      delete bajo `/api/quotes`. `QuoteConvertResponse` devuelve items listos
+      para precargar el POS.
+- [x] `QuotesView`: lista paginada, filtros por estado, modal de creación/
+      edición con buscador de productos via `<datalist>`, totales en tiempo
+      real, acciones contextuales (editar/enviar/convertir/cancelar/eliminar)
+      según permiso. "Convertir a venta" → POS precargado.
+      `proStock@e9c2106`, `proStockFront@14470e9`.
 
 #### Fase 11 — Multi-sucursal / multi-almacén
 - [ ] Almacenes múltiples, stock por almacén, transferencias, ventas por
