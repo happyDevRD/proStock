@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.ChangePasswordRequest;
 import com.happydev.prestockbackend.dto.LoginRequest;
 import com.happydev.prestockbackend.entity.User;
 import com.happydev.prestockbackend.entity.UserRole;
@@ -8,6 +9,7 @@ import com.happydev.prestockbackend.security.AuthCookieSupport;
 import com.happydev.prestockbackend.security.InvalidTotpException;
 import com.happydev.prestockbackend.security.JwtService;
 import com.happydev.prestockbackend.security.LoginSecurityProperties;
+import com.happydev.prestockbackend.security.PasswordPolicyService;
 import com.happydev.prestockbackend.security.TotpProperties;
 import com.happydev.prestockbackend.security.TotpRequiredException;
 import com.happydev.prestockbackend.security.TotpService;
@@ -22,10 +24,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -48,6 +53,8 @@ public class AuthController {
     private final LoginSecurityProperties loginSecurityProperties;
     private final TotpService totpService;
     private final TotpProperties totpProperties;
+    private final PasswordPolicyService passwordPolicyService;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthController(
             UserRepository userRepository,
@@ -57,7 +64,9 @@ public class AuthController {
             PermissionService permissionService,
             LoginSecurityProperties loginSecurityProperties,
             TotpService totpService,
-            TotpProperties totpProperties
+            TotpProperties totpProperties,
+            PasswordPolicyService passwordPolicyService,
+            PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
@@ -67,6 +76,8 @@ public class AuthController {
         this.loginSecurityProperties = loginSecurityProperties;
         this.totpService = totpService;
         this.totpProperties = totpProperties;
+        this.passwordPolicyService = passwordPolicyService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/login")
@@ -107,6 +118,7 @@ public class AuthController {
         boolean totpSetupRequired = totpProperties.isEnforceAdmin()
                 && user.getRole() == UserRole.ADMIN
                 && !user.isTotpEnabled();
+        boolean passwordExpired = passwordPolicyService.isExpired(user);
         return new LoginResponse(
                 me.username(),
                 me.email(),
@@ -115,7 +127,8 @@ public class AuthController {
                 me.role(),
                 me.permissions(),
                 token,
-                totpSetupRequired
+                totpSetupRequired,
+                passwordExpired
         );
     }
 
@@ -131,6 +144,24 @@ public class AuthController {
         }
         User user = loadUser(principal.getName());
         return toMeResponse(user, permissionService.getEffectivePermissions(user));
+    }
+
+    /** Cambia la contraseña del usuario autenticado. Valida la contraseña actual y aplica la política configurada. */
+    @PostMapping("/change-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión no válida");
+        }
+        User user = loadUser(auth.getName());
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contraseña actual es incorrecta.");
+        }
+        passwordPolicyService.validate(request.newPassword());
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setPasswordChangedAt(LocalDateTime.now());
+        userRepository.save(user);
     }
 
     private User loadUser(String username) {
@@ -212,6 +243,7 @@ public class AuthController {
             String role,
             List<String> permissions,
             String accessToken,
-            boolean totpSetupRequired
+            boolean totpSetupRequired,
+            boolean passwordExpired
     ) {}
 }

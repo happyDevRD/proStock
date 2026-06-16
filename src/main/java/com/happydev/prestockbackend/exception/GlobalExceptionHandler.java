@@ -234,6 +234,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
     }
 
+    // 422 Unprocessable Entity - Contraseña no cumple la política configurada
+    @ExceptionHandler(com.happydev.prestockbackend.security.PasswordPolicyViolationException.class)
+    public ResponseEntity<ErrorDetails> handlePasswordPolicyViolation(
+            com.happydev.prestockbackend.security.PasswordPolicyViolationException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(), "PASSWORD_POLICY_VIOLATION", ex.getMessage(), request.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
     // 401 Unauthorized - Credenciales inválidas (login)
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorDetails> handleAuthenticationException(AuthenticationException ex, WebRequest request) {

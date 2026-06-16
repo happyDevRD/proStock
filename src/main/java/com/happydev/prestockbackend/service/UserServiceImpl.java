@@ -4,11 +4,13 @@ import com.happydev.prestockbackend.entity.User;
 import com.happydev.prestockbackend.entity.UserRole;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.UserRepository;
+import com.happydev.prestockbackend.security.PasswordPolicyService;
 import org.springframework.lang.NonNull;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,15 +22,18 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final PasswordPolicyService passwordPolicyService;
 
     public UserServiceImpl(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            AuditService auditService
+            AuditService auditService,
+            PasswordPolicyService passwordPolicyService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.passwordPolicyService = passwordPolicyService;
     }
 
     @Override
@@ -43,9 +48,11 @@ public class UserServiceImpl implements UserService {
         if (user.getPassword() == null || user.getPassword().isBlank()) {
             throw new IllegalArgumentException("La contraseña es obligatoria.");
         }
+        passwordPolicyService.validate(user.getPassword());
         if (user.getRole() == null) {
             user.setRole(UserRole.USER);
         }
+        user.setPasswordChangedAt(LocalDateTime.now());
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         User saved = userRepository.save(Objects.requireNonNull(user));
         auditService.record(actorUsername, "USER_CREATED", "User", saved.getId(),
@@ -118,7 +125,9 @@ public class UserServiceImpl implements UserService {
         }
 
         if (userDetails.getPassword() != null && !userDetails.getPassword().isBlank()) {
+            passwordPolicyService.validate(userDetails.getPassword());
             user.setPassword(passwordEncoder.encode(userDetails.getPassword()));
+            user.setPasswordChangedAt(LocalDateTime.now());
         }
 
         User saved = userRepository.save(Objects.requireNonNull(user));

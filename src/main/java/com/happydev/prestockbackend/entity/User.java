@@ -59,6 +59,10 @@ public class User {
     @Column(name = "totp_enabled", nullable = false)
     private boolean totpEnabled = false;
 
+    /** Marca cuándo se cambió la contraseña por última vez (para política de caducidad). */
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
+
     //Relacion con StockMovement
     @OneToMany(mappedBy = "user") //Un usuario puede realizar muchos movimientos
     private List<StockMovement> stockMovements;

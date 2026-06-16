@@ -7,6 +7,8 @@ import com.happydev.prestockbackend.security.AuthCookieSupport;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
 import com.happydev.prestockbackend.security.JwtService;
 import com.happydev.prestockbackend.security.LoginSecurityProperties;
+import com.happydev.prestockbackend.security.PasswordPolicyProperties;
+import com.happydev.prestockbackend.security.PasswordPolicyService;
 import com.happydev.prestockbackend.security.TotpProperties;
 import com.happydev.prestockbackend.security.TotpService;
 import com.happydev.prestockbackend.service.PermissionService;
@@ -46,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         )
 )
 @AutoConfigureMockMvc(addFilters = false)
-@EnableConfigurationProperties({LoginSecurityProperties.class, TotpProperties.class})
+@EnableConfigurationProperties({LoginSecurityProperties.class, TotpProperties.class, PasswordPolicyProperties.class})
 class AuthControllerTest {
 
     @Autowired
@@ -69,6 +71,12 @@ class AuthControllerTest {
 
     @MockitoBean
     private TotpService totpService;
+
+    @MockitoBean
+    private PasswordPolicyService passwordPolicyService;
+
+    @MockitoBean
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     private User user;
 
@@ -218,6 +226,54 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
                 .andExpect(jsonPath("$.accessToken").value("signed-jwt"))
-                .andExpect(jsonPath("$.totpSetupRequired").value(false));
+                .andExpect(jsonPath("$.totpSetupRequired").value(false))
+                .andExpect(jsonPath("$.passwordExpired").value(false));
+    }
+
+    @Test
+    void login_expiredPassword_returnsPasswordExpiredTrue() throws Exception {
+        given(passwordPolicyService.isExpired(any())).willReturn(true);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"admin1234"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.passwordExpired").value(true));
+    }
+
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "admin")
+    void changePassword_wrongCurrentPassword_returns400() throws Exception {
+        user.setPassword("hashed-old");
+        given(passwordEncoder.matches("wrong", "hashed-old")).willReturn(false);
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword":"wrong","newPassword":"NewP@ss123"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "admin")
+    void changePassword_validRequest_returns204AndUpdatesPassword() throws Exception {
+        user.setPassword("hashed-old");
+        given(passwordEncoder.matches("admin1234", "hashed-old")).willReturn(true);
+        given(passwordEncoder.encode("NewP@ss123")).willReturn("hashed-new");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword":"admin1234","newPassword":"NewP@ss123"}
+                                """))
+                .andExpect(status().isNoContent());
+
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("hashed-new", captor.getValue().getPassword());
+        org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getPasswordChangedAt());
     }
 }
