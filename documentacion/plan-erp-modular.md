@@ -100,18 +100,20 @@ República Dominicana, luego en la región. Objetivos concretos:
   responsabilidad, y lazy-loading por vista (bundle principal
   641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
   ✅ commiteado y pusheado (`proStockFront@8c98968`, `proStock@a9942f4`).
-- **(2026-06-15) Fase Q3 (hardening de seguridad) — en progreso, 4/7 items
+- **(2026-06-15) Fase Q3 (hardening de seguridad) — en progreso, 5/7 items
   ✅:** items 1 (AccessDeniedException→403, verificado con test nuevo), 2
   (guards `canAccessView` en `reports`/`ar`/`ap`/`settings`), 3 (rate
-  limiting + lockout temporal en `/api/auth/login`) y 7 (limpieza de
-  `postgres-socket-factory`) completados — ver detalle en el checklist de
-  Fase Q3 más abajo. `DB_PASSWORD=admin ./gradlew test`/`clean build` y `npm
+  limiting + lockout temporal en `/api/auth/login`), 4 (2FA TOTP opcional por
+  usuario, backend completo) y 7 (limpieza de `postgres-socket-factory`)
+  completados — ver detalle en el checklist de Fase Q3 más abajo.
+  `DB_PASSWORD=admin ./gradlew test`/`clean build` y `npm
   run typecheck/lint/test/build` verdes. **Pendiente de commit/push.**
-  Restan: 4 (2FA TOTP), 5 (política de contraseñas + expiración de sesión
-  configurables), 6 (diseño de cifrado de credenciales de integraciones) —
-  mayor alcance, evaluar prioridad con el usuario.
-- **Próximo paso sugerido:** commitear/pushear cambios de Fase Q3 (4/7
-  items); luego continuar con items 4-6 de Fase Q3, o validar TXT 606/607/608
+  Restan: 4 (UI de 2FA en proStockFront), 5 (política de contraseñas +
+  expiración de sesión configurables), 6 (diseño de cifrado de credenciales
+  de integraciones) — mayor alcance, evaluar prioridad con el usuario.
+- **Próximo paso sugerido:** commitear/pushear cambios de Fase Q3 (5/7
+  items); luego continuar con la UI de 2FA o items 5-6 de Fase Q3, o validar
+  TXT 606/607/608
   con el pre-validador DGII (manual, usuario), o ampliar e2e. Mergear
   `continue-screens` → `main` cuando se valide.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
@@ -549,7 +551,26 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       `LoginRateLimitFilterTest`, 3 casos nuevos en `AuthControllerTest`
       (bad credentials, cuenta bloqueada, reseteo de intentos). `DB_PASSWORD=admin
       ./gradlew test` → 134 tests, 0 failures.
-- [ ] 2FA TOTP opcional por usuario (obligatorio configurable para ADMIN).
+- [x] 2FA TOTP opcional por usuario (obligatorio configurable para ADMIN).
+      Nuevas columnas `totp_secret`/`totp_enabled` en `users` (migración V36);
+      `TotpService` (lib `dev.samstevens.totp:1.7.1`) genera/valida códigos y
+      QR (reutiliza zxing), secreto cifrado en reposo con
+      `Encryptors.text()`/`TotpProperties`
+      (`app.security.totp.encryption-key`/`...-salt`, default dev — cambiar en
+      prod). `POST /api/auth/login` ahora acepta `totpCode` opcional: si el
+      usuario tiene 2FA activo y falta el código → 401 `TOTP_REQUIRED`; código
+      incorrecto → 401 `TOTP_INVALID` (cuenta como intento fallido para el
+      lockout); correcto → login normal. Nuevo `TwoFactorController`
+      (`/api/auth/2fa/status|setup|enable|disable`) para que cada usuario
+      configure su propio 2FA (QR + código de verificación). Enforcement de
+      ADMIN (`app.security.totp.enforce-admin`) no bloquea el login: marca
+      `LoginResponse.totpSetupRequired=true` para que el frontend fuerce la
+      pantalla de configuración. Tests nuevos: `TotpServiceTest`,
+      `TwoFactorControllerTest`, 3 casos nuevos en `AuthControllerTest`
+      (TOTP_REQUIRED, TOTP_INVALID, login válido con código). `DB_PASSWORD=admin
+      ./gradlew clean build` → 149 tests, 0 failures. Pendiente: UI de
+      setup/enable/disable y manejo de `TOTP_REQUIRED`/`TOTP_INVALID` en
+      `proStockFront`.
 - [ ] Política de contraseñas + expiración de sesión configurables.
 - [ ] Diseño de cifrado de credenciales de integraciones (necesario para
       C4 y Fase 6).
@@ -657,6 +678,13 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   verdes (build: bundle principal 638 kB, sigue pendiente el lazy-loading por
   vista). Pendiente commit/push. Sigue: `InventoryView` (1,792) y `Dashboard`
   (1,331), luego code-splitting por vista — cierra Fase Q2.
+- **Fase Q3 item 4 — 2FA TOTP:** implementado backend completo (migración
+  V36, `TotpService`/`TotpProperties`, extensión de `/api/auth/login` con
+  `totpCode`/`TOTP_REQUIRED`/`TOTP_INVALID`/`totpSetupRequired`, nuevo
+  `TwoFactorController` con `/status|setup|enable|disable`). `DB_PASSWORD=admin
+  ./gradlew clean build` → 149 tests, 0 failures. Pendiente: UI en
+  `proStockFront` (pantalla de setup/enable/disable + manejo del flujo de
+  login con 2FA) y commit/push.
 
 ### 2026-06-10
 - Completada Fase 1: overrides de permisos por usuario (backend + UI),

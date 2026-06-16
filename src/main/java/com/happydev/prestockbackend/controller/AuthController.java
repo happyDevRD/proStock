@@ -5,8 +5,12 @@ import com.happydev.prestockbackend.entity.User;
 import com.happydev.prestockbackend.entity.UserRole;
 import com.happydev.prestockbackend.repository.UserRepository;
 import com.happydev.prestockbackend.security.AuthCookieSupport;
+import com.happydev.prestockbackend.security.InvalidTotpException;
 import com.happydev.prestockbackend.security.JwtService;
 import com.happydev.prestockbackend.security.LoginSecurityProperties;
+import com.happydev.prestockbackend.security.TotpProperties;
+import com.happydev.prestockbackend.security.TotpRequiredException;
+import com.happydev.prestockbackend.security.TotpService;
 import com.happydev.prestockbackend.service.PermissionService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -42,6 +46,8 @@ public class AuthController {
     private final AuthCookieSupport authCookieSupport;
     private final PermissionService permissionService;
     private final LoginSecurityProperties loginSecurityProperties;
+    private final TotpService totpService;
+    private final TotpProperties totpProperties;
 
     public AuthController(
             UserRepository userRepository,
@@ -49,7 +55,9 @@ public class AuthController {
             JwtService jwtService,
             AuthCookieSupport authCookieSupport,
             PermissionService permissionService,
-            LoginSecurityProperties loginSecurityProperties
+            LoginSecurityProperties loginSecurityProperties,
+            TotpService totpService,
+            TotpProperties totpProperties
     ) {
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
@@ -57,6 +65,8 @@ public class AuthController {
         this.authCookieSupport = authCookieSupport;
         this.permissionService = permissionService;
         this.loginSecurityProperties = loginSecurityProperties;
+        this.totpService = totpService;
+        this.totpProperties = totpProperties;
     }
 
     @PostMapping("/login")
@@ -79,6 +89,9 @@ public class AuthController {
         }
 
         User user = existingUser.orElseGet(() -> loadUser(authentication.getName()));
+        if (user.isTotpEnabled()) {
+            verifyTotpOrFail(user, request.totpCode());
+        }
         resetFailedAttempts(user);
         List<String> permissions = permissionService.getEffectivePermissions(user);
 
@@ -91,6 +104,9 @@ public class AuthController {
         String token = jwtService.generateToken(enriched);
         authCookieSupport.writeAccessToken(response, token);
         AuthMeResponse me = toMeResponse(user, permissions);
+        boolean totpSetupRequired = totpProperties.isEnforceAdmin()
+                && user.getRole() == UserRole.ADMIN
+                && !user.isTotpEnabled();
         return new LoginResponse(
                 me.username(),
                 me.email(),
@@ -98,7 +114,8 @@ public class AuthController {
                 me.lastName(),
                 me.role(),
                 me.permissions(),
-                token
+                token,
+                totpSetupRequired
         );
     }
 
@@ -130,6 +147,18 @@ public class AuthController {
                     "Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta de nuevo en "
                             + minutes + " minuto" + (minutes == 1 ? "" : "s") + "."
             );
+        }
+    }
+
+    /** Valida el código TOTP para usuarios con 2FA activo; un código inválido cuenta como intento fallido. */
+    private void verifyTotpOrFail(User user, String totpCode) {
+        if (totpCode == null || totpCode.isBlank()) {
+            throw new TotpRequiredException("Se requiere el código de autenticación de dos factores.");
+        }
+        String secret = totpService.decrypt(user.getTotpSecret());
+        if (!totpService.verifyCode(secret, totpCode)) {
+            registerFailedAttempt(user);
+            throw new InvalidTotpException("Código de autenticación inválido.");
         }
     }
 
@@ -182,6 +211,7 @@ public class AuthController {
             String lastName,
             String role,
             List<String> permissions,
-            String accessToken
+            String accessToken,
+            boolean totpSetupRequired
     ) {}
 }

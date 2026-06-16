@@ -7,6 +7,8 @@ import com.happydev.prestockbackend.security.AuthCookieSupport;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
 import com.happydev.prestockbackend.security.JwtService;
 import com.happydev.prestockbackend.security.LoginSecurityProperties;
+import com.happydev.prestockbackend.security.TotpProperties;
+import com.happydev.prestockbackend.security.TotpService;
 import com.happydev.prestockbackend.service.PermissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         )
 )
 @AutoConfigureMockMvc(addFilters = false)
-@EnableConfigurationProperties(LoginSecurityProperties.class)
+@EnableConfigurationProperties({LoginSecurityProperties.class, TotpProperties.class})
 class AuthControllerTest {
 
     @Autowired
@@ -64,6 +66,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private PermissionService permissionService;
+
+    @MockitoBean
+    private TotpService totpService;
 
     private User user;
 
@@ -160,5 +165,59 @@ class AuthControllerTest {
         verify(userRepository).save(captor.capture());
         org.junit.jupiter.api.Assertions.assertEquals(0, captor.getValue().getFailedLoginAttempts());
         org.junit.jupiter.api.Assertions.assertNull(captor.getValue().getLockedUntil());
+    }
+
+    @Test
+    void login_totpEnabledWithoutCode_returns401TotpRequired() throws Exception {
+        user.setTotpEnabled(true);
+        user.setTotpSecret("encrypted-secret");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"admin1234"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOTP_REQUIRED"));
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void login_totpEnabledWithInvalidCode_returns401TotpInvalidAndRegistersFailedAttempt() throws Exception {
+        user.setTotpEnabled(true);
+        user.setTotpSecret("encrypted-secret");
+        given(totpService.decrypt("encrypted-secret")).willReturn("plain-secret");
+        given(totpService.verifyCode("plain-secret", "000000")).willReturn(false);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"admin1234","totpCode":"000000"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOTP_INVALID"));
+
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(1, captor.getValue().getFailedLoginAttempts());
+    }
+
+    @Test
+    void login_totpEnabledWithValidCode_returnsProfile() throws Exception {
+        user.setTotpEnabled(true);
+        user.setTotpSecret("encrypted-secret");
+        given(totpService.decrypt("encrypted-secret")).willReturn("plain-secret");
+        given(totpService.verifyCode("plain-secret", "123456")).willReturn(true);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"admin1234","totpCode":"123456"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("admin"))
+                .andExpect(jsonPath("$.accessToken").value("signed-jwt"))
+                .andExpect(jsonPath("$.totpSetupRequired").value(false));
     }
 }

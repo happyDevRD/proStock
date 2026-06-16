@@ -52,6 +52,13 @@ public class User {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
+    /** Secreto TOTP cifrado (ver {@code TotpService}); null si 2FA nunca se configuró. */
+    @Column(name = "totp_secret")
+    private String totpSecret;
+
+    @Column(name = "totp_enabled", nullable = false)
+    private boolean totpEnabled = false;
+
     //Relacion con StockMovement
     @OneToMany(mappedBy = "user") //Un usuario puede realizar muchos movimientos
     private List<StockMovement> stockMovements;

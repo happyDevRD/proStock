@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
+import com.happydev.prestockbackend.security.InvalidTotpException;
+import com.happydev.prestockbackend.security.TotpRequiredException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
@@ -212,6 +214,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         );
         logger.warn("LockedException: {}", ex.getMessage());
         return new ResponseEntity<>(errorDetails, HttpStatus.LOCKED);
+    }
+
+    // 401 Unauthorized - Falta el código TOTP (login con 2FA activo)
+    @ExceptionHandler(TotpRequiredException.class)
+    public ResponseEntity<ErrorDetails> handleTotpRequiredException(TotpRequiredException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(), "TOTP_REQUIRED", ex.getMessage(), request.getDescription(false));
+        logger.warn("TotpRequiredException: {}", ex.getMessage());
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+    }
+
+    // 401 Unauthorized - Código TOTP inválido (login o gestión de 2FA)
+    @ExceptionHandler(InvalidTotpException.class)
+    public ResponseEntity<ErrorDetails> handleInvalidTotpException(InvalidTotpException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(), "TOTP_INVALID", ex.getMessage(), request.getDescription(false));
+        logger.warn("InvalidTotpException: {}", ex.getMessage());
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
     }
 
     // 401 Unauthorized - Credenciales inválidas (login)
