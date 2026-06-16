@@ -100,22 +100,20 @@ República Dominicana, luego en la región. Objetivos concretos:
   responsabilidad, y lazy-loading por vista (bundle principal
   641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
   ✅ commiteado y pusheado (`proStockFront@8c98968`, `proStock@a9942f4`).
-- **(2026-06-15) Fase Q3 (hardening de seguridad) — en progreso, 5/7 items
-  ✅:** items 1 (AccessDeniedException→403, verificado con test nuevo), 2
-  (guards `canAccessView` en `reports`/`ar`/`ap`/`settings`), 3 (rate
-  limiting + lockout temporal en `/api/auth/login`), 4 (2FA TOTP opcional por
-  usuario, backend completo) y 7 (limpieza de `postgres-socket-factory`)
-  completados — ver detalle en el checklist de Fase Q3 más abajo.
-  `DB_PASSWORD=admin ./gradlew test`/`clean build` y `npm
-  run typecheck/lint/test/build` verdes. **Pendiente de commit/push.**
-  Restan: 4 (UI de 2FA en proStockFront), 5 (política de contraseñas +
-  expiración de sesión configurables), 6 (diseño de cifrado de credenciales
-  de integraciones) — mayor alcance, evaluar prioridad con el usuario.
-- **Próximo paso sugerido:** commitear/pushear cambios de Fase Q3 (5/7
-  items); luego continuar con la UI de 2FA o items 5-6 de Fase Q3, o validar
-  TXT 606/607/608
-  con el pre-validador DGII (manual, usuario), o ampliar e2e. Mergear
-  `continue-screens` → `main` cuando se valide.
+- **(2026-06-15) Fase Q3 (hardening de seguridad) — 6/7 items ✅:**
+  items 1 (AccessDeniedException→403), 2 (guards `canAccessView`), 3 (rate
+  limiting + lockout), 4 (2FA TOTP completo — backend V36 + UI frontend),
+  7 (limpieza postgres-socket-factory) committeados y listos; pendientes
+  de push. Item 4 UI: LoginView en 2 pasos (credenciales → código TOTP),
+  pestaña "Seguridad" en Ajustes con TwoFactorCard (QR, secreto enmascarable,
+  flujos de activación/desactivación), redirect automático a la pestaña si
+  `totpSetupRequired=true` al login. `typecheck/lint/test/build` verdes.
+  Restan: 5 (política de contraseñas + expiración de sesión configurables),
+  6 (diseño de cifrado de credenciales de integraciones) — mayor alcance,
+  evaluar prioridad con el usuario.
+- **Próximo paso sugerido:** push de commits Q3 (pide confirmación al usuario);
+  luego items 5-6 de Q3, validar TXT 606/607/608 con pre-validador DGII
+  (manual, usuario), o ampliar e2e.
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 
@@ -568,9 +566,13 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       pantalla de configuración. Tests nuevos: `TotpServiceTest`,
       `TwoFactorControllerTest`, 3 casos nuevos en `AuthControllerTest`
       (TOTP_REQUIRED, TOTP_INVALID, login válido con código). `DB_PASSWORD=admin
-      ./gradlew clean build` → 149 tests, 0 failures. Pendiente: UI de
-      setup/enable/disable y manejo de `TOTP_REQUIRED`/`TOTP_INVALID` en
-      `proStockFront`.
+      ./gradlew clean build` → 149 tests, 0 failures. ✅ UI completada:
+      `LoginView` en 2 pasos (detecta `TOTP_REQUIRED`, muestra input
+      numérico 6 dígitos, `TotpInvalidError` → error en línea en paso 2);
+      pestaña "Seguridad" en `SettingsView` con `TwoFactorCard`
+      (setup: QR + secreto enmascarable + verificación; disable: código
+      actual); `totpSetupRequired=true` abre la pestaña automáticamente.
+      `proStockFront@02744c7`, typecheck/lint/test/build verdes.
 - [ ] Política de contraseñas + expiración de sesión configurables.
 - [ ] Diseño de cifrado de credenciales de integraciones (necesario para
       C4 y Fase 6).
@@ -678,13 +680,9 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   verdes (build: bundle principal 638 kB, sigue pendiente el lazy-loading por
   vista). Pendiente commit/push. Sigue: `InventoryView` (1,792) y `Dashboard`
   (1,331), luego code-splitting por vista — cierra Fase Q2.
-- **Fase Q3 item 4 — 2FA TOTP:** implementado backend completo (migración
-  V36, `TotpService`/`TotpProperties`, extensión de `/api/auth/login` con
-  `totpCode`/`TOTP_REQUIRED`/`TOTP_INVALID`/`totpSetupRequired`, nuevo
-  `TwoFactorController` con `/status|setup|enable|disable`). `DB_PASSWORD=admin
-  ./gradlew clean build` → 149 tests, 0 failures. Pendiente: UI en
-  `proStockFront` (pantalla de setup/enable/disable + manejo del flujo de
-  login con 2FA) y commit/push.
+- **Fase Q3 item 4 — 2FA TOTP ✅ COMPLETO:** backend (V36) commiteado en
+  `proStock@4743381`; UI commiteada en `proStockFront@02744c7`. Ver
+  detalle completo en el checklist de Fase Q3.
 
 ### 2026-06-10
 - Completada Fase 1: overrides de permisos por usuario (backend + UI),
