@@ -68,6 +68,12 @@ public class QuoteController {
         return ResponseEntity.ok(quoteService.findById(id));
     }
 
+    @PostMapping("/{id}/revert-draft")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'quotes.edit')")
+    public ResponseEntity<QuoteDto> revertToDraft(@PathVariable Long id) {
+        return ResponseEntity.ok(quoteService.revertToDraft(id));
+    }
+
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'quotes.delete')")
     public ResponseEntity<Void> cancel(@PathVariable Long id) {

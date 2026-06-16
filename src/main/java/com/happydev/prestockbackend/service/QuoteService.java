@@ -18,6 +18,8 @@ public interface QuoteService {
 
     void updateStatus(Long id, QuoteStatus newStatus);
 
+    QuoteDto revertToDraft(Long id);
+
     QuoteConvertResponse convert(Long id);
 
     void delete(Long id);

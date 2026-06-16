@@ -145,6 +145,19 @@ public class QuoteServiceImpl implements QuoteService {
     }
 
     @Override
+    public QuoteDto revertToDraft(Long id) {
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Quote", "id", id));
+        if (quote.getStatus() != QuoteStatus.SENT && quote.getStatus() != QuoteStatus.ACCEPTED) {
+            throw new IllegalStateException(
+                    "Solo se puede revertir a borrador desde SENT o ACCEPTED. Estado actual: " + quote.getStatus());
+        }
+        quote.setStatus(QuoteStatus.DRAFT);
+        quote.setUpdatedAt(LocalDateTime.now());
+        return mapToDto(quoteRepository.save(quote));
+    }
+
+    @Override
     public QuoteConvertResponse convert(Long id) {
         Quote quote = quoteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Quote", "id", id));
