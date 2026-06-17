@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-15 (tarde)
+- **Última actualización:** 2026-06-17
 - **Fase 1 (fundación de modularización): ✅** `proStock@705581b`,
   `proStockFront@40c6818`
 - **Fase 2 (Centro de Módulos): ✅** `proStockFront@d356601`
@@ -66,72 +66,52 @@ República Dominicana, luego en la región. Objetivos concretos:
   gate del publish. Encontró y corrigió un bug real (bucle de efectos →
   pantalla en blanco para usuarios sin acceso a inventario).
 - **(2026-06-12) Fase Q1 — ampliación e2e (pago parcial + nota de crédito):
-  ✅ completada y validada**, pendiente commit/push.
-  - Nuevos specs `proStockFront/e2e/pos-partial-payment.spec.ts` (abono
-    parcial deja la venta `PARTIALLY_PAID`, segundo cobro la completa con
-    NCF) y `credit-note.spec.ts` (venta completa → devolución → nota de
-    crédito NCF 34), con helpers nuevos en `e2e/helpers/backend.ts`
-    (`findSaleByProduct`, `getSaleCreditNotes`).
-  - `POS.tsx`: tras guardar borrador/registrar abono ahora se invalida la
-    query `["sales"]` (`refreshSalesCache`) para que "Facturas abiertas" se
-    actualice sin recargar — necesario para que el flujo de abono → cargar
-    factura → completar funcione en el mismo test.
-  - **Bug fiscal real encontrado y corregido** (afecta a cualquier empresa
-    con `precios_incluyen_itbis = true`, ver Carril C/Q3): el POS enviaba al
-    backend el precio CON ITBIS incluido como `unitPrice`, y
-    `recalculateTaxTotals` del backend siempre trata `unitPrice` como base
-    sin ITBIS y le suma el impuesto otra vez → **doble cobro de ITBIS**
-    (ej. catálogo RD$100 → backend registraba RD$118). Corregido en
-    `buildSalePayload` (extrae la base con `baseFromInclusive` antes de
-    enviar) y en `handleLoadDraft`/carga de ítems de orden de servicio
-    (`inclusiveFromBase` para reconvertir el precio base del backend al
-    precio de catálogo mostrado). También se ajustó `computeCartTotals` en
-    modo inclusivo para calcular el ITBIS como `base * tasa` (igual que el
-    backend) en vez de `total - base`, eliminando un desajuste de 1 centavo
-    por redondeo. Nuevo test unitario `src/lib/posTax.test.ts`.
-  - Validado contra stack local (Postgres dev + `./gradlew bootRun` perfil
-    `local` + `npm run e2e`): 7/7 e2e verdes, con
-    `precios_incluyen_itbis` tanto en `false` (default) como `true`.
-    `npm run typecheck`, `lint`, `test` y `build` también verdes.
-- **(2026-06-15) Fase Q2 (deuda técnica frontend) ✅ COMPLETA:** ver detalle
-  en la bitácora de hoy — split de `src/api.ts` en 13 módulos,
-  descomposición de `POS.tsx` (2,478→1,301), `InventoryView.tsx`
-  (1,795→1,014) y `Dashboard.tsx` (1,331→561) en componentes por
-  responsabilidad, y lazy-loading por vista (bundle principal
-  641 kB→75 kB). `typecheck/lint/test/build` verdes en todos los pasos.
-  ✅ commiteado y pusheado (`proStockFront@8c98968`, `proStock@a9942f4`).
-- **(2026-06-15) Fase Q3 (hardening de seguridad) ✅ COMPLETA — 7/7 items:**
-  1 (AccessDeniedException→403), 2 (guards canAccessView), 3 (rate limiting
-  + lockout), 4 (2FA TOTP completo, backend V36 + UI), 5 (política de
-  contraseñas + expiración, V37), 6 (cifrado de credenciales de
-  integraciones, V38), 7 (limpieza postgres-socket-factory). Todos
-  committeados: `proStock@4bbae59`, `proStockFront@9aef3d3`. 165 tests, 0
-  fallos. Pendiente de push (confirmar con usuario).
-- **(2026-06-15 tarde) Fase 4.2 (KPIs de dashboard) ✅ COMPLETA — local,
-  pendiente push:**
-  - `SaleSummaryDto` extendido con `previousRevenue/Count/Ticket` (período
-    anterior de igual duración, calculado en `SaleServiceImpl`) + `topProducts`/
-    `topCustomers` (top 5 por ingresos vía native queries en
-    `SaleItemRepository`/`SaleRepository`).
-  - Dashboard: flechas de tendencia `+X%/-X%` en los 3 KPIs del período
-    (ventas, ingresos, ticket promedio).
-  - `TopListsWidget` (tab "Resumen del período"): top 5 productos y top 5
-    clientes con barra proporcional.
-  - `proStock@e9c2106`, `proStockFront@14470e9`.
-- **(2026-06-15 tarde) Fase 10 (Cotizaciones) ✅ COMPLETA — local,
-  pendiente push:**
-  - Migración V39 (`quotes`/`quote_items`, 5 permisos, roles).
-  - `Quote` entity (DRAFT→SENT→ACCEPTED→CONVERTED / EXPIRED / CANCELED),
-    `QuoteItem`, `QuoteService`, `QuoteController` (9 endpoints),
-    `module.quotes` en `FeatureCatalog`. `expireOverdue()` programado.
-  - `QuotesView`: lista paginada, filtro por estado, modal de creación/edición
-    con búsqueda de producto inline, acciones contextuales por estado.
-  - "Convertir a venta": llama `/convert`, precarga el POS con los ítems.
-  - `proStock@e9c2106`, `proStockFront@14470e9`.
-- **Pendiente de push:** `proStock` (commits Q3 + F10/F4.2) y `proStockFront`
-  (commits Q3 + F10/F4.2). Confirmar con usuario.
-- **Próximo paso sugerido:** push de commits; luego validar TXT 606/607/608
-  con pre-validador DGII (manual), o iniciar Fase 11 (multi-sucursal).
+  ✅ completada y validada.**
+- **(2026-06-15) Fase Q2 (deuda técnica frontend) ✅ COMPLETA:** split de
+  `src/api.ts` en 13 módulos, descomposición de `POS.tsx`, `InventoryView.tsx`
+  y `Dashboard.tsx`, lazy-loading (bundle 641 kB→75 kB). `proStockFront@8c98968`,
+  `proStock@a9942f4`.
+- **(2026-06-15) Fase Q3 (hardening de seguridad) ✅ COMPLETA — 7/7 items.**
+  `proStock@4bbae59`, `proStockFront@9aef3d3`.
+- **(2026-06-15) Fase 4.2 (KPIs de dashboard) ✅ COMPLETA.** Top productos/
+  clientes, flechas de tendencia, comparación vs período anterior.
+  `proStock@e9c2106`, `proStockFront@14470e9`.
+- **(2026-06-15) Fase 10 (Cotizaciones) ✅ COMPLETA.** V39, Quote entity,
+  QuoteController (9 endpoints), QuotesView, "Convertir a venta".
+  `proStock@e9c2106`, `proStockFront@14470e9`.
+- **(2026-06-16) Fase 11 (Multi-sucursal / multi-almacén) ✅ COMPLETA.**
+  Ver bitácora 2026-06-16. Pendiente push del commit de backend.
+- **(2026-06-17) Fase 12 (Portal del cliente) ✅ COMPLETA:**
+  - Migración V41 (`portal_enabled`/`portal_password`/`portal_last_login` en
+    `customers`, permisos `portal.manage` y `view.ai` con asignación de roles).
+  - `PortalAuthController` (`POST /api/portal/auth/login`, JWT con
+    `ROLE_CUSTOMER`, BCrypt), `PortalController` (5 endpoints: `/me`,
+    `/invoices`, `/invoices/{id}`, `/service-orders`, `/statement`).
+  - SPA del portal: `PortalApp`, `PortalLogin`, `PortalLayout`,
+    `PortalDashboard` (facturas + órdenes de servicio + estado de cuenta),
+    `PortalInvoiceDetail`. Detección en `main.tsx` via
+    `pathname.startsWith("/portal")`. Token en sessionStorage separado del
+    staff.
+  - Admin: botón "Portal" en `CustomersView` abre modal para asignar/revocar
+    credenciales. Endpoint `PUT /api/customers/{id}/portal-credentials`.
+  - `proStock@272d0ae`, `proStockFront@a8841af`.
+- **(2026-06-17) Fase 13 (IA aplicada — MVP) ✅ COMPLETA:**
+  - `GeminiService` (Spring `RestClient` → REST Gemini 2.0 Flash Lite, clave
+    vía `IntegrationCredentialService`), `AnomalyDetectionService`
+    (detección estadística: descuentos >30%, picos de ingresos z-score >2σ),
+    `AiAssistantService` (prompt en español, contexto KPIs + balances + top
+    clientes, responde preguntas de negocio).
+  - `AiController` (`GET /api/ai/anomalies`, `POST /api/ai/assistant/query`,
+    `@PreAuthorize` con `view.ai`).
+  - `AiView`: tab Asistente (chat conversacional con chips de preguntas de
+    ejemplo) + tab Anomalías (lista con severidad HIGH/MEDIUM/LOW). Lazy-
+    loaded. Gating por `module.ai` + `view.ai`.
+  - `proStock@272d0ae`, `proStockFront@a8841af`.
+- **Estado del push (2026-06-17):** `proStockFront@a8841af` ✅ pusheado.
+  `proStock@272d0ae` pendiente de push — confirmar con usuario.
+- **Próximo paso sugerido:** push de `proStock`; configurar API key de Gemini
+  en Ajustes → Integraciones → provider "gemini" / key "api_key"; validar
+  TXT 606/607/608 con pre-validador DGII (manual).
 - **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
   en venta primero; se retoma cuando el usuario reciba el visto bueno.
 
@@ -674,17 +654,51 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
 - [x] Almacenes múltiples, stock por almacén, transferencias, ventas por
       sucursal. Ver Bitácora 2026-06-16.
 
-#### Fase 12 — Portal del cliente final
-- [ ] Acceso del cliente del negocio a sus facturas, estados de cuenta y
-      estado de órdenes de servicio; pago online (depende de C4).
+#### Fase 12 — Portal del cliente final ✅ COMPLETA (2026-06-17)
+- [x] Migración V41: `portal_enabled`/`portal_password`/`portal_last_login`
+      en `customers`; permisos `portal.manage` y `view.ai` con asignación
+      a roles GESTOR/ADMIN (y MANAGER para `view.ai`).
+- [x] `PortalAuthController` — `POST /api/portal/auth/login`: valida email +
+      BCrypt, emite JWT con `ROLE_CUSTOMER` (subject = customerId), actualiza
+      `portalLastLogin`. Ruta pública en `SecurityConfig`.
+- [x] `PortalController` — `@PreAuthorize("hasRole('CUSTOMER')")`: endpoints
+      `/api/portal/me`, `/api/portal/invoices` (filtro por estado, paginado),
+      `/api/portal/invoices/{id}` (detalle + ítems + pagos), `/api/portal/
+      service-orders`, `/api/portal/statement` (KPIs: totalCharged, totalPaid,
+      balance, openInvoices).
+- [x] SPA: detección runtime en `main.tsx` (`pathname.startsWith("/portal")`
+      → `PortalApp`), sin cambio de build config. `PortalLogin`, `PortalLayout`
+      (header con logout), `PortalDashboard` (tabs Facturas / Órdenes de
+      servicio + KPIs estado de cuenta), `PortalInvoiceDetail`.
+- [x] Token portal en `sessionStorage` (`prostock.portal.accessToken`),
+      totalmente separado del token staff.
+- [x] Admin: botón "Portal" en `CustomersView`, modal de activación/
+      desactivación con `PUT /api/customers/{id}/portal-credentials`.
+- [ ] Pago online (depende de C4 — pagos integrados).
+- `proStock@272d0ae`, `proStockFront@a8841af`.
 
-#### Fase 13 — IA aplicada
+#### Fase 13 — IA aplicada ✅ MVP COMPLETA (2026-06-17)
+- [x] `GeminiService`: Spring `RestClient` → REST endpoint Gemini 2.0 Flash
+      Lite. Clave recuperada de `IntegrationCredentialService` (provider
+      "gemini", key "api_key") — se configura desde Ajustes → Integraciones.
+      Devuelve null (warning log) si la clave no está configurada.
+- [x] `AnomalyDetectionService` (estadístico, sin LLM): descuentos >30% en
+      los últimos 30 días (severity HIGH/>30% / MEDIUM/15-30%) + picos de
+      ingresos diarios z-score >2σ respecto a 60-day rolling mean
+      (HIGH/>3σ / MEDIUM/>2σ). `AnomalyDto(type, severity, title,
+      description, date)`.
+- [x] `AiAssistantService`: prompt de sistema en español; contexto KPIs
+      (ventas este mes / 7d / 30d, balances pendientes, top 5 clientes);
+      llama `GeminiService.ask()`.
+- [x] `AiController`: `GET /api/ai/anomalies`, `POST /api/ai/assistant/query`
+      → `AssistantResponse(answer)`. `@PreAuthorize` con `view.ai`.
+- [x] `AiView` (frontend): tab Asistente (chat con historial, chips de
+      preguntas de ejemplo, Enter para enviar) + tab Anomalías (cards con
+      badge de severidad). Lazy-loaded. Sidebar entrada "IA" en grupo
+      "Servicios". Gating por `module.ai` + `canAccessView("ai")`.
 - [ ] Pronóstico de demanda / sugerencia de reorden por producto.
-- [ ] Detección de anomalías (descuentos inusuales, mermas).
-- [ ] Asistente de consultas en lenguaje natural sobre reportes.
 - [ ] Auto-categorización en import CSV.
-- [ ] Prototipar con GPU local / experiencia de conectoria; decidir
-      proveedor LLM por costo cuando haya un caso validado.
+- `proStock@272d0ae`, `proStockFront@a8841af`.
 
 ## 6. Convenciones de trabajo
 
@@ -916,6 +930,39 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   bloqueo del classifier al pasar password en CLI) documentados en memoria
   (`prostock_gcp_repcel.md`). Con esto, el cierre de proyecto solicitado por
   el usuario queda completo.
+
+### 2026-06-17
+- **Fase 12 — Portal del cliente ✅ COMPLETA** (`proStock@272d0ae`,
+  `proStockFront@a8841af`, 17 archivos backend + 18 frontend, 718+983
+  líneas nuevas).
+  - Backend: migración V41 (3 columnas en `customers`, 2 permisos nuevos
+    `portal.manage`/`view.ai`, asignación de roles vía FK JOIN pattern).
+    `PortalAuthController` (login público con BCrypt, JWT `ROLE_CUSTOMER`).
+    `PortalController` (5 endpoints solo-lectura protegidos por `ROLE_CUSTOMER`).
+    `CustomerController.setPortalCredentials` (asignación de credenciales
+    desde la UI de admin). `FeatureCatalog`: 6 nuevas feature definitions
+    (`module.portal`, `portal.view_invoices`, `portal.view_service_orders`,
+    `module.ai`, `ai.assistant`, `ai.anomalies`).
+  - Frontend: SPA portal aislada por detección de pathname en `main.tsx`
+    (zero cambios de build config). 5 componentes nuevos (`PortalApp`,
+    `PortalLogin`, `PortalLayout`, `PortalDashboard`, `PortalInvoiceDetail`),
+    módulo `src/api/portal.ts` con token en sessionStorage separado del staff.
+    Botón "Portal" en `CustomersView` con modal de activación/desactivación.
+- **Fase 13 — IA aplicada MVP ✅ COMPLETA** (mismo commit que F12).
+  - Backend: `GeminiService` (Spring RestClient → Gemini 2.0 Flash Lite REST,
+    clave vía IntegrationCredentialService), `AnomalyDetectionService`
+    (estadístico: descuentos >30% + picos z-score >2σ), `AiAssistantService`
+    (contexto KPIs en español + Gemini). `AiController` (2 endpoints).
+  - Frontend: `AiView` (chat conversacional + cards de anomalías con badges
+    de severidad), entrada "IA" en sidebar, lazy-loaded, gating por
+    `module.ai` + `view.ai`. Módulo `src/api/ai.ts`.
+  - Validación: backend `DB_PASSWORD=admin ./gradlew clean test` BUILD
+    SUCCESSFUL (165 tests). Frontend `typecheck ✅ lint ✅ build ✅ tests
+    14/14 ✅`.
+- **Push:** `proStockFront@a8841af` ✅ pusheado a `main`. `proStock@272d0ae`
+  pendiente de confirmación del usuario.
+- **Pendiente para el usuario:** configurar API key Gemini en Ajustes →
+  Integraciones (provider "gemini", key "api_key") para activar el asistente.
 
 ### 2026-06-16
 - **Fase 11 — Multi-sucursal / multi-almacén ✅ COMPLETO.** Implementación
