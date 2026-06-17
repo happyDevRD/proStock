@@ -75,5 +75,19 @@ public class JwtService {
         }
     }
 
+    /** Genera un JWT para un cliente del portal (ROLE_CUSTOMER, subject = customerId). */
+    public String generatePortalToken(Long customerId) {
+        Instant now = Instant.now();
+        Instant expiry = now.plus(jwtProperties.getExpirationHours(), ChronoUnit.HOURS);
+        return Jwts.builder()
+                .subject(String.valueOf(customerId))
+                .claim("role", "ROLE_CUSTOMER")
+                .claim("authorities", List.of("ROLE_CUSTOMER"))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiry))
+                .signWith(signingKey)
+                .compact();
+    }
+
     public record JwtUserPrincipal(String username, List<String> authorities) {}
 }

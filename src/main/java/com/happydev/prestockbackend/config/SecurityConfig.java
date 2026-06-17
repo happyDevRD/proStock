@@ -78,6 +78,7 @@ public class SecurityConfig {
                         .requestMatchers(swaggerMatchers).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/portal/auth/login").permitAll()
                         .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_GESTOR", "users.manage")
                         .requestMatchers("/api/audit-logs/**").hasAnyAuthority("ROLE_GESTOR", "audit.view")
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "GESTOR")

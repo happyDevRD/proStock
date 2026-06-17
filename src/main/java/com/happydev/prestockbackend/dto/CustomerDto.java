@@ -35,4 +35,6 @@ public class CustomerDto {
 
     @NotNull(message = "Tipo de identificacion es obligatorio")
     private TipoIdentificacion tipoIdentificacion;
+
+    private boolean portalEnabled;
 }

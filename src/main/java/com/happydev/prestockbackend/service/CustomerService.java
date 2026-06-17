@@ -21,4 +21,6 @@ public interface CustomerService {
     void deleteCustomer(@NonNull Long id);
 
     CustomerDto createQuickCustomer(@NonNull QuickCustomerRequest request);
+
+    CustomerDto setPortalCredentials(@NonNull Long id, @NonNull String rawPassword, boolean enabled);
 }

@@ -7,6 +7,8 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "customers")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
@@ -40,5 +42,14 @@ public class Customer {
 
     @Column(name = "idempotency_key", length = 64)
     private String idempotencyKey;
+
+    @Column(name = "portal_enabled", nullable = false)
+    private boolean portalEnabled = false;
+
+    @Column(name = "portal_password")
+    private String portalPassword;
+
+    @Column(name = "portal_last_login")
+    private LocalDateTime portalLastLogin;
 }
 

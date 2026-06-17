@@ -179,4 +179,17 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    /** Ventas completadas con descuento superior a un umbral (para detección de anomalías). */
+    @Query("""
+            SELECT s FROM Sale s
+            WHERE s.status = com.happydev.prestockbackend.entity.SaleStatus.COMPLETED
+              AND s.discountAmount > :minDiscount
+              AND s.saleDate >= :since
+            ORDER BY s.discountAmount DESC
+            """)
+    List<Sale> findCompletedWithHighDiscount(
+            @Param("minDiscount") java.math.BigDecimal minDiscount,
+            @Param("since") LocalDateTime since
+    );
 }

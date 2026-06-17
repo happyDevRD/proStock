@@ -52,7 +52,25 @@ public final class FeatureCatalog {
                     "Módulo de cotizaciones / presupuestos y conversión a venta", false, Set.of()),
 
             new FeatureDefinition("module.locations", "LOCATIONS", "Multi-sucursal",
-                    "Gestión de sucursales y almacenes, stock por ubicación y transferencias", false, Set.of())
+                    "Gestión de sucursales y almacenes, stock por ubicación y transferencias", false, Set.of()),
+
+            new FeatureDefinition("module.portal", "PORTAL", "Portal del cliente",
+                    "Portal público para que clientes vean sus facturas y órdenes de servicio", false, Set.of()),
+            new FeatureDefinition("portal.view_invoices", "PORTAL", "Ver facturas en el portal",
+                    "Los clientes pueden consultar su historial de facturas desde el portal", true,
+                    Set.of("module.portal")),
+            new FeatureDefinition("portal.view_service_orders", "PORTAL", "Ver órdenes de servicio en el portal",
+                    "Los clientes pueden ver el estado de sus órdenes de servicio desde el portal", true,
+                    Set.of("module.portal")),
+
+            new FeatureDefinition("module.ai", "AI", "IA aplicada",
+                    "Análisis inteligente: asistente en lenguaje natural y detección de anomalías", false, Set.of()),
+            new FeatureDefinition("ai.assistant", "AI", "Asistente conversacional",
+                    "Chatbot que responde preguntas sobre ventas, inventario y reportes en lenguaje natural", true,
+                    Set.of("module.ai")),
+            new FeatureDefinition("ai.anomalies", "AI", "Detección de anomalías",
+                    "Identifica automáticamente patrones inusuales en ventas, descuentos e inventario", true,
+                    Set.of("module.ai"))
     );
 
     private static final Map<String, FeatureDefinition> BY_CODE = ALL.stream()

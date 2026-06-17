@@ -4,11 +4,14 @@ import com.happydev.prestockbackend.dto.CustomerDto;
 import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.service.CustomerService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -68,4 +71,20 @@ public class CustomerController {
         customerService.deleteCustomer(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
+
+    /** Habilitar acceso al portal para un cliente (ADMIN/GESTOR). */
+    @PutMapping("/{id}/portal-credentials")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'portal.manage')")
+    public ResponseEntity<CustomerDto> setPortalCredentials(
+            @PathVariable @NonNull Long id,
+            @Valid @RequestBody PortalCredentialRequest request
+    ) {
+        CustomerDto updated = customerService.setPortalCredentials(id, request.password(), request.enabled());
+        return new ResponseEntity<>(updated, HttpStatus.OK);
+    }
+
+    public record PortalCredentialRequest(
+            @NotBlank @Size(min = 6) String password,
+            boolean enabled
+    ) {}
 }
