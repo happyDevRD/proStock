@@ -79,6 +79,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/portal/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/portal/company-info").permitAll()
                         .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_GESTOR", "users.manage")
                         .requestMatchers("/api/audit-logs/**").hasAnyAuthority("ROLE_GESTOR", "audit.view")
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "GESTOR")
