@@ -27,93 +27,40 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-17
-- **Fase 1 (fundación de modularización): ✅** `proStock@705581b`,
-  `proStockFront@40c6818`
-- **Fase 2 (Centro de Módulos): ✅** `proStockFront@d356601`
-- **Fase 3 (Menú y navegación): ✅** `proStockFront@8e5ac84`,
-  `proStock@0098db3` (docs)
-- **Fase 4.1 (Dashboard — reorganización y personalización): ✅ y pusheada**
-  (commiteada vía Cursor el 2026-06-11 en la serie `ffd2336`…`622ffe6` de
-  `proStockFront`, rama `continue-screens`).
-- **Trabajo grande adicional del 2026-06-11 (vía Cursor), ✅ pusheado:**
-  - Backend `proStock@f881240`: **notas de crédito (NCF tipo 34)** con
-    migraciones V31/V32, **recepción parcial de órdenes de compra**, filtro
-    `overdueOnly` en facturas, paginación filtrada de movimientos de stock.
-  - Backend `proStock@54534cc`: consolidación de **órdenes de servicio** —
-    paginación, KPIs, reportes por período, descuento de stock configurable
-    al completar (V33), facturación parcial (cantidades facturadas vs
-    pendientes), endpoints protegidos por feature flag + permisos.
-  - Frontend `proStockFront@54f466b`: historial de movimientos, import CSV
-    con preview, recepción parcial OC, CxC/CxP con antigüedad, recordatorios
-    email/WhatsApp, PDF estado de cuenta, notas de crédito, reportes de
-    margen/rotación, mejoras POS/facturas.
-  - Frontend `proStockFront@71cddb7`: integración de órdenes de servicio en
-    dashboard/clientes/facturas/reportes/POS, Kanban paginado con deep
-    links, facturación parcial en UI, sincronización offline más tolerante.
-  - ✅ **(2026-06-12)** `continue-screens` mergeada (fast-forward) y
-    pusheada a `main` (`proStockFront@ab9d607`). CI completo verde
-    (`ci`+`e2e`+`publish`), imagen `prostock-frontend-irisdicencia`
-    actualizada en GHCR.
-- **Esta sesión (2026-06-11):** reescritura de este plan (análisis crítico +
-  hoja de ruta en 3 carriles) y **Fase C1 casi completa**: implementados los
-  reportes DGII **606, 607 y 608** (backend + UI en Reportes + tests +
-  migración V34). Quedan las validaciones de cierre de mes y —crítico— la
-  **validación de los TXT con la herramienta oficial de la DGII**.
-- **Fase Q1 (núcleo) hecha también el 2026-06-11:** suite e2e Playwright
-  (5 tests: auth, venta POS con NCF, permisos cashier), CI backend con
-  Postgres y suite completa, CI frontend con typecheck+tests+job e2e como
-  gate del publish. Encontró y corrigió un bug real (bucle de efectos →
-  pantalla en blanco para usuarios sin acceso a inventario).
-- **(2026-06-12) Fase Q1 — ampliación e2e (pago parcial + nota de crédito):
-  ✅ completada y validada.**
-- **(2026-06-15) Fase Q2 (deuda técnica frontend) ✅ COMPLETA:** split de
-  `src/api.ts` en 13 módulos, descomposición de `POS.tsx`, `InventoryView.tsx`
-  y `Dashboard.tsx`, lazy-loading (bundle 641 kB→75 kB). `proStockFront@8c98968`,
-  `proStock@a9942f4`.
-- **(2026-06-15) Fase Q3 (hardening de seguridad) ✅ COMPLETA — 7/7 items.**
-  `proStock@4bbae59`, `proStockFront@9aef3d3`.
-- **(2026-06-15) Fase 4.2 (KPIs de dashboard) ✅ COMPLETA.** Top productos/
-  clientes, flechas de tendencia, comparación vs período anterior.
-  `proStock@e9c2106`, `proStockFront@14470e9`.
-- **(2026-06-15) Fase 10 (Cotizaciones) ✅ COMPLETA.** V39, Quote entity,
-  QuoteController (9 endpoints), QuotesView, "Convertir a venta".
-  `proStock@e9c2106`, `proStockFront@14470e9`.
-- **(2026-06-16) Fase 11 (Multi-sucursal / multi-almacén) ✅ COMPLETA.**
-  Ver bitácora 2026-06-16. Pendiente push del commit de backend.
-- **(2026-06-17) Fase 12 (Portal del cliente) ✅ COMPLETA:**
-  - Migración V41 (`portal_enabled`/`portal_password`/`portal_last_login` en
-    `customers`, permisos `portal.manage` y `view.ai` con asignación de roles).
-  - `PortalAuthController` (`POST /api/portal/auth/login`, JWT con
-    `ROLE_CUSTOMER`, BCrypt), `PortalController` (5 endpoints: `/me`,
-    `/invoices`, `/invoices/{id}`, `/service-orders`, `/statement`).
-  - SPA del portal: `PortalApp`, `PortalLogin`, `PortalLayout`,
-    `PortalDashboard` (facturas + órdenes de servicio + estado de cuenta),
-    `PortalInvoiceDetail`. Detección en `main.tsx` via
-    `pathname.startsWith("/portal")`. Token en sessionStorage separado del
-    staff.
-  - Admin: botón "Portal" en `CustomersView` abre modal para asignar/revocar
-    credenciales. Endpoint `PUT /api/customers/{id}/portal-credentials`.
-  - `proStock@272d0ae`, `proStockFront@a8841af`.
-- **(2026-06-17) Fase 13 (IA aplicada — MVP) ✅ COMPLETA:**
-  - `GeminiService` (Spring `RestClient` → REST Gemini 2.0 Flash Lite, clave
-    vía `IntegrationCredentialService`), `AnomalyDetectionService`
-    (detección estadística: descuentos >30%, picos de ingresos z-score >2σ),
-    `AiAssistantService` (prompt en español, contexto KPIs + balances + top
-    clientes, responde preguntas de negocio).
-  - `AiController` (`GET /api/ai/anomalies`, `POST /api/ai/assistant/query`,
-    `@PreAuthorize` con `view.ai`).
-  - `AiView`: tab Asistente (chat conversacional con chips de preguntas de
-    ejemplo) + tab Anomalías (lista con severidad HIGH/MEDIUM/LOW). Lazy-
-    loaded. Gating por `module.ai` + `view.ai`.
-  - `proStock@272d0ae`, `proStockFront@a8841af`.
-- **Estado del push (2026-06-17):** `proStockFront@a8841af` ✅ pusheado.
-  `proStock@272d0ae` pendiente de push — confirmar con usuario.
-- **Próximo paso sugerido:** push de `proStock`; configurar API key de Gemini
-  en Ajustes → Integraciones → provider "gemini" / key "api_key"; validar
-  TXT 606/607/608 con pre-validador DGII (manual).
-- **Fase C2 (e-CF) en pausa:** la certificación requiere tener el software
-  en venta primero; se retoma cuando el usuario reciba el visto bueno.
+- **Última actualización:** 2026-06-24
+- **Fases completadas (migraciones hasta V41):**
+  - ✅ Fase 1: Modularización y permisos granulares por usuario
+  - ✅ Fase 2: Centro de Módulos (feature flags por instancia)
+  - ✅ Fase 3: Menú y navegación (command palette, favoritos)
+  - ✅ Fase 4.1: Dashboard reorganización y personalización (drag & drop)
+  - ✅ Fase 4.2: KPIs de comparación vs período anterior + top listas
+  - ✅ Fase 10: Cotizaciones (DRAFT→SENT→ACCEPTED→CONVERTED, conversión a POS)
+  - ✅ Fase 11: Multi-sucursal / multi-almacén
+  - ✅ Fase 12: Portal del cliente (SPA, JWT ROLE_CUSTOMER, 5 endpoints)
+  - ✅ Fase 13: IA MVP (Gemini 2.0 Flash Lite, anomalías estadísticas, asistente)
+  - ✅ Fase C1: Reportes DGII 606/607/608 (generación + TXT + UI — pendiente validación manual)
+  - ✅ Fase Q1: Suite e2e Playwright (8 tests) + CI completo verde
+  - ✅ Fase Q2: Split api.ts → 13 módulos, descomposición POS/Inventory/Dashboard, lazy-loading (bundle 641→75 kB)
+  - ✅ Fase Q3: Rate limiting, lockout, 2FA TOTP, política de contraseñas, cifrado de credenciales
+  - ✅ Trabajo adicional (vía Cursor, 2026-06-11): NCF 34, recepción parcial OC,
+    ODS con KPIs/facturación parcial/Kanban, CxC/CxP con antigüedad/recordatorios,
+    import CSV, reportes margen/rotación, PDF estado de cuenta
+- **(2026-06-24) Sesión de diseño y features completadas:**
+  - ✅ Refactorización visual completa: KPI cards unificados (Facturas usa StatCard), InventorySummaryStat alineado, MetricTile white+shadow, DashboardSection con línea separadora, PageShell más aireado
+  - ✅ Fix sistémico: `justify-between/start` en Button rows requiere `!` en Tailwind v4 (8 archivos corregidos — CxC, CxP, Clientes, POS, etc.)
+  - ✅ R1 (dashboard): widget AgingWidget (Antigüedad CxC) en sección Estado del negocio
+  - ✅ I1 (email): Email/SMTP en Credenciales de Integraciones + EmailService + EmailController + botón "Enviar por email" en InvoiceView
+- **Pendiente de acción inmediata:**
+  - Push de `proStock` master (2ef1fa4 — Email feature + doc update — confirmar con usuario)
+  - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
+  - Validar TXT 606/607/608 con pre-validador oficial DGII (acción manual única)
+  - Configurar SMTP en instancia de Irisdicencia para probar envío real
+- **Roadmap relanzado 2026-06-23:** ver Sección 5 — análisis completo de
+  brechas y hoja de ruta ampliada a 6 carriles (C/U/R/I/F/Q) orientada a
+  completar el ERP para los 4 verticales objetivo: fotografía/servicios
+  creativos, retail, talleres/reparación, distribuidoras.
+- **Fase C2 (e-CF) en pausa:** la certificación requiere software en operación
+  comercial primero; se retoma cuando el usuario lo autorice.
 
 ## 3. Análisis crítico (2026-06-11)
 
@@ -323,18 +270,27 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   asientos, sync), auditoría, import CSV de catálogo, export Excel,
   reportes de margen/rotación, POS offline.
 
-## 5. Hoja de ruta — re-priorizada con enfoque comercial (2026-06-11)
+## 5. Hoja de ruta — v2 (2026-06-23)
 
-> Tres carriles en paralelo: **C (Comercial/Cumplimiento)** — lo que hace
-> vendible el producto; **Q (Calidad/Plataforma)** — lo que lo hace
-> sostenible; **F (Features/fases originales)** — lo que lo hace más
-> completo. Regla práctica: **no sumar una fase F grande sin avanzar algo
-> de C o Q en la misma ventana de trabajo.** Cada fase se detalla en
-> checklist justo antes de empezarla.
+> Seis carriles paralelos orientados a completar el ERP para los **4 verticales
+> objetivo**: fotografía/servicios creativos, retail, talleres/reparación,
+> distribuidoras. Pain points prioritarios identificados: UX/diseño visual,
+> integraciones externas, reportes y datos de negocio.
+>
+> Regla de trabajo: no sumar fases F grandes sin avanzar algo en C, U o R en
+> la misma ventana.
+>
+> **Leyenda de prioridad:**
+> - ⭐ Crítico — frena la venta o genera fricción alta con clientes actuales
+> - 🔥 Alto — diferenciador real o deuda que frena otras features
+> - 💡 Medio — valor claro, puede esperar 2-3 meses
+> - 🔮 Largo plazo — estratégico, no urgente
 
-### Carril C — Cumplimiento y comercialización
+---
 
-#### Fase C1 — Reportes DGII 606/607/608 ⭐ máxima prioridad — 🟡 EN CURSO
+### Carril C — Cumplimiento fiscal y comercialización
+
+#### Fase C1 — Reportes DGII 606/607/608 🟡 PENDIENTES MENORES
 - [x] **(2026-06-11)** Generación del 607 (ventas) desde `Sale`/NCF +
       notas de crédito del período: `DgiiReportService` con preview JSON
       (`GET /api/reports/dgii/607?period=YYYY-MM`) y TXT formato de envío
@@ -361,56 +317,205 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       `PurchaseOrderModal`, RNC/tipo identificación en `SuppliersView` (y
       `dgiiToSupplierPayload` los llena desde la consulta DGII). Botón y
       KPI 606 en `DgiiComplianceCard`.
-- [ ] ⚠️ **Validar los TXT (606/607/608) con la Herramienta de Envío /
-      pre-validador de la DGII antes de la primera remisión real** (el
-      layout sigue la Norma 07-18; confirmar contra la herramienta vigente).
-- [ ] Gastos sin orden de compra (gastos menores/servicios sin OC) — hoy el
-      606 solo cubre compras con OC; evaluar entidad de gasto simple.
-- [ ] Validaciones previas al cierre de mes (NCF faltantes, RNC inválidos).
-- [ ] Backfill: proveedores existentes no tienen RNC estructurado (estaba
-      solo en el texto de dirección) — editarlos una vez desde la UI.
+- [ ] ⭐ **Validar los TXT (606/607/608)** con la herramienta de envío /
+      pre-validador oficial DGII antes de la primera remisión real.
+      Layout sigue Norma 07-18; confirmar que sigue vigente.
+- [ ] ⭐ **Gastos directos (sin OC)** — gastos menores, servicios sin orden de
+      compra, caja chica. Sinergia con Carril F — Fase F24 (Módulo de Gastos).
+      El 606 solo cubre OC hoy; los gastos directos quedan fuera del reporte.
+- [ ] 🔥 **Validaciones previas al cierre de mes** — alertas si hay NCF sin
+      asignar, RNC de proveedor vacío, ODS pendientes de facturar del período.
+- [ ] 💡 **Backfill de proveedores** — UI de migración en `SuppliersView` para
+      capturar RNC/tipo-identificación en registros anteriores a V34.
+- [ ] 💡 **Tipos de bienes/servicios más descriptivos** en UI de OC (hoy es
+      número 01-11; mostrar etiqueta: "Servicios profesionales", etc.)
 
-#### Fase C2 — Facturación electrónica e-CF (Ley 32-23) — ⏸️ EN PAUSA
-> **(2026-06-11)** El proceso de certificación e-CF requiere tener el
-> software en venta/operación primero. Esta fase queda **bloqueada por un
-> proceso externo**: el usuario la retomará cuando reciba el visto bueno.
-> Mientras tanto, el resto del roadmap continúa sin depender de ella.
-- [ ] **Spike (1 sesión):** leer normativa técnica vigente de DGII (formato
-      XML e-CF, firma digital, API de recepción, ambientes de prueba,
-      calendario de obligatoriedad por tipo de contribuyente) y decidir:
-      certificarse directo vs integrar un proveedor de e-CF autorizado.
-- [ ] Diseño: dónde viven los certificados por empresa, contingencia
-      offline, numeración e-CF vs NCF tradicional (convivencia).
-- [ ] Implementación por etapas (emisión 31/32, luego 33/34, anulaciones).
-- [ ] Esto convierte a ProStock en candidato serio para *cualquier* PyME
-      formal de RD — es la apuesta comercial más grande del roadmap.
+#### Fase C2 — Facturación electrónica e-CF (Ley 32-23) ⏸️ EN PAUSA
 
-#### Fase C3 — Operación multi-cliente (de "instalaciones" a "producto")
-- [ ] Decidir modelo: instancias self-hosted gestionadas (actual) vs SaaS
-      multi-tenant real. Recomendación inicial: **formalizar el modelo de
-      instancias** (más barato, ya funciona) antes de plantear multi-tenant.
-- [ ] Plantilla de despliegue reproducible (compose + script de alta de
-      cliente: dominio, credenciales, seeds, backup).
-- [ ] Versionado y canal de releases (tags semánticos, changelog,
-      Watchtower apuntando a tags estables, no `latest`).
-- [ ] Telemetría mínima opt-in por instancia (versión, salud, error rate)
-      hacia un endpoint central propio.
-- [ ] Backups verificados por instancia (hoy: script en DS420+; falta
-      restore-test periódico).
-- [ ] Licenciamiento básico (activación por instancia, expiración, módulos
-      contratados — se apoya en los feature flags existentes).
+> Bloqueada por proceso externo. Certificación requiere software en operación
+> comercial. Se retoma cuando el usuario lo autorice.
+
+- [ ] 🔮 Spike técnico: normativa XML e-CF, API DGII, ambiente de pruebas,
+      calendario de obligatoriedad por tipo de contribuyente, decisión
+      certificación directa vs integrar un PSE (Proveedor de Servicios Electrónicos).
+- [ ] 🔮 Diseño: certificados por empresa, contingencia offline,
+      convivencia NCF tradicional + e-CF durante transición.
+- [ ] 🔮 Implementación por etapas: 31/32 → 33/34 → anulaciones e-CF.
+
+#### Fase C3 — Operación multi-cliente (instancias → producto)
+
+- [ ] 🔥 **Script de alta de cliente reproducible** — compose + dominio, seeds,
+      credenciales, backup, sin pasos manuales. Hoy tarda horas; debe tomar
+      minutos.
+- [ ] 🔥 **Versionado y canal de releases** — tags semánticos (`v1.x.y`),
+      changelog automático, Watchtower apuntando a tags estables (no `latest`).
+- [ ] 💡 **Licenciamiento básico** — token de activación por instancia,
+      expiración, módulos contratados vía feature flags existentes.
+- [ ] 💡 **Telemetría mínima opt-in** — versión instalada, salud básica,
+      error rate hacia endpoint central propio.
+- [ ] 💡 **Restore-test periódico** de backups (hoy: script en DS420+,
+      sin verificación automatizada de que el backup sea restaurable).
 
 #### Fase C4 — Pagos integrados
-- [ ] Investigar pasarelas RD: Azul, CardNet, PixelPay (+ Stripe para
-      tarjetas internacionales). Elegir 1 para MVP.
-- [ ] Link de pago en estado de cuenta / recordatorios (email/WhatsApp).
-- [ ] Conciliación automática: pago online → `SalePayment` → posible
-      auto-complete (lógica ya existente).
-- [ ] Feature `module.payments`, credenciales cifradas por empresa.
+
+- [ ] 💡 **Investigar pasarelas RD** — Azul, CardNet, PixelPay
+      (+ Stripe para USD). Elegir 1 para MVP. Documentar comisiones y
+      requerimientos técnicos de integración.
+- [ ] 💡 **Link de pago** en PDF de factura, estado de cuenta y mensaje WhatsApp.
+- [ ] 💡 **Conciliación automática** — pago online → `SalePayment` →
+      auto-complete si cubre el saldo (lógica ya existente, solo agregar trigger).
+- [ ] 🔮 **Pago desde el portal del cliente** (sinergia con Fase 12 ya completa).
+- [ ] 🔮 Feature flag `module.payments`, credenciales cifradas por empresa.
+
+---
+
+### Carril U — UX / Diseño visual ⭐ (pain point prioritario)
+
+#### U1 — Modo oscuro + sistema de diseño consistente
+
+- [ ] ⭐ **Modo oscuro** — `ThemeProvider` + CSS variables, toggle persistido
+      en `localStorage`. El 90% del sistema usa Tailwind clases semánticas →
+      cambio de bajo riesgo. Priorizar antes de agregar más vistas.
+- [ ] 🔥 **Revisión del sistema de colores** — paleta coherente entre vistas
+      (hoy hay mezcla de colores hardcoded y variables Tailwind). Definir tokens
+      en `tailwind.config`.
+- [ ] 🔥 **Feedback mejorado** — toasts con acción "deshacer" y duración variable
+      por severidad; skeleton loaders uniformes; estados vacíos con ilustración
+      y CTA claro en cada vista (hoy muchas vistas muestran solo "No hay datos").
+- [ ] 💡 **Tipografía y espaciado** — revisión de heading hierarchy y padding en
+      vistas densas (Reportes, CxC/CxP, Contabilidad).
+
+#### U2 — PWA / app instalable
+
+- [ ] 🔥 **Web App Manifest pulido** — `manifest.json` con íconos de resolución
+      correcta, `theme-color`, `display: standalone`, `shortcuts` al POS.
+      El service worker ya existe; falta el manifest completo.
+- [ ] 🔥 **Prompt de instalación contextual** — banner "Instalar ProStock" no
+      agresivo. Crítico para retail (tablet en caja) y servicios (tablet en
+      mostrador de taller).
+- [ ] 💡 **Splash screen** y transición offline/online más suave.
+
+#### U3 — Responsividad móvil
+
+- [ ] 🔥 **POS en tablet** — layout táctil: botones más grandes, menos
+      hover-dependent, escaneo de barcode vía cámara (no solo lector USB).
+- [ ] 🔥 **Portal del cliente en móvil** — ya existe pero la UX en pantalla
+      pequeña necesita revisión (el cliente accede desde su celular).
+- [ ] 💡 **Vistas de lista táctiles** — paginación más amigable en facturas,
+      clientes y productos para pantallas pequeñas.
+
+#### U4 — Branding por instancia
+
+- [ ] 🔥 **Logo por empresa** — subir logo en `SettingsView`; mostrar en header,
+      factura impresa, estado de cuenta y portal del cliente.
+- [ ] 💡 **Color primario por empresa** — override de la paleta base con la
+      identidad visual del cliente. `CompanyConfig` + CSS variable en runtime.
+- [ ] 💡 **Plantillas de factura configurables** — diseño A4 y térmico con
+      campos opcionales: slogan, redes sociales, nota al pie.
+
+#### U5 — Búsqueda global
+
+- [ ] 🔥 **CMD+K extendido** — el command palette de Fase 3 ya navega vistas;
+      extenderlo para buscar entidades: productos, clientes, facturas, OC, ODS.
+      Resultado con tipo + preview + link directo. Imprescindible al crecer el
+      catálogo.
+
+#### U6 — Onboarding mejorado
+
+- [ ] 💡 **Wizard inicial más completo** — hoy cubre empresa y NCF básico;
+      agregar: import CSV de catálogo, crear primer cajero, tour interactivo.
+- [ ] 💡 **In-app help** — tooltip contextual en acciones complejas: tipos de
+      NCF, cómo funciona el ITBIS incluido, qué es una nota de crédito.
+
+---
+
+### Carril R — Reportes y análisis de negocio (pain point prioritario)
+
+#### R1 — Completar dashboard (pendientes de Fase 4.2)
+
+- [ ] ⭐ **Aging CxC/CxP en dashboard** — widget con barras 0-30/31-60/61-90/90+,
+      drill-down a la vista de CxC o CxP filtrada. El backend ya calcula el aging.
+- [ ] ⭐ **Flujo de caja** — gráfico de ingresos cobrados vs egresos pagados
+      por semana/mes. Combina `SalePayment` + `PurchaseOrderPayment`.
+- [ ] 🔥 **Dashboard por rol** (Fase 4.3) — layouts predefinidos por
+      ADMIN/MANAGER/CASHIER que el usuario puede personalizar sobre la base.
+      Hoy todos ven el mismo layout por defecto.
+- [ ] 💡 **Exportar/imprimir dashboard** (Fase 4.4) — PDF/imagen del resumen
+      del período para entregar al dueño del negocio.
+
+#### R2 — Reportes financieros básicos
+
+- [ ] ⭐ **Estado de Resultados (P&L)** — ingresos por ventas, costo de ventas
+      (COGS desde inventario), margen bruto, gastos operativos (compras + Fase F24),
+      resultado del período. Configurable. Exportable a Excel.
+- [ ] 🔥 **Balance general simplificado** — activo corriente (inventario
+      valorizado + CxC), pasivo (CxP), patrimonio. Apoya la contabilidad integrada.
+- [ ] 🔥 **Ventas por cajero/vendedor** — total vendido, ticket promedio,
+      transacciones. Filtro por período y usuario.
+- [ ] 💡 **Rentabilidad por cliente** — ingresos, margen y frecuencia. Top 10
+      más rentables del período.
+
+#### R3 — Reportes de inventario
+
+- [ ] 🔥 **Inventario valorizado** — stock actual × costo promedio = valor
+      total por producto y categoría. Base para el balance general.
+- [ ] 💡 **Rotación mejorada** — días de stock por producto con comparativa
+      vs período anterior (el reporte existe; enriquecer).
+- [ ] 💡 **Vencimientos próximos** — cuando exista F25 (control de lotes),
+      alerta de productos a vencer en N días.
+
+#### R4 — Reportes programados
+
+- [ ] 💡 **Email automático semanal/mensual** al dueño — resumen de ventas,
+      top productos, alertas de stock bajo. Configurable en Ajustes.
+      Requiere I1 (SMTP) habilitado.
+
+---
+
+### Carril I — Integraciones externas (pain point prioritario)
+
+#### I1 — Email / SMTP ⭐ (base para todos los demás)
+
+- [ ] ⭐ **Configuración SMTP** en Ajustes → Integraciones — host, puerto, TLS,
+      usuario, contraseña cifrada con `IntegrationCredentialService` existente.
+- [ ] ⭐ **Enviar factura por email** — botón en detalle de factura. Template
+      HTML con logo de la empresa.
+- [ ] 🔥 **Recordatorios de cobro automáticos** — CxC vencidas → email
+      automático al cliente. Configurable: días de gracia, frecuencia, plantilla.
+- [ ] 🔥 **Estado de cuenta por email** — botón "Enviar" en `CustomersView`
+      (complementa el PDF ya existente).
+- [ ] 💡 **Notificación de ODS completada** — email al cliente cuando su
+      orden de servicio está lista para retirar.
+- [ ] 💡 **Alerta de stock bajo** por email al administrador (configurable
+      por umbral de reposición).
+
+#### I2 — WhatsApp Business API
+
+- [ ] 🔥 **Credenciales cifradas** — provider "whatsapp" ya en
+      `IntegrationCredentialService`; agregar token de verificación del
+      webhook y phone number ID.
+- [ ] 🔥 **Notificación de factura** — enviar PDF/link por WhatsApp al crear
+      o completar una venta. Reutilizar `~/code/conectoria/integrations/whatsapp`.
+- [ ] 🔥 **Recordatorio de cobro con link de pago** — sinergia con C4.
+- [ ] 💡 **Confirmación de cita ODS** — WhatsApp al asignar/mover fecha
+      en una orden de servicio.
+- [ ] 💡 **Alerta de ODS lista** — WhatsApp al cliente cuando la orden se
+      completa.
+- [ ] 🔮 **Bot de consulta** — el cliente pregunta por estado de su factura
+      u ODS por WhatsApp (sinergia con conectoria).
+
+#### I3 — Google Calendar (servicios/talleres)
+
+- [ ] 💡 **Crear evento** al asignar fecha a una ODS. Invitación al cliente
+      si tiene email. OAuth2 por empresa.
+- [ ] 💡 **Vista de agenda** en `ServiceOrdersView` — calendario semanal con
+      ODS asignadas (complementa el Kanban existente).
+
+---
 
 ### Carril Q — Calidad y plataforma
 
-#### Fase Q1 — Red de seguridad de pruebas ⭐ — ✅ CERRADA 2026-06-12 (núcleo hecho 2026-06-11)
+#### Fase Q1 — Red de seguridad de pruebas ✅ CERRADA 2026-06-12
 - [x] **Suite e2e Playwright commiteada** (`e2e/` + `playwright.config.ts`,
       puerto aislado 3210): login ok/fallido, **venta POS completa con NCF**
       (busca producto sembrado, cobra, verifica `E32…` en la factura),
@@ -455,6 +560,40 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       cambio de configuración persistente del repo que requiere decisión
       explícita del usuario, no se tocó. Pendiente como tarea manual si se
       decide pagar Pro o aceptar el riesgo en `proStock`.
+
+#### Fase Q4 — Ampliar cobertura e2e
+
+- [ ] 🔥 E2e: flujo de cotización — crear, enviar, aceptar, convertir a
+      venta POS.
+- [ ] 🔥 E2e: multi-sucursal — crear almacén, transferir stock, vender
+      desde sucursal diferente.
+- [ ] 🔥 E2e: portal del cliente — login, ver factura, ver ODS.
+- [ ] 💡 Backend: tests de `QuoteService` y `PortalController`.
+- [ ] 💡 Branch protection en `proStock` (público, no requiere Pro) —
+      acción manual en GitHub Settings para exigir CI verde.
+
+#### Fase Q5 — Monitoreo de errores
+
+- [ ] 💡 **Sentry o GlitchTip** (self-hosted) en backend y frontend —
+      captura de excepciones no manejadas, alertas por email al superar
+      umbral. DSN por empresa vía `IntegrationCredentialService`.
+
+#### Fase Q6 — Performance y observabilidad
+
+- [ ] 💡 **Índices DB** — revisar queries lentas con `EXPLAIN ANALYZE` en
+      tablas grandes (`sale_items`, `inventory_movements`, `sale_payments`).
+      Agregar índices faltantes en migración nueva.
+- [ ] 💡 **Audit log viewer** — UI para ver el historial de cambios
+      (`AuditLog` ya existe como entidad; falta la vista de admin).
+- [ ] 🔮 **APM básico** — Spring Boot Actuator + Prometheus + Grafana
+      (self-hosted) para latencia de endpoints y uso de memoria.
+
+#### Fase Q7 — Accesibilidad
+
+- [ ] 💡 **ARIA labels** en componentes del POS y modales — al menos los
+      flujos críticos de caja para cumplir estándares básicos.
+- [ ] 💡 **Manejo de foco** en modales — trap focus al abrir, restore on
+      close.
 
 #### Fase Q2 — Pago de deuda técnica frontend — ✅ COMPLETA (2026-06-15)
 - [x] **(2026-06-15)** Partido `src/api.ts` (1,790 líneas) en 13 módulos por
@@ -596,46 +735,231 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       migración a Docker/DS420+. `DB_PASSWORD=admin ./gradlew clean build` →
       BUILD SUCCESSFUL.
 
-### Carril F — Features (continuación de fases originales)
+### Carril F — Módulos y funcionalidades nuevas
 
-#### Fase 4.2 — KPIs nuevos de dashboard (requiere backend) — 🟡 PARCIAL
-- [x] Top productos y top clientes del período. `TopListsWidget` (top 5,
-      barra proporcional), queries nativas en `SaleItemRepository`/
-      `SaleRepository`.
-- [x] Comparación vs período anterior (variación %). Flechas de tendencia
-      `+X%/-X%` en los 3 KPIs del período (ventas/ingresos/ticket).
-      `proStock@e9c2106`, `proStockFront@14470e9`.
-- [ ] Antigüedad CxC/CxP (0-30/31-60/61-90/90+) — exponer agregado
-      de aging para el dashboard (el backend ya lo calcula en CxC/CxP views).
-- [ ] Flujo de caja (ingresos vs egresos en el tiempo) — requiere
-      combinar ventas + órdenes de compra pagadas.
+> Las fases 4.x, 5, 6, 7, 8, 9 son del plan original; las nuevas fases
+> F14+ y los bloques de verticales (S, RV, W, D) son adiciones del
+> relanzamiento 2026-06-23.
 
-#### Fase 4.3 — Layouts de dashboard por rol
-- [ ] Defaults por rol sobre el sistema de personalización de 4.1.
+#### F-General: para todos los verticales
 
-#### Fase 4.4 — Exportar/imprimir dashboard
-- [ ] PDF/imagen del resumen.
+##### F5 — Empleados / RRHH
 
-#### Fase 5 — Empleados / RRHH
-- [ ] Entidad `Employee` (opcionalmente ligada a `User`), asistencia,
-      comisiones por venta, nómina básica (TSS/ISR simplificado RD).
-- [ ] Feature `module.employees`, categoría de permisos `EMPLOYEES`.
+- [ ] 🔥 **Entidad `Employee`** — nombre, cédula, cargo, fecha de ingreso,
+      salario base. Opcional: ligar al `User` existente.
+- [ ] 🔥 **Comisiones por venta** — porcentaje configurable por vendedor/cajero.
+      Reporte de comisiones del período (sinergia con R2 — ventas por cajero).
+- [ ] 💡 **Asistencia** — entrada/salida manual, horas trabajadas.
+- [ ] 🔮 **Nómina básica** — cálculo TSS e ISR simplificado según tablas DGII.
+      Feature flag `module.employees`.
 
-#### Fase 6 — Integraciones WhatsApp / redes
-- [ ] Notificaciones de venta/factura, alertas de stock bajo, recordatorios
-      de cobro **con link de pago (sinergia con C4)**.
-- [ ] Credenciales cifradas por empresa (depende del diseño de Q3).
-- [ ] Reutilizar patrones de `~/code/conectoria/integrations/whatsapp`.
+##### F14 — Variantes de producto (talla, color, modelo) ⭐
 
-#### Fase 7 — Branding por instancia
-- [ ] Logo/colores por empresa, plantillas de factura personalizables.
+> Crítico para retail. Sin esto no se puede vender ropa, calzado ni
+> electrónica con modelos.
 
-#### Fase 8 — UI/UX general
-- [ ] Modo oscuro, revisión de design system, responsividad móvil,
-      manifest PWA pulido (instalable; el service worker ya existe).
+- [ ] ⭐ **Modelo de variantes** — `ProductVariant` (SKU único por variante,
+      nombre, precio diferencial opcional). Una variante = un ítem de inventario.
+      Migración nueva.
+- [ ] ⭐ **UI en catálogo y POS** — selector de variantes al agregar al carrito
+      (ej: camisa → Talla: S/M/L, Color: rojo/azul). Grid de stock por variante.
+- [ ] 🔥 **Import CSV con variantes** — soporte en la importación existente.
+- [ ] 🔥 **Barcode por variante** — código de barras único por combinación.
 
-#### Fase 9 — Reportes avanzados / BI
-- [ ] Reportes programados (email mensual al dueño), más exports.
+##### F16 — Listas de precios por cliente/grupo ⭐
+
+> Crítico para distribuidoras. Permite precios mayorista/minorista/VIP sin
+> edición manual.
+
+- [ ] ⭐ **Entidad `PriceList`** — nombre, descripción, porcentaje de descuento
+      global o precio override por producto.
+- [ ] ⭐ **Asignar lista a cliente** — campo en `Customer`. Al seleccionar el
+      cliente en el POS, los precios se aplican automáticamente.
+- [ ] 🔥 **Grupos de cliente** — categoría (Mayorista, Minorista, VIP) con
+      lista predeterminada por grupo.
+- [ ] 💡 **Precio por volumen** — descuento automático por cantidad (ej:
+      1-9 → precio normal; 10+ → 10% off). Migración separada.
+
+##### F24 — Módulo de gastos (caja chica / gastos sin OC)
+
+- [ ] 🔥 **Entidad `Expense`** — categoría, monto, ITBIS, NCF proveedor
+      (opcional), forma de pago, adjunto (foto del recibo).
+- [ ] 🔥 **Vista de Gastos** — lista, filtros por categoría/período, totales.
+- [ ] 🔥 **606 desde Gastos** — incluir gastos directos en el reporte DGII
+      606. Cierra el pendiente C1.
+- [ ] 💡 **Caja chica** — fondo inicial, registro de gastos, reembolso.
+
+##### F18 — Números de serie y control de lotes
+
+- [ ] 💡 **Número de serie** — `ProductSerial` ligado a `Product`, asignado
+      al vender. Historial de movimientos por serial.
+- [ ] 💡 **Control de lote** — `Lot` con fecha de vencimiento, cantidad por
+      lote. Despacho FEFO (primero en vencer, primero en salir).
+- [ ] 💡 UI en POS — selección de serie/lote al agregar al carrito si el
+      producto lo requiere.
+
+##### F20 — Adjuntos a registros (documentos, fotos)
+
+- [ ] 💡 **Adjunto genérico** — tabla `Attachment` (entidad tipo + ID, URL,
+      nombre, tamaño). Storage: carpeta local configurable o S3-compatible
+      (MinIO para self-hosted).
+- [ ] 💡 Aplicar a: facturas (contratos firmados), clientes (cédula/RNC
+      escaneada), ODS (foto del equipo a reparar), proveedores (licencia).
+
+##### F19 — Facturación recurrente / suscripciones
+
+- [ ] 💡 **`RecurringInvoice`** — plantilla de factura con frecuencia
+      (semanal/mensual/anual), cliente, ítems. Job `@Scheduled` genera la
+      venta automáticamente.
+- [ ] 💡 Notificación al cliente por email/WhatsApp al emitir. Sinergia con I1/I2.
+- [ ] 🔮 Feature flag `module.subscriptions`.
+
+##### F23 — Multimoneda básica
+
+- [ ] 💡 **Tipo de cambio configurable** en `CompanyConfig` — RD$/USD.
+      Actualizable desde Ajustes.
+- [ ] 💡 **Precio en USD por producto** (opcional, complementario al precio
+      RD$). Al cambiar moneda en el POS, precios se convierten al tipo del día.
+- [ ] 💡 Factura imprimible en USD (clientes internacionales, turistas).
+- [ ] 🔮 Consumir API del Banco Central RD para actualizar el tipo de cambio
+      automáticamente.
+
+##### F15 — Programa de lealtad / puntos
+
+- [ ] 💡 **Puntos por compra** — RD$ gastados → puntos acumulados en `Customer`.
+      Saldo visible en el POS al seleccionar el cliente.
+- [ ] 💡 **Canje** — aplicar puntos como descuento en la venta.
+- [ ] 🔮 **Historial de puntos** en el portal del cliente.
+
+##### F25 — Control de fechas de vencimiento
+
+- [ ] 💡 **`expirationDate`** en lote/producto. Alerta de stock próximo a
+      vencer (N días configurables).
+- [ ] 💡 Widget en dashboard: productos que vencen en los próximos 30 días.
+
+##### F13-ext — IA aplicada (extensiones del MVP)
+
+- [ ] 💡 **Pronóstico de demanda / sugerencia de reorden** — por producto,
+      basado en historial de ventas y stock actual. Alerta proactiva desde
+      el asistente.
+- [ ] 💡 **Auto-categorización en import CSV** — usar Gemini para sugerir
+      categoría y precio de costo/venta en productos nuevos importados.
+- [ ] 🔮 **Asistente con contexto ampliado** — incluir compras, gastos
+      (F24) y KPIs de ODS en el prompt del asistente.
+
+---
+
+#### F-Vertical: Fotografía / Servicios Creativos
+
+##### S1 — Calendario de citas / agenda
+
+- [ ] 🔥 **Campo `scheduledAt`** en `ServiceOrder` (fecha/hora de la sesión).
+      Visible en detalle de ODS y en el Kanban.
+- [ ] 🔥 **Vista de calendario** — semanal/mensual, ODS como eventos con
+      drag & drop para reagendar. Color por estado.
+- [ ] 🔥 **Recordatorio automático de cita** — email/WhatsApp 24h antes.
+      Sinergia con I1/I2.
+- [ ] 💡 **Reserva de cita desde el portal del cliente** (acceso restringido).
+
+##### S2 — Paquetes de servicios
+
+- [ ] 💡 **`ServicePackage`** — conjunto de servicios/productos con precio
+      único. Se expande en el POS como ítems individuales con precio asignado.
+      Útil para "sesión de fotos + impresión + digital" como un solo botón.
+
+##### S3 — Galería / entrega digital
+
+- [ ] 🔮 **Link de descarga** en portal del cliente — URL de carpeta
+      (Google Drive, Dropbox o MinIO local) asociada a la ODS.
+      El cliente ve "Tu galería está lista" y accede al link desde el portal.
+
+---
+
+#### F-Vertical: Retail / Tiendas
+
+##### RV1 — Pantalla de cliente (customer display)
+
+- [ ] 🔥 **URL separada `/display`** — muestra artículos del carrito activo
+      y total en tiempo real, optimizada para segunda pantalla o tablet.
+      Sin autenticación, solo lectura vía polling o WebSocket.
+
+##### RV2 — Combos y bundles
+
+- [ ] 💡 **`Bundle`** — producto compuesto por otros (con precio especial).
+      Al venderlo: descuenta stock de cada componente. Kits, combos de menú.
+
+##### RV3 — Descuentos programados / por volumen automáticos
+
+- [ ] 💡 **Reglas de descuento** — descuento automático al comprar N unidades
+      o en rango de fechas (promoción de fin de semana). Aplicación en el POS
+      sin intervención manual.
+
+##### RV4 — Devoluciones por POS
+
+- [ ] 🔥 **Flujo rápido de devolución** — buscar factura en el POS, seleccionar
+      ítems, generar nota de crédito NCF 34 automáticamente y reponer stock.
+      Hoy requiere ir a la vista de Facturas.
+
+##### RV5 — Resolución de conflictos offline
+
+- [ ] 💡 **Detección de conflictos** — si el mismo producto se vende offline
+      en 2 dispositivos, detectar al sincronizar y alertar (hoy: el último
+      en sincronizar gana sin aviso).
+
+---
+
+#### F-Vertical: Talleres / Reparación
+
+##### W1 — Registro de equipo a reparar
+
+- [ ] 💡 **`RepairItem`** en ODS — marca, modelo, serial, color, problema
+      reportado, accesorios entregados. Imprimible como "comprobante de
+      recepción de equipo" al ingresar el dispositivo.
+
+##### W2 — Historial por equipo
+
+- [ ] 💡 **Buscar por serial de equipo** — ver todas las ODS asociadas a ese
+      serial. Detectar clientes frecuentes y reparaciones previas.
+
+##### W3 — Garantía sobre reparaciones
+
+- [ ] 💡 **`warrantyDays`** en ODS completada — alerta si el cliente regresa
+      con el mismo equipo dentro del período de garantía.
+
+##### W4 — Diagnóstico y presupuesto previo
+
+- [ ] 💡 **Flujo diagnóstico** — ODS en estado "En diagnóstico" → genera
+      cotización interna → cliente aprueba → pasa a "En reparación". Sinergia
+      con cotizaciones (Fase 10 ya completa).
+
+---
+
+#### F-Vertical: Distribuidoras / Importadoras
+
+##### D1 — Pedidos preventa (captura en campo)
+
+- [ ] 💡 **`PreSaleOrder`** — los vendedores capturan pedidos desde
+      móvil/tablet sin necesidad de POS. Flujo: captura → revisión →
+      conversión a factura o despacho.
+- [ ] 💡 Comisión calculada automáticamente por pedido (sinergia con F5).
+
+##### D2 — Rutas de vendedores
+
+- [ ] 💡 **`Route`** — nombre de ruta + clientes asignados + días de visita.
+      Dashboard del vendedor: clientes a visitar hoy, pedidos pendientes,
+      cobros CxC por ruta.
+
+##### D3 — Meta de ventas
+
+- [ ] 🔮 **`SalesTarget`** — por vendedor y período (mes/trimestre). KPI de
+      cumplimiento en el dashboard del manager.
+
+---
+
+#### Fases completadas (referencia histórica)
+
+> Las fases 5, 6, 7, 8, 9 del plan original quedaron absorbidas por los
+> carriles F, I, U, R del roadmap v2. Las fases 10-13 están completas.
 
 #### Fase 10 — Cotizaciones ✅ COMPLETA (2026-06-15)
 - [x] Entidad `Quote`/`QuoteItem`, migración V39, permisos y roles.
@@ -696,9 +1020,9 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
       preguntas de ejemplo, Enter para enviar) + tab Anomalías (cards con
       badge de severidad). Lazy-loaded. Sidebar entrada "IA" en grupo
       "Servicios". Gating por `module.ai` + `canAccessView("ai")`.
-- [ ] Pronóstico de demanda / sugerencia de reorden por producto.
-- [ ] Auto-categorización en import CSV.
-- `proStock@272d0ae`, `proStockFront@a8841af`.
+- [ ] Pronóstico de demanda / sugerencia de reorden (ver F13-ext en Carril F).
+- [ ] Auto-categorización en import CSV (ver F13-ext en Carril F).
+- `proStock@272d0ae` (push pendiente), `proStockFront@a8841af`.
 
 ## 6. Convenciones de trabajo
 
@@ -716,6 +1040,23 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   cumplimiento o calidad.
 
 ## 7. Bitácora de sesiones
+
+### 2026-06-23
+- **Relanzamiento del roadmap (v2):** análisis completo de brechas orientado
+  a los 4 verticales objetivo (fotografía/servicios creativos, retail,
+  talleres/reparación, distribuidoras). Pain points prioritarios identificados:
+  UX/diseño visual, integraciones externas, reportes y análisis de negocio.
+- **Nuevo esquema de 6 carriles:** C (Cumplimiento), U (UX/Diseño), R (Reportes
+  /BI), I (Integraciones), F (Módulos/Funcionalidades), Q (Calidad).
+- **Nuevas fases planificadas:** F5 (Empleados), F13-ext (IA ampliada), F14
+  (Variantes de producto), F15 (Lealtad), F16 (Listas de precios), F18 (Series
+  /lotes), F19 (Recurrente), F20 (Adjuntos), F23 (Multimoneda), F24 (Gastos),
+  F25 (Vencimientos), S1-S3 (vertical fotografía), RV1-RV5 (vertical retail),
+  W1-W4 (vertical talleres), D1-D3 (vertical distribuidoras).
+- **Nuevos carriles:** U1-U6 (UX), R1-R4 (Reportes), I1-I3 (Integraciones),
+  Q4-Q7 (Calidad ampliada).
+- Sin cambios de código en esta sesión — solo planificación y actualización
+  del documento.
 
 ### 2026-06-15
 - **Arranque de Fase Q2 (deuda técnica frontend):** dividido `src/api.ts`
