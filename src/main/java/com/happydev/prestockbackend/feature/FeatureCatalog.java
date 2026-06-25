@@ -63,6 +63,9 @@ public final class FeatureCatalog {
                     "Los clientes pueden ver el estado de sus órdenes de servicio desde el portal", true,
                     Set.of("module.portal")),
 
+            new FeatureDefinition("module.expenses", "EXPENSES", "Gastos",
+                    "Registro de gastos directos (sin orden de compra): caja chica, servicios, alquileres", true, Set.of()),
+
             new FeatureDefinition("module.ai", "AI", "IA aplicada",
                     "Análisis inteligente: asistente en lenguaje natural y detección de anomalías", false, Set.of()),
             new FeatureDefinition("ai.assistant", "AI", "Asistente conversacional",

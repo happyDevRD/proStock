@@ -8,6 +8,7 @@ import com.happydev.prestockbackend.dto.Dgii608ReportDto;
 import com.happydev.prestockbackend.dto.Dgii608RowDto;
 import com.happydev.prestockbackend.entity.CreditNote;
 import com.happydev.prestockbackend.entity.Customer;
+import com.happydev.prestockbackend.entity.Expense;
 import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.PurchaseOrder;
 import com.happydev.prestockbackend.entity.PurchaseOrderItem;
@@ -18,6 +19,7 @@ import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.entity.TipoIdentificacion;
 import com.happydev.prestockbackend.entity.TipoIngresos;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
+import com.happydev.prestockbackend.repository.ExpenseRepository;
 import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
@@ -53,17 +55,20 @@ public class DgiiReportServiceImpl implements DgiiReportService {
     private final SalePaymentRepository salePaymentRepository;
     private final CreditNoteRepository creditNoteRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final ExpenseRepository expenseRepository;
     private final CompanyConfigService companyConfigService;
 
     public DgiiReportServiceImpl(SaleRepository saleRepository,
                                  SalePaymentRepository salePaymentRepository,
                                  CreditNoteRepository creditNoteRepository,
                                  PurchaseOrderRepository purchaseOrderRepository,
+                                 ExpenseRepository expenseRepository,
                                  CompanyConfigService companyConfigService) {
         this.saleRepository = saleRepository;
         this.salePaymentRepository = salePaymentRepository;
         this.creditNoteRepository = creditNoteRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
+        this.expenseRepository = expenseRepository;
         this.companyConfigService = companyConfigService;
     }
 
@@ -78,6 +83,13 @@ public class DgiiReportServiceImpl implements DgiiReportService {
                 period.atDay(1), period.atEndOfMonth());
         for (PurchaseOrder order : orders) {
             report.getRows().add(toRow(order));
+        }
+
+        // Incluir gastos directos con NCF de proveedor en el 606
+        List<Expense> expenses = expenseRepository.findWithNcfInRange(
+                period.atDay(1), period.atEndOfMonth());
+        for (Expense expense : expenses) {
+            report.getRows().add(toRow(expense));
         }
 
         report.setCantidadRegistros(report.getRows().size());
@@ -167,6 +179,59 @@ public class DgiiReportServiceImpl implements DgiiReportService {
         row.setItbisFacturado(nz(order.getTotalItbis()));
         row.setFormaPago(formaPago606(order));
         return row;
+    }
+
+    private Dgii606RowDto toRow(Expense expense) {
+        Dgii606RowDto row = new Dgii606RowDto();
+        // Priorizar RNC/tipo del suplidor enlazado; si no, usar los del gasto directamente
+        if (expense.getSupplier() != null) {
+            String doc = trimToNull(expense.getSupplier().getRncCedula());
+            row.setRncCedula(doc != null ? doc.replaceAll("[^0-9A-Za-z]", "") : "");
+            row.setTipoIdentificacion(doc != null
+                    ? tipoIdentificacionCode(expense.getSupplier().getTipoIdentificacion())
+                    : "");
+        } else {
+            String doc = trimToNull(expense.getRncCedula());
+            row.setRncCedula(doc != null ? doc.replaceAll("[^0-9A-Za-z]", "") : "");
+            row.setTipoIdentificacion(expense.getTipoIdentificacion() != null
+                    ? tipoIdentificacionCode(expense.getTipoIdentificacion())
+                    : "");
+        }
+        row.setTipoBienesServicios(
+                expense.getTipoBienesServicios() != null ? expense.getTipoBienesServicios() : "09");
+        row.setNcf(expense.getNcfProveedor());
+        row.setFechaComprobante(expense.getExpenseDate().format(FECHA_DGII));
+        row.setFechaPago(expense.getPaymentDate() != null
+                ? expense.getPaymentDate().format(FECHA_DGII) : "");
+
+        // Los gastos directos son principalmente servicios (09); el monto va a bienes o servicios
+        // según el tipo declarado en el gasto
+        BigDecimal total = nz(expense.getAmount());
+        boolean isServicio = !"01".equals(expense.getTipoBienesServicios())
+                && !"02".equals(expense.getTipoBienesServicios())
+                && !"03".equals(expense.getTipoBienesServicios())
+                && !"04".equals(expense.getTipoBienesServicios())
+                && !"05".equals(expense.getTipoBienesServicios());
+        row.setMontoFacturadoServicios(isServicio ? total : BigDecimal.ZERO);
+        row.setMontoFacturadoBienes(isServicio ? BigDecimal.ZERO : total);
+        row.setTotalMontoFacturado(total.setScale(2, RoundingMode.HALF_UP));
+        row.setItbisFacturado(nz(expense.getItbis()).setScale(2, RoundingMode.HALF_UP));
+        row.setFormaPago(formaPago606Expense(expense));
+        return row;
+    }
+
+    private String formaPago606Expense(Expense expense) {
+        if (expense.getPaymentDate() == null) {
+            return "04"; // crédito
+        }
+        PaymentMethod method = expense.getPaymentMethod();
+        if (method == null) return "01";
+        return switch (method) {
+            case CASH -> "01";
+            case CHECK, TRANSFER -> "02";
+            case CARD -> "03";
+            case OTHER -> "07";
+        };
     }
 
     private String formaPago606(PurchaseOrder order) {
