@@ -36,11 +36,13 @@ public class AccAccountController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('accounting.accounts.edit')")
     public ResponseEntity<AccountDto> update(@PathVariable Long id, @RequestBody AccountDto dto) {
         return ResponseEntity.ok(accountService.update(id, dto));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('accounting.accounts.deactivate')")
     public ResponseEntity<Void> deactivate(@PathVariable Long id) {
         accountService.deactivate(id);
         return ResponseEntity.noContent().build();

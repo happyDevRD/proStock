@@ -18,5 +18,7 @@ public interface JournalEntryService {
 
     JournalEntryDto post(Long id, String username);
 
+    JournalEntryDto reverse(Long id, String username);
+
     void delete(Long id);
 }

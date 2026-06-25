@@ -124,6 +124,40 @@ public class JournalEntryServiceImpl implements JournalEntryService {
 
     @Override
     @Transactional
+    public JournalEntryDto reverse(Long id, String username) {
+        AccJournalEntry original = getOrThrow(id);
+
+        if (original.getStatus() != AccEntryStatus.POSTED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Solo se pueden revertir asientos contabilizados");
+        }
+
+        AccJournalEntry reversal = new AccJournalEntry();
+        reversal.setEntryDate(LocalDate.now());
+        reversal.setReference("REV-" + original.getId());
+        reversal.setDescription("Reversión del asiento #" + original.getId()
+                + (original.getDescription() != null ? " — " + original.getDescription() : ""));
+        reversal.setEntryType(AccEntryType.MANUAL);
+        reversal.setStatus(AccEntryStatus.DRAFT);
+        reversal.setCreatedAt(LocalDateTime.now());
+        reversal.setCreatedBy(username);
+
+        for (AccJournalEntryLine origLine : original.getLines()) {
+            AccJournalEntryLine line = new AccJournalEntryLine();
+            line.setJournalEntry(reversal);
+            line.setAccountId(origLine.getAccountId());
+            // Swap debit ↔ credit
+            line.setDebit(origLine.getCredit() != null ? origLine.getCredit() : BigDecimal.ZERO);
+            line.setCredit(origLine.getDebit() != null ? origLine.getDebit() : BigDecimal.ZERO);
+            line.setDescription(origLine.getDescription());
+            reversal.getLines().add(line);
+        }
+
+        return toDto(entryRepository.save(reversal), buildAccountMap());
+    }
+
+    @Override
+    @Transactional
     public void delete(Long id) {
         AccJournalEntry entry = getOrThrow(id);
         if (entry.getStatus() == AccEntryStatus.POSTED) {

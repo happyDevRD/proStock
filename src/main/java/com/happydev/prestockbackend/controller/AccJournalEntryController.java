@@ -5,6 +5,7 @@ import com.happydev.prestockbackend.dto.JournalEntryDto;
 import com.happydev.prestockbackend.service.JournalEntryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ public class AccJournalEntryController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('accounting.module.view')")
     public ResponseEntity<List<JournalEntryDto>> findAll(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String dateFrom,
@@ -35,11 +37,13 @@ public class AccJournalEntryController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('accounting.module.view')")
     public ResponseEntity<JournalEntryDto> findById(@PathVariable Long id) {
         return ResponseEntity.ok(journalEntryService.findById(id));
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('accounting.journal.create')")
     public ResponseEntity<JournalEntryDto> create(
             @RequestBody CreateJournalEntryRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -50,6 +54,7 @@ public class AccJournalEntryController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('accounting.journal.edit')")
     public ResponseEntity<JournalEntryDto> update(
             @PathVariable Long id,
             @RequestBody CreateJournalEntryRequest req) {
@@ -57,6 +62,7 @@ public class AccJournalEntryController {
     }
 
     @PostMapping("/{id}/post")
+    @PreAuthorize("hasAuthority('accounting.journal.post')")
     public ResponseEntity<JournalEntryDto> post(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -65,7 +71,19 @@ public class AccJournalEntryController {
         return ResponseEntity.ok(journalEntryService.post(id, username));
     }
 
+    @PostMapping("/{id}/reverse")
+    @PreAuthorize("hasAuthority('accounting.journal.reverse')")
+    public ResponseEntity<JournalEntryDto> reverse(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        String username = userDetails != null ? userDetails.getUsername() : "system";
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(journalEntryService.reverse(id, username));
+    }
+
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('accounting.journal.delete')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         journalEntryService.delete(id);
         return ResponseEntity.noContent().build();
