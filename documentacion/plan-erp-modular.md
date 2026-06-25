@@ -27,8 +27,8 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-24
-- **Fases completadas (migraciones hasta V41):**
+- **Última actualización:** 2026-06-24 (sesión F24)
+- **Fases completadas (migraciones hasta V42):**
   - ✅ Fase 1: Modularización y permisos granulares por usuario
   - ✅ Fase 2: Centro de Módulos (feature flags por instancia)
   - ✅ Fase 3: Menú y navegación (command palette, favoritos)
@@ -50,8 +50,9 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ Fix sistémico: `justify-between/start` en Button rows requiere `!` en Tailwind v4 (8 archivos corregidos — CxC, CxP, Clientes, POS, etc.)
   - ✅ R1 (dashboard): widget AgingWidget (Antigüedad CxC) en sección Estado del negocio
   - ✅ I1 (email): Email/SMTP en Credenciales de Integraciones + EmailService + EmailController + botón "Enviar por email" en InvoiceView
+  - ✅ F24 (Gastos directos): V42 tabla `expenses`, CRUD completo con 9 categorías, NCF/RNC opcional para 606 DGII, feature flag `module.expenses`, permisos granulares. DgiiReportServiceImpl actualizado — 606 ahora incluye gastos con NCF además de OC. Vista ExpensesView con 3 KPIs, filtros texto/categoría, modal crear/editar con sección fiscal. Sidebar ítem "Gastos" en grupo Análisis. Backend: proStock@4101a17. Frontend: proStockFront@79cd3c6.
 - **Pendiente de acción inmediata:**
-  - Push de `proStock` master (2ef1fa4 — Email feature + doc update — confirmar con usuario)
+  - Push de ambos repos a origin (proStock master, proStockFront main)
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
   - Validar TXT 606/607/608 con pre-validador oficial DGII (acción manual única)
   - Configurar SMTP en instancia de Irisdicencia para probar envío real
