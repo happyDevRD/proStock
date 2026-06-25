@@ -33,7 +33,14 @@ public class ExpenseServiceImpl implements ExpenseService {
     @Override
     public Page<ExpenseDto> findAll(@NonNull String description, String category, @NonNull Pageable pageable) {
         String descFilter = description.isBlank() ? null : description;
-        String catFilter = category == null || category.isBlank() ? null : category;
+        ExpenseCategory catFilter = null;
+        if (category != null && !category.isBlank()) {
+            try {
+                catFilter = ExpenseCategory.valueOf(category.toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                // categoría desconocida → sin filtro
+            }
+        }
         return expenseRepository.findFiltered(descFilter, catFilter, pageable).map(this::toDto);
     }
 

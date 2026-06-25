@@ -1,8 +1,10 @@
 package com.happydev.prestockbackend.repository;
 
 import com.happydev.prestockbackend.entity.Expense;
+import com.happydev.prestockbackend.entity.ExpenseCategory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,15 +32,20 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
             """)
     List<Expense> findWithNcfInRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
+    // Paginado sin JOIN FETCH (lo resuelve @EntityGraph sin traer todo en memoria)
+    @EntityGraph(attributePaths = "supplier")
     @Query(value = """
             SELECT e FROM Expense e
-            LEFT JOIN FETCH e.supplier
             WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', :description, '%')))
               AND (:category IS NULL OR e.category = :category)
             """,
-            countQuery = "SELECT COUNT(e) FROM Expense e WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', :description, '%'))) AND (:category IS NULL OR e.category = :category)")
+           countQuery = """
+            SELECT COUNT(e) FROM Expense e
+            WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', :description, '%')))
+              AND (:category IS NULL OR e.category = :category)
+            """)
     Page<Expense> findFiltered(
             @Param("description") String description,
-            @Param("category") String category,
+            @Param("category") ExpenseCategory category,
             Pageable pageable);
 }
