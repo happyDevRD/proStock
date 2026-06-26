@@ -18,6 +18,7 @@ import com.happydev.prestockbackend.entity.PurchaseOrderItem;
 import com.happydev.prestockbackend.entity.Supplier;
 import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
+import com.happydev.prestockbackend.repository.ExpenseRepository;
 import com.happydev.prestockbackend.repository.PurchaseOrderRepository;
 import com.happydev.prestockbackend.repository.SalePaymentRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
@@ -29,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
@@ -57,6 +59,9 @@ class DgiiReportServiceImplTest {
     private PurchaseOrderRepository purchaseOrderRepository;
 
     @Mock
+    private ExpenseRepository expenseRepository;
+
+    @Mock
     private CompanyConfigService companyConfigService;
 
     @InjectMocks
@@ -70,6 +75,7 @@ class DgiiReportServiceImplTest {
         CompanyConfig config = new CompanyConfig();
         config.setRnc("1-31-12345-6");
         lenient().when(companyConfigService.findCompanyConfig()).thenReturn(Optional.of(config));
+        lenient().when(expenseRepository.findWithNcfInRange(any(LocalDate.class), any(LocalDate.class))).thenReturn(List.of());
 
         Customer customer = new Customer();
         customer.setRncCedula("101-23456-7");
