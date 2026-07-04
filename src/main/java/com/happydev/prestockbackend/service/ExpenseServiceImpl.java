@@ -5,6 +5,7 @@ import com.happydev.prestockbackend.entity.Expense;
 import com.happydev.prestockbackend.entity.ExpenseCategory;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.ExpenseRepository;
+import com.happydev.prestockbackend.repository.ServiceOrderRepository;
 import com.happydev.prestockbackend.repository.SupplierRepository;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
@@ -23,11 +24,14 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     private final ExpenseRepository expenseRepository;
     private final SupplierRepository supplierRepository;
+    private final ServiceOrderRepository serviceOrderRepository;
 
     public ExpenseServiceImpl(ExpenseRepository expenseRepository,
-                              SupplierRepository supplierRepository) {
+                              SupplierRepository supplierRepository,
+                              ServiceOrderRepository serviceOrderRepository) {
         this.expenseRepository = expenseRepository;
         this.supplierRepository = supplierRepository;
+        this.serviceOrderRepository = serviceOrderRepository;
     }
 
     @Override
@@ -95,6 +99,11 @@ public class ExpenseServiceImpl implements ExpenseService {
         } else {
             expense.setSupplier(null);
         }
+        if (dto.getServiceOrderId() != null) {
+            expense.setServiceOrder(serviceOrderRepository.findById(dto.getServiceOrderId()).orElse(null));
+        } else {
+            expense.setServiceOrder(null);
+        }
         return expense;
     }
 
@@ -116,6 +125,11 @@ public class ExpenseServiceImpl implements ExpenseService {
         dto.setTipoBienesServicios(e.getTipoBienesServicios());
         dto.setRncCedula(e.getRncCedula());
         dto.setTipoIdentificacion(e.getTipoIdentificacion());
+        if (e.getServiceOrder() != null) {
+            dto.setServiceOrderId(e.getServiceOrder().getId());
+            dto.setServiceOrderNumber(e.getServiceOrder().getOrderNumber());
+            dto.setServiceOrderTitle(e.getServiceOrder().getTitle());
+        }
         dto.setNotes(e.getNotes());
         dto.setCreatedBy(e.getCreatedBy());
         dto.setCreatedAt(e.getCreatedAt());

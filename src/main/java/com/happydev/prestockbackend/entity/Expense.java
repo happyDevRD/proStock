@@ -56,6 +56,10 @@ public class Expense {
     @Column(name = "tipo_identificacion", length = 20)
     private TipoIdentificacion tipoIdentificacion;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_order_id")
+    private ServiceOrder serviceOrder;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

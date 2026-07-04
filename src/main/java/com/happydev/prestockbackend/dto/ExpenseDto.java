@@ -25,6 +25,9 @@ public class ExpenseDto {
     private String tipoBienesServicios;
     private String rncCedula;
     private TipoIdentificacion tipoIdentificacion;
+    private Long serviceOrderId;
+    private String serviceOrderNumber;
+    private String serviceOrderTitle;
     private String notes;
     private String createdBy;
     private LocalDateTime createdAt;

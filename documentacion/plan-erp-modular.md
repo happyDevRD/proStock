@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-24 (sesión F24 + Contabilidad expandida)
+- **Última actualización:** 2026-06-27 (sesiones feedback)
 - **Fases completadas (migraciones hasta V43):**
   - ✅ Fase 1: Modularización y permisos granulares por usuario
   - ✅ Fase 2: Centro de Módulos (feature flags por instancia)
@@ -52,6 +52,20 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ I1 (email): Email/SMTP en Credenciales de Integraciones + EmailService + EmailController + botón "Enviar por email" en InvoiceView
   - ✅ F24 (Gastos directos): V42 tabla `expenses`, CRUD completo con 9 categorías, NCF/RNC opcional para 606 DGII, feature flag `module.expenses`, permisos granulares. DgiiReportServiceImpl actualizado — 606 ahora incluye gastos con NCF además de OC. Vista ExpensesView con 3 KPIs, filtros texto/categoría, modal crear/editar con sección fiscal. Sidebar ítem "Gastos" en grupo Análisis.
   - ✅ Contabilidad expandida (V43): rol CONTADOR (acceso completo a contabilidad/reportes/gastos/CxC/CxP sin POS ni inventario); 8 permisos granulares (journal.create/edit/post/delete/reverse, accounts.edit/deactivate, reports.export); reversión de asientos (POST /reverse → DRAFT con débitos/créditos invertidos, botón en modal de detalle); export Excel (Apache POI) de balanza, estado de resultados, balance general y libro mayor; @PreAuthorize en todos los endpoints contables; AccountingView propaga permisos a cada sub-vista. Backend: proStock@fbd75e1. Frontend: proStockFront@0f656e0.
+- **(2026-06-27) Feedback corrections sesión 2:**
+  - ✅ Descuento máximo configurable (V44): campo `max_discount_percent` en `company_config` (default 10%); admin lo cambia desde Ajustes; frontend bloquea con error visible al superar el límite en descuento por línea y descuento global; backend valida también
+  - ✅ Vínculo gasto → orden de servicio (V45): columna `service_order_id` en `expenses`; selector en modal de Gastos (muestra ODS activas: nro + título + cliente); badge azul con icono Link2 visible en tabla; backfill retrocompatible (campo nullable)
+- **(2026-06-27) F5 Empleados completado:**
+  - ✅ V46: tablas `employees`, `attendance_records`, columna `employee_id` en `sales`, feature flag `module.employees`, 7 permisos (view.employees, employees.create/edit/delete/view_salary/attendance/commissions)
+  - ✅ Backend: Employee + AttendanceRecord entities + enums (EmployeeStatus, EmployeeType, EmployeeDepartment, EmployeeSalaryType, AttendanceType) + DTOs + repositories + EmployeeService + EmployeeController (CRUD, asistencia, comisiones)
+  - ✅ Sale.java + SaleDto.java + SaleMapper.java + SaleServiceImpl.java actualizados para soportar `employee_id`
+  - ✅ SaleRepository: query `findByEmployeeIdAndDateRange` para calcular comisiones
+  - ✅ Frontend: api/employees.ts + EmployeesView (4 tabs: Empleados/Asistencia/Comisiones/Nómina) + EmployeeModal + AttendanceModal
+  - ✅ Sidebar: nuevo ítem "Empleados" en grupo Gestión (icono Users2)
+  - ✅ POS: selector "Vendedor" (opcional, solo si hay empleados activos) + employeeId en buildSalePayload
+  - ✅ permissions.ts + navigation.ts + modules.ts (EMPLOYEES removido de COMING_SOON) actualizados
+  - proStock@HEAD (F5, NOT pushed to origin)
+  - proStockFront@HEAD (F5, NOT pushed to origin)
 - **Pendiente de acción inmediata:**
   - Push de ambos repos a origin (proStock master, proStockFront main)
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"

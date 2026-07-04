@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -15,4 +16,8 @@ public class QuickCustomerRequest {
 
     @Size(max = 20)
     private String phoneNumber;
+
+    @Email
+    @Size(max = 150)
+    private String email;
 }

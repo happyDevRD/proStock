@@ -17,6 +17,7 @@ import com.happydev.prestockbackend.mapper.SaleMapper;
 import com.happydev.prestockbackend.repository.CompanyConfigRepository;
 import com.happydev.prestockbackend.repository.CreditNoteRepository;
 import com.happydev.prestockbackend.repository.CustomerRepository;
+import com.happydev.prestockbackend.repository.EmployeeRepository;
 import com.happydev.prestockbackend.repository.LocationRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.SaleItemRepository;
@@ -71,6 +72,7 @@ public class SaleServiceImpl implements SaleService {
     private final SaleItemRepository saleItemRepository;
     private final LocationRepository locationRepository;
     private final StockLocationRepository stockLocationRepository;
+    private final EmployeeRepository employeeRepository;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -86,7 +88,8 @@ public class SaleServiceImpl implements SaleService {
                            CreditNoteRepository creditNoteRepository,
                            SaleItemRepository saleItemRepository,
                            LocationRepository locationRepository,
-                           StockLocationRepository stockLocationRepository) {
+                           StockLocationRepository stockLocationRepository,
+                           EmployeeRepository employeeRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -102,6 +105,7 @@ public class SaleServiceImpl implements SaleService {
         this.saleItemRepository = saleItemRepository;
         this.locationRepository = locationRepository;
         this.stockLocationRepository = stockLocationRepository;
+        this.employeeRepository = employeeRepository;
     }
 
     @Override
@@ -217,11 +221,33 @@ public class SaleServiceImpl implements SaleService {
                     .ifPresent(sale::setLocation);
         }
 
+        if (saleDto.getEmployeeId() != null) {
+            employeeRepository.findById(saleDto.getEmployeeId())
+                    .ifPresent(sale::setEmployee);
+        }
+
         if (sale.getItems() != null) {
             for (SaleItem item : sale.getItems()) {
                 item.setSale(sale);
                 Long productId = Objects.requireNonNull(item.getProduct().getId());
                 enrichSaleItemFromProduct(item, productId);
+            }
+        }
+
+        // Validate discount does not exceed the configured max percentage
+        if (sale.getDiscountAmount() != null && sale.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0
+                && sale.getItems() != null && !sale.getItems().isEmpty()) {
+            BigDecimal itemSubtotal = sale.getItems().stream()
+                    .map(i -> i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            int maxPct = companyConfigRepository.findFirstByOrderByIdAsc()
+                    .map(CompanyConfig::getMaxDiscountPercent).orElse(10);
+            BigDecimal maxDiscount = itemSubtotal
+                    .multiply(BigDecimal.valueOf(maxPct))
+                    .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+            if (sale.getDiscountAmount().compareTo(maxDiscount) > 0) {
+                throw new IllegalArgumentException(
+                        "El descuento no puede superar el " + maxPct + "% del subtotal.");
             }
         }
 
@@ -276,6 +302,13 @@ public class SaleServiceImpl implements SaleService {
         if (saleDto.getLocationId() != null) {
             locationRepository.findById(saleDto.getLocationId())
                     .ifPresent(sale::setLocation);
+        }
+
+        if (saleDto.getEmployeeId() != null) {
+            employeeRepository.findById(saleDto.getEmployeeId())
+                    .ifPresent(sale::setEmployee);
+        } else {
+            sale.setEmployee(null);
         }
 
         if (saleDto.getStatus() != null) {

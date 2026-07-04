@@ -49,6 +49,8 @@ public class CompanyConfigServiceImpl implements CompanyConfigService {
                         existingConfig.setServiceOrderType(companyConfig.getServiceOrderType());
                     }
                     existingConfig.setServiceOrderDeductStock(companyConfig.isServiceOrderDeductStock());
+                    existingConfig.setMaxDiscountPercent(
+                            Math.max(0, Math.min(100, companyConfig.getMaxDiscountPercent())));
                     return companyConfigRepository.save(existingConfig);
                 })
                 .orElseGet(() -> {

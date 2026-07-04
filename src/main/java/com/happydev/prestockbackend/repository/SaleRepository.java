@@ -192,4 +192,21 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
             @Param("minDiscount") java.math.BigDecimal minDiscount,
             @Param("since") LocalDateTime since
     );
+
+    /** Ventas asignadas a un empleado en un período (para cálculo de comisiones). */
+    @Query("""
+            SELECT s FROM Sale s
+            WHERE s.employee.id = :employeeId
+              AND s.saleDate BETWEEN :from AND :to
+              AND s.status IN (
+                com.happydev.prestockbackend.entity.SaleStatus.COMPLETED,
+                com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID
+              )
+            ORDER BY s.saleDate DESC
+            """)
+    List<Sale> findByEmployeeIdAndDateRange(
+            @Param("employeeId") Long employeeId,
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to
+    );
 }

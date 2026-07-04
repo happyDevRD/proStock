@@ -158,6 +158,9 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setFirstName(parts[0]);
         customer.setLastName(parts.length > 1 ? parts[1] : "-");
         customer.setPhoneNumber(request.getPhoneNumber());
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            customer.setEmail(request.getEmail().trim());
+        }
         Customer saved = customerRepository.save(customer);
         auditService.record(
                 SecurityAuditUtils.currentUsernameOrNull(),

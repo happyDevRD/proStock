@@ -55,4 +55,7 @@ public class SaleDto {
 
     private Long locationId;
     private String locationName;
+
+    private Long employeeId;
+    private String employeeName;
 }

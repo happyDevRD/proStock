@@ -11,10 +11,11 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface SaleMapper {
-    /** Cliente, serviceOrder y location se asignan en el servicio. */
+    /** Cliente, serviceOrder, location y employee se asignan en el servicio. */
     @Mapping(target = "customer", ignore = true)
     @Mapping(target = "serviceOrder", ignore = true)
     @Mapping(target = "location", ignore = true)
+    @Mapping(target = "employee", ignore = true)
     Sale toEntity(SaleDto saleDto);
 
     @Mapping(target = "customerId", source = "customer.id")
@@ -22,6 +23,8 @@ public interface SaleMapper {
     @Mapping(target = "serviceOrderNumber", source = "serviceOrder.orderNumber")
     @Mapping(target = "locationId", source = "location.id")
     @Mapping(target = "locationName", source = "location.name")
+    @Mapping(target = "employeeId", source = "employee.id")
+    @Mapping(target = "employeeName", source = "employee.nombreCompleto")
     SaleDto toDto(Sale sale);
 
     List<SaleDto> toDtoList(List<Sale> sales);

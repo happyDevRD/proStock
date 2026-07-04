@@ -90,4 +90,7 @@ public class CompanyConfig {
 
     @Column(name = "service_order_deduct_stock", nullable = false)
     private boolean serviceOrderDeductStock = false;
+
+    @Column(name = "max_discount_percent", nullable = false)
+    private int maxDiscountPercent = 10;
 }
