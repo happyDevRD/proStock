@@ -201,7 +201,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
                 message,
                 request.getDescription(false)
         );
-        logger.warn("AccessDeniedException: {}", ex.getMessage());
+        logger.warn("AccessDeniedException en {} (usuario={}): {}",
+                request.getDescription(false),
+                com.happydev.prestockbackend.util.SecurityAuditUtils.currentUsernameOrNull(),
+                ex.getMessage());
         return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
 
