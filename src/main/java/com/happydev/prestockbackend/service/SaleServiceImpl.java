@@ -73,6 +73,7 @@ public class SaleServiceImpl implements SaleService {
     private final LocationRepository locationRepository;
     private final StockLocationRepository stockLocationRepository;
     private final EmployeeRepository employeeRepository;
+    private final SaleIdempotencyRecovery saleIdempotencyRecovery;
 
     public SaleServiceImpl(SaleRepository saleRepository,
                            ProductRepository productRepository,
@@ -89,7 +90,8 @@ public class SaleServiceImpl implements SaleService {
                            SaleItemRepository saleItemRepository,
                            LocationRepository locationRepository,
                            StockLocationRepository stockLocationRepository,
-                           EmployeeRepository employeeRepository) {
+                           EmployeeRepository employeeRepository,
+                           SaleIdempotencyRecovery saleIdempotencyRecovery) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -106,6 +108,7 @@ public class SaleServiceImpl implements SaleService {
         this.locationRepository = locationRepository;
         this.stockLocationRepository = stockLocationRepository;
         this.employeeRepository = employeeRepository;
+        this.saleIdempotencyRecovery = saleIdempotencyRecovery;
     }
 
     @Override
@@ -264,7 +267,10 @@ public class SaleServiceImpl implements SaleService {
             savedSale = saleRepository.save(sale);
         } catch (DataIntegrityViolationException ex) {
             if (normalizedKey != null) {
-                Optional<Sale> raced = saleRepository.findByIdempotencyKey(normalizedKey);
+                // Postgres aborts the whole transaction on a failed INSERT, so this lookup
+                // must run in a fresh transaction — reusing the current session/connection
+                // corrupts Hibernate's persistence context (HHH000099 AssertionFailure).
+                Optional<Sale> raced = saleIdempotencyRecovery.findByIdempotencyKey(normalizedKey);
                 if (raced.isPresent()) {
                     return saleMapper.toDto(raced.get());
                 }

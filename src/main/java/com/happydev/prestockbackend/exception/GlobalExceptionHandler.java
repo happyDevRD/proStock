@@ -133,6 +133,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
             friendlyMessage = "El código de barras ya existe en el sistema.";
         } else if (rootMessage.contains("file_name")) {
             friendlyMessage = "La imagen del producto no es válida. Intenta nuevamente.";
+        } else if (rootMessage.contains("uq_sales_idempotency_key")) {
+            friendlyMessage = "Esta venta ya fue registrada. Verifica el historial antes de reintentar.";
         }
 
         ErrorDetails errorDetails = new ErrorDetails(
