@@ -79,4 +79,8 @@ public class StockMovement {
     // Campo para el stock después del movimiento
     @Column(name = "stock_after")
     private Integer stockAfter;
+
+    // No se persiste: permite que una salida deje el stock en negativo (ventas offline ya entregadas)
+    @Transient
+    private boolean allowNegativeStock;
 }

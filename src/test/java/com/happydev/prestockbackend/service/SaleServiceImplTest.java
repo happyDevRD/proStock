@@ -11,6 +11,7 @@ import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleItem;
 import com.happydev.prestockbackend.entity.SalePayment;
 import com.happydev.prestockbackend.entity.SaleStatus;
+import com.happydev.prestockbackend.entity.StockMovement;
 import com.happydev.prestockbackend.entity.TipoBienServicio;
 import com.happydev.prestockbackend.entity.TipoIngresos;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
@@ -40,8 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -338,6 +341,68 @@ class SaleServiceImplTest {
 
         saleService.completeSale(101L, "cashier");
 
+        verify(stockMovementService, never()).createMovement(any());
+    }
+
+    private Sale saleWithoutStock(String idempotencyKey) {
+        Product frame = new Product();
+        frame.setId(49L);
+        frame.setName("ENMARCADOS 12X18");
+        frame.setStock(0);
+        frame.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        frame.setTipoBienServicio(TipoBienServicio.BIEN);
+
+        SaleItem item = new SaleItem();
+        item.setId(9L);
+        item.setProduct(frame);
+        item.setQuantity(1);
+        item.setUnitPrice(new BigDecimal("2500.00"));
+
+        Sale offline = new Sale();
+        offline.setId(200L);
+        offline.setSaleDate(LocalDateTime.of(2026, 9, 19, 14, 40));
+        offline.setStatus(SaleStatus.PENDING);
+        offline.setTipoComprobante("32");
+        offline.setPaymentMethod(PaymentMethod.CASH);
+        offline.setIdempotencyKey(idempotencyKey);
+        offline.setItems(List.of(item));
+        item.setSale(offline);
+
+        CompanyConfig config = new CompanyConfig();
+        config.setRnc("101010101");
+        lenient().when(saleRepository.findById(200L)).thenReturn(Optional.of(offline));
+        lenient().when(productRepository.findById(49L)).thenReturn(Optional.of(frame));
+        lenient().when(sequenceService.getNextSequence("32")).thenReturn("E320000000196");
+        lenient().when(companyConfigRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(config));
+        lenient().when(invoiceQrService.buildPayloadUrl(any(), any(), any(), any(), any(), any(), any())).thenReturn("https://qr.test/200");
+        lenient().when(invoiceQrService.generateBase64Qr(any())).thenReturn("qr200");
+        lenient().when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(saleMapper.toDto(any(Sale.class))).thenAnswer(invocation -> new SaleDto());
+        return offline;
+    }
+
+    @Test
+    void completeSale_offlineSaleWithoutStock_completesAndAllowsNegativeStock() {
+        Sale offline = saleWithoutStock("sale-offline-1789828821924-962002c2");
+
+        saleService.completeSale(200L, "cajera01");
+
+        ArgumentCaptor<StockMovement> movement = ArgumentCaptor.forClass(StockMovement.class);
+        verify(stockMovementService).createMovement(movement.capture());
+        assertEquals(-1, movement.getValue().getQuantityChange());
+        assertTrue(movement.getValue().isAllowNegativeStock());
+        assertEquals(SaleServiceImpl.OFFLINE_SHORTAGE_REASON, movement.getValue().getReason());
+        assertEquals(SaleStatus.COMPLETED, offline.getStatus());
+    }
+
+    @Test
+    void completeSale_onlineSaleWithoutStock_isRejected() {
+        saleWithoutStock("checkout-5f1c");
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> saleService.completeSale(200L, "cajera01"));
+
+        assertTrue(error.getMessage().contains("Existencias insuficientes"));
         verify(stockMovementService, never()).createMovement(any());
     }
 

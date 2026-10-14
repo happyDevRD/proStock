@@ -29,6 +29,8 @@ import com.happydev.prestockbackend.util.DgiiTaxUtils;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -57,6 +59,8 @@ import java.util.Optional;
 @Service
 @Transactional
 public class SaleServiceImpl implements SaleService {
+
+    private static final Logger log = LoggerFactory.getLogger(SaleServiceImpl.class);
 
     private final SaleRepository saleRepository;
     private final ProductRepository productRepository;
@@ -204,10 +208,16 @@ public class SaleServiceImpl implements SaleService {
      * Fecha de la venta: las que llegan de la cola offline conservan la fecha en que se hicieron
      * (si es plausible); el resto usa la hora del servidor para no depender del reloj del equipo.
      */
+    /** Motivo del movimiento de stock cuando una venta offline deja el inventario en negativo. */
+    static final String OFFLINE_SHORTAGE_REASON = "Venta offline sin stock suficiente: revisar inventario";
+
+    static boolean isOfflineSale(@Nullable String idempotencyKey) {
+        return idempotencyKey != null && idempotencyKey.startsWith(OFFLINE_SALE_KEY_PREFIX);
+    }
+
     static LocalDateTime resolveSaleDate(@Nullable LocalDateTime clientDate, @Nullable String idempotencyKey,
                                          LocalDateTime now) {
-        boolean fromOfflineQueue = idempotencyKey != null && idempotencyKey.startsWith(OFFLINE_SALE_KEY_PREFIX);
-        if (!fromOfflineQueue || clientDate == null) {
+        if (!isOfflineSale(idempotencyKey) || clientDate == null) {
             return now;
         }
         if (clientDate.isAfter(now.plus(CLIENT_CLOCK_SKEW)) || clientDate.isBefore(now.minus(OFFLINE_SALE_MAX_AGE))) {
@@ -619,6 +629,7 @@ public class SaleServiceImpl implements SaleService {
      */
     private Sale finalizeSaleAsCompleted(Sale sale, @Nullable String actorUsername) {
         LocalDateTime now = LocalDateTime.now();
+        boolean offlineSale = isOfflineSale(sale.getIdempotencyKey());
 
         if (sale.getNcf() == null || sale.getNcf().isBlank()) {
             sale.setNcf(sequenceService.getNextSequence(sale.getTipoComprobante()));
@@ -632,7 +643,10 @@ public class SaleServiceImpl implements SaleService {
 
             boolean esServicio = product.getTipoBienServicio() == TipoBienServicio.SERVICIO;
             if (!esServicio) {
-                if (product.getStock() < item.getQuantity()) {
+                // Una venta offline ya se entregó en tienda: no se rechaza por falta de stock,
+                // se descuenta igual (stock negativo) y queda marcada para revisar el inventario.
+                boolean shortage = product.getStock() < item.getQuantity();
+                if (shortage && !offlineSale) {
                     throw new IllegalStateException("Existencias insuficientes para: " + product.getName());
                 }
                 StockMovement movement = new StockMovement();
@@ -640,7 +654,12 @@ public class SaleServiceImpl implements SaleService {
                 movement.setMovementDate(now);
                 movement.setQuantityChange(-item.getQuantity());
                 movement.setType(StockMovementType.OUT);
-                movement.setReason("Sale completed");
+                movement.setReason(shortage ? OFFLINE_SHORTAGE_REASON : "Sale completed");
+                movement.setAllowNegativeStock(shortage);
+                if (shortage) {
+                    log.warn("Venta offline {} completada sin stock suficiente: producto {} ({}), stock {} y vendidos {}",
+                            sale.getId(), product.getId(), product.getName(), product.getStock(), item.getQuantity());
+                }
                 movement.setSale(sale);
                 // Track source location for multi-branch reporting
                 if (sale.getLocation() != null) {

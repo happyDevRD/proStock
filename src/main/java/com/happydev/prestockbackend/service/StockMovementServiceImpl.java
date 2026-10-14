@@ -44,7 +44,7 @@ public class StockMovementServiceImpl implements StockMovementService {
         int currentStock = product.getStock() != null ? product.getStock() : 0;
         int stockAfter = currentStock + movement.getQuantityChange();
 
-        if (movement.getType() != StockMovementType.TRANSFER && stockAfter < 0) {
+        if (movement.getType() != StockMovementType.TRANSFER && stockAfter < 0 && !movement.isAllowNegativeStock()) {
             throw new IllegalStateException("Stock cannot be negative for product id: " + product.getId());
         }
 
