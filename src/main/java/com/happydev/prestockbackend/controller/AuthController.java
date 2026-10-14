@@ -132,6 +132,29 @@ public class AuthController {
         );
     }
 
+    /**
+     * Renueva la sesión del usuario autenticado (el POS lo llama mientras hay actividad), para que no caduque
+     * a mitad de turno. Rol y permisos se recalculan desde la base de datos; una cuenta bloqueada no renueva.
+     */
+    @PostMapping("/refresh")
+    public RefreshResponse refresh(Principal principal, HttpServletResponse response) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión no válida");
+        }
+        User user = loadUser(principal.getName());
+        rejectIfLocked(user);
+        UserRole role = user.getRole() != null ? user.getRole() : UserRole.USER;
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        permissionService.getEffectivePermissions(user).forEach(code -> authorities.add(new SimpleGrantedAuthority(code)));
+
+        String token = jwtService.generateToken(new UsernamePasswordAuthenticationToken(user.getUsername(), null, authorities));
+        authCookieSupport.writeAccessToken(response, token);
+        return new RefreshResponse(token);
+    }
+
+    public record RefreshResponse(String accessToken) {}
+
     @PostMapping("/logout")
     public void logout(HttpServletResponse response) {
         authCookieSupport.clearAccessToken(response);
