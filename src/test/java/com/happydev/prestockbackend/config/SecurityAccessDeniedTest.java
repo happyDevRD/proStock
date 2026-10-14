@@ -61,4 +61,14 @@ class SecurityAccessDeniedTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
+
+    @Test
+    void cashierWithoutLocationsPermission_canListActiveLocationsOnly() throws Exception {
+        String cashier = "Bearer " + tokenFor("ROLE_CASHIER");
+
+        mockMvc.perform(get("/api/locations").param("activeOnly", "true").header("Authorization", cashier))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/locations").header("Authorization", cashier))
+                .andExpect(status().isForbidden());
+    }
 }

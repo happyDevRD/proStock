@@ -22,8 +22,10 @@ public class LocationController {
         this.locationService = locationService;
     }
 
+    // Las sucursales activas las necesita cualquier usuario del POS para asignar la venta a su sucursal;
+    // el listado completo (incluidas las inactivas) sigue requiriendo locations.view.
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'locations.view')")
+    @PreAuthorize("#activeOnly or hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'locations.view')")
     public ResponseEntity<List<LocationDto>> list(
             @RequestParam(defaultValue = "false") boolean activeOnly) {
         return ResponseEntity.ok(locationService.findAll(activeOnly));
