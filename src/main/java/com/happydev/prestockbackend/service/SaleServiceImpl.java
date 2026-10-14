@@ -42,6 +42,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -192,6 +193,29 @@ public class SaleServiceImpl implements SaleService {
         return saleRepository.findById(id).map(saleMapper::toDto);
     }
 
+    /** Prefijo de la clave de idempotencia que usa la cola offline del POS ("sale-<localId>"). */
+    static final String OFFLINE_SALE_KEY_PREFIX = "sale-";
+    /** Antigüedad máxima aceptada para la fecha de una venta offline (evita caer en períodos fiscales ya declarados). */
+    static final Duration OFFLINE_SALE_MAX_AGE = Duration.ofDays(31);
+    /** Tolerancia por desfase de reloj del equipo de caja. */
+    static final Duration CLIENT_CLOCK_SKEW = Duration.ofMinutes(10);
+
+    /**
+     * Fecha de la venta: las que llegan de la cola offline conservan la fecha en que se hicieron
+     * (si es plausible); el resto usa la hora del servidor para no depender del reloj del equipo.
+     */
+    static LocalDateTime resolveSaleDate(@Nullable LocalDateTime clientDate, @Nullable String idempotencyKey,
+                                         LocalDateTime now) {
+        boolean fromOfflineQueue = idempotencyKey != null && idempotencyKey.startsWith(OFFLINE_SALE_KEY_PREFIX);
+        if (!fromOfflineQueue || clientDate == null) {
+            return now;
+        }
+        if (clientDate.isAfter(now.plus(CLIENT_CLOCK_SKEW)) || clientDate.isBefore(now.minus(OFFLINE_SALE_MAX_AGE))) {
+            return now;
+        }
+        return clientDate;
+    }
+
     @Override
     public SaleDto createSale(@NonNull SaleDto saleDto) {
         return createSale(saleDto, null);
@@ -208,7 +232,7 @@ public class SaleServiceImpl implements SaleService {
         }
 
         Sale sale = saleMapper.toEntity(saleDto);
-        sale.setSaleDate(LocalDateTime.now());
+        sale.setSaleDate(resolveSaleDate(saleDto.getSaleDate(), normalizedKey, LocalDateTime.now()));
         sale.setStatus(SaleStatus.PENDING);
         sale.setTipoIngresos(TipoIngresos.OPERACIONES);
 
