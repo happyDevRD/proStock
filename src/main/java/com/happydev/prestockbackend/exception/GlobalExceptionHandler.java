@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -145,6 +146,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         );
         logger.error("DataIntegrityViolationException: ", ex);  // Log completo
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+    }
+
+    // 409 Conflict - Dos peticiones modificaron el mismo registro a la vez (p. ej. reintentos simultáneos de una venta)
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorDetails> handleOptimisticLockingFailure(OptimisticLockingFailureException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "CONCURRENT_MODIFICATION",
+                "El registro fue modificado al mismo tiempo desde otra pestaña o equipo. Recarga e inténtalo de nuevo.",
+                request.getDescription(false)
+        );
+        logger.warn("OptimisticLockingFailureException en {}: {}", request.getDescription(false), ex.getMessage());
+        return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
     }
 
     /** Uso incorrecto de JPA/Hibernate (p. ej. referencia transiente). */
