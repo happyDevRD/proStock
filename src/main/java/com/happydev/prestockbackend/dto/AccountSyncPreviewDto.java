@@ -6,5 +6,7 @@ public record AccountSyncPreviewDto(
         int pendingSalesCount,
         int pendingPurchasesCount,
         BigDecimal totalSalesAmount,
-        BigDecimal totalPurchasesAmount
+        BigDecimal totalPurchasesAmount,
+        int pendingCreditNotesCount,
+        BigDecimal totalCreditNotesAmount
 ) {}

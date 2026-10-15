@@ -38,5 +38,10 @@ public record ServiceOrderDto(
         List<ServiceOrderStageDto> stages,
         List<ServiceOrderNoteDto> notes,
         List<LinkedSaleDto> linkedSales,
-        List<ServiceOrderItemDto> items
+        List<ServiceOrderItemDto> items,
+        // Cobros (populated only on single-order GET, montos con ITBIS)
+        BigDecimal legacyDepositAmount,
+        BigDecimal totalAmount,
+        BigDecimal billedAmount,
+        BigDecimal balance
 ) {}

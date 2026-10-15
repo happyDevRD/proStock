@@ -95,6 +95,17 @@ public class Sale {
     @JoinColumn(name = "service_order_id")
     private ServiceOrder serviceOrder;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sale_kind", nullable = false, length = 20)
+    private SaleKind saleKind = SaleKind.NORMAL;
+
+    /**
+     * Total exacto a facturar cuando el monto se cobró con ITBIS incluido (anticipos y saldos de órdenes):
+     * el ITBIS absorbe el céntimo de redondeo. Solo vive durante la creación de la venta.
+     */
+    @Transient
+    private BigDecimal inclusiveTotalOverride;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "location_id")
     private Location location;

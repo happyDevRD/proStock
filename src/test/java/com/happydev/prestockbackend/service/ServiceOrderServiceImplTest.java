@@ -6,10 +6,14 @@ import com.happydev.prestockbackend.dto.ServiceOrderReportDto;
 import com.happydev.prestockbackend.dto.ServiceOrderStatsDto;
 import com.happydev.prestockbackend.dto.UpdateServiceOrderItemRequest;
 import com.happydev.prestockbackend.dto.ServiceOrderDto;
+import com.happydev.prestockbackend.dto.ServiceOrderPaymentRequest;
 import com.happydev.prestockbackend.entity.CompanyConfig;
+import com.happydev.prestockbackend.entity.IndicadorFacturacion;
+import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.Product;
 import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleItem;
+import com.happydev.prestockbackend.entity.SaleKind;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.entity.ServiceOrder;
 import com.happydev.prestockbackend.entity.ServiceOrderItem;
@@ -38,10 +42,12 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,6 +64,9 @@ class ServiceOrderServiceImplTest {
     @Mock private StockMovementService stockMovementService;
     @Mock private StockMovementRepository stockMovementRepository;
     @Mock private CompanyConfigRepository companyConfigRepository;
+    @Mock private SaleService saleService;
+    @Mock private CategoryRepository categoryRepository;
+    @Mock private SupplierRepository supplierRepository;
 
     @InjectMocks
     private ServiceOrderServiceImpl service;
@@ -190,17 +199,140 @@ class ServiceOrderServiceImplTest {
         ServiceOrderItem item = new ServiceOrderItem();
         item.setProduct(product);
         item.setQuantity(2);
+        item.setUnitPrice(new BigDecimal("100.00"));
+
+        // Orden cobrada con un saldo (sin líneas de producto): el stock se descuenta al completar.
+        Sale balanceSale = new Sale();
+        balanceSale.setStatus(SaleStatus.COMPLETED);
+        balanceSale.setSaleKind(SaleKind.BALANCE);
+        balanceSale.setMontoTotal(new BigDecimal("200.00"));
 
         repairOrder.setStatus(ServiceOrderStatus.READY);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(repairOrder));
         when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(item));
-        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(Collections.emptyList());
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(List.of(balanceSale));
         when(stockMovementRepository.existsByServiceOrder_IdAndProduct_Id(1L, 10L)).thenReturn(false);
         when(orderRepository.save(any(ServiceOrder.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.complete(1L, "tester");
 
         verify(stockMovementService).createMovement(any(StockMovement.class));
+    }
+
+    @Test
+    void complete_withPendingBalance_throws() {
+        Product product = new Product();
+        product.setId(10L);
+        product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem item = new ServiceOrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(new BigDecimal("1000.00"));
+
+        Sale deposit = new Sale();
+        deposit.setStatus(SaleStatus.COMPLETED);
+        deposit.setSaleKind(SaleKind.DEPOSIT);
+        deposit.setMontoTotal(new BigDecimal("500.00"));
+
+        repairOrder.setStatus(ServiceOrderStatus.READY);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(repairOrder));
+        when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(item));
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(List.of(deposit));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.complete(1L, "tester"));
+        assertTrue(ex.getMessage().contains("680.00"), ex.getMessage()); // 1,180 con ITBIS − 500 de anticipo
+        verify(stockMovementService, never()).createMovement(any(StockMovement.class));
+    }
+
+    @Test
+    void advanceStage_toDelivered_goesThroughCompleteAndChecksBalance() {
+        Product product = new Product();
+        product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem item = new ServiceOrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(new BigDecimal("1000.00"));
+
+        repairOrder.setOrderType(ServiceOrderType.PHOTOGRAPHY);
+        repairOrder.setCurrentStage("READY");
+        repairOrder.setStatus(ServiceOrderStatus.READY);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(repairOrder));
+        when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(item));
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(Collections.emptyList());
+
+        AdvanceStageRequest req = new AdvanceStageRequest("DELIVERED", ServiceOrderStatus.COMPLETED, null);
+        assertThrows(IllegalStateException.class, () -> service.advanceStage(1L, req, "tester"));
+        assertEquals(ServiceOrderStatus.READY, repairOrder.getStatus());
+    }
+
+    @Test
+    void computeBilling_countsLegacyDepositAndCreditedSales() {
+        Product product = new Product();
+        product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem item = new ServiceOrderItem();
+        item.setProduct(product);
+        item.setQuantity(2);
+        item.setUnitPrice(new BigDecimal("500.00"));
+
+        Sale voidedDeposit = new Sale(); // anulado con nota de crédito: montoTotal queda en 0
+        voidedDeposit.setStatus(SaleStatus.COMPLETED);
+        voidedDeposit.setSaleKind(SaleKind.DEPOSIT);
+        voidedDeposit.setMontoTotal(BigDecimal.ZERO);
+        Sale deposit = new Sale();
+        deposit.setStatus(SaleStatus.COMPLETED);
+        deposit.setSaleKind(SaleKind.DEPOSIT);
+        deposit.setMontoTotal(new BigDecimal("300.00"));
+
+        repairOrder.setLegacyDepositAmount(new BigDecimal("200.00"));
+        when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(item));
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(List.of(voidedDeposit, deposit));
+
+        ServiceOrderServiceImpl.Billing billing = service.computeBilling(repairOrder);
+
+        assertEquals(0, new BigDecimal("1180.00").compareTo(billing.total()));
+        assertEquals(0, new BigDecimal("500.00").compareTo(billing.billed()));
+        assertEquals(0, new BigDecimal("680.00").compareTo(billing.balance()));
+    }
+
+    @Test
+    void computeBilling_legacyDepositNeverMakesBalanceNegative() {
+        Product product = new Product();
+        product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem item = new ServiceOrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(new BigDecimal("1000.00"));
+        Sale fullInvoice = new Sale(); // flujo anterior: factura del POS por el total
+        fullInvoice.setStatus(SaleStatus.COMPLETED);
+        fullInvoice.setMontoTotal(new BigDecimal("1180.00"));
+
+        repairOrder.setLegacyDepositAmount(new BigDecimal("400.00"));
+        when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(item));
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(List.of(fullInvoice));
+
+        ServiceOrderServiceImpl.Billing billing = service.computeBilling(repairOrder);
+
+        assertEquals(0, new BigDecimal("1180.00").compareTo(billing.billed()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(billing.balance()));
+    }
+
+    @Test
+    void registerDeposit_aboveBalance_throws() {
+        Product product = new Product();
+        product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem item = new ServiceOrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(new BigDecimal("1000.00"));
+
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(repairOrder));
+        when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(item));
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(Collections.emptyList());
+
+        ServiceOrderPaymentRequest req = new ServiceOrderPaymentRequest(
+                new BigDecimal("1500.00"), PaymentMethod.CASH, null, null);
+        assertThrows(IllegalArgumentException.class, () -> service.registerDeposit(1L, req, "tester"));
+        verifyNoInteractions(saleService);
     }
 
     @Test

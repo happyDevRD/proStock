@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.dto;
 
 import com.happydev.prestockbackend.entity.PaymentMethod;
+import com.happydev.prestockbackend.entity.SaleKind;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.entity.TipoIngresos;
 import jakarta.validation.constraints.NotEmpty;
@@ -52,6 +53,8 @@ public class SaleDto {
 
     private Long serviceOrderId;
     private String serviceOrderNumber;
+    /** NORMAL, DEPOSIT (anticipo de orden) o BALANCE (saldo de orden). Solo lectura. */
+    private SaleKind saleKind;
 
     private Long locationId;
     private String locationName;

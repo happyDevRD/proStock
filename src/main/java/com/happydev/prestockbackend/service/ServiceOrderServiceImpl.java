@@ -47,6 +47,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     private final StockMovementService stockMovementService;
     private final StockMovementRepository stockMovementRepository;
     private final CompanyConfigRepository companyConfigRepository;
+    private final SaleService saleService;
+    private final CategoryRepository categoryRepository;
+    private final SupplierRepository supplierRepository;
 
     public ServiceOrderServiceImpl(ServiceOrderRepository orderRepository,
                                    ServiceOrderStageRepository stageRepository,
@@ -58,7 +61,10 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                                    SaleRepository saleRepository,
                                    StockMovementService stockMovementService,
                                    StockMovementRepository stockMovementRepository,
-                                   CompanyConfigRepository companyConfigRepository) {
+                                   CompanyConfigRepository companyConfigRepository,
+                                   SaleService saleService,
+                                   CategoryRepository categoryRepository,
+                                   SupplierRepository supplierRepository) {
         this.orderRepository = orderRepository;
         this.stageRepository = stageRepository;
         this.noteRepository = noteRepository;
@@ -70,6 +76,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         this.stockMovementService = stockMovementService;
         this.stockMovementRepository = stockMovementRepository;
         this.companyConfigRepository = companyConfigRepository;
+        this.saleService = saleService;
+        this.categoryRepository = categoryRepository;
+        this.supplierRepository = supplierRepository;
     }
 
     @Override
@@ -185,11 +194,11 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 .map(n -> new ServiceOrderNoteDto(n.getId(), n.getContent(), n.getAuthor(), n.isInternal(), n.getCreatedAt()))
                 .toList();
         List<LinkedSaleDto> linkedSales = saleRepository.findByServiceOrderIdOrderBySaleDateDesc(id).stream()
-                .map(s -> new LinkedSaleDto(s.getId(), s.getNcf(), s.getSaleDate(), s.getStatus(), s.getMontoTotal(), s.getPaidAmount()))
+                .map(s -> new LinkedSaleDto(s.getId(), s.getNcf(), s.getSaleDate(), s.getStatus(), s.getMontoTotal(), s.getPaidAmount(), s.getSaleKind()))
                 .toList();
         List<ServiceOrderItem> rawItems = itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(id);
         List<ServiceOrderItemDto> items = toItemDtosWithBilling(id, rawItems);
-        return toDetailDto(order, stages, notes, linkedSales, items);
+        return toDetailDto(order, stages, notes, linkedSales, items, computeBilling(order));
     }
 
     @Override
@@ -204,7 +213,6 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         order.setAppointmentDate(req.appointmentDate());
         order.setEstimatedDelivery(req.estimatedDelivery());
         order.setEstimatedAmount(req.estimatedAmount());
-        order.setDepositAmount(req.depositAmount() != null ? req.depositAmount() : BigDecimal.ZERO);
         order.setDeviceBrand(req.deviceBrand());
         order.setDeviceModel(req.deviceModel());
         order.setDeviceSerial(req.deviceSerial());
@@ -248,7 +256,6 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         order.setAppointmentDate(req.appointmentDate());
         order.setEstimatedDelivery(req.estimatedDelivery());
         order.setEstimatedAmount(req.estimatedAmount());
-        if (req.depositAmount() != null) order.setDepositAmount(req.depositAmount());
         order.setDeviceBrand(req.deviceBrand());
         order.setDeviceModel(req.deviceModel());
         order.setDeviceSerial(req.deviceSerial());
@@ -282,6 +289,10 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 req.stage(),
                 req.status()
         );
+        if (req.status() == ServiceOrderStatus.COMPLETED) {
+            // La etapa final pasa por complete(): valida el saldo y descuenta stock.
+            return complete(id, actor);
+        }
 
         order.setCurrentStage(req.stage());
         order.setStatus(req.status());
@@ -316,10 +327,23 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     }
 
     @Override
-    public ServiceOrderDto cancel(@NonNull Long id, @Nullable String notes, @Nullable String actor) {
+    public ServiceOrderDto cancel(@NonNull Long id, @Nullable String notes, boolean refundDeposits, @Nullable String actor) {
         ServiceOrder order = getOrThrow(id);
         if (order.getStatus() == ServiceOrderStatus.COMPLETED || order.getStatus() == ServiceOrderStatus.CANCELLED) {
             throw new IllegalStateException("La orden ya está " + order.getStatus().name().toLowerCase());
+        }
+
+        List<Sale> activeDeposits = activeDepositSales(order.getId());
+        if (refundDeposits) {
+            for (Sale deposit : activeDeposits) {
+                saleService.voidWithCreditNote(Objects.requireNonNull(deposit.getId()),
+                        "Devolución de anticipo por cancelación de la orden " + order.getOrderNumber(), actor);
+            }
+            refreshDepositTotal(order);
+        }
+        if (!activeDeposits.isEmpty()) {
+            String depositNote = refundDeposits ? "Anticipos devueltos con nota de crédito." : "Anticipos retenidos.";
+            notes = notes == null || notes.isBlank() ? depositNote : notes.trim() + " · " + depositNote;
         }
         order.setStatus(ServiceOrderStatus.CANCELLED);
         order.setCurrentStage("CANCELLED");
@@ -346,6 +370,11 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         }
         if (order.getStatus() == ServiceOrderStatus.CANCELLED) {
             throw new IllegalStateException("No se puede completar una orden cancelada.");
+        }
+        Billing billing = computeBilling(order);
+        if (billing.balance().compareTo(BALANCE_TOLERANCE) > 0) {
+            throw new IllegalStateException("La orden tiene un saldo pendiente de RD$ " + money(billing.balance())
+                    + ". Factura el saldo antes de entregarla.");
         }
         order.setStatus(ServiceOrderStatus.COMPLETED);
 
@@ -462,6 +491,193 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         itemRepository.delete(item);
     }
 
+    // ── cobros: anticipos y saldo ─────────────────────────
+
+    private static final String DEPOSIT_SKU = "SYS-ANTICIPO-OS";
+    private static final String BALANCE_SKU = "SYS-SALDO-OS";
+    private static final String BILLING_CATEGORY = "Cobros de órdenes de servicio";
+    private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
+
+    /** Montos con ITBIS: total de la orden, lo ya cobrado y lo pendiente. */
+    record Billing(BigDecimal total, BigDecimal billed, BigDecimal balance) {}
+
+    @Override
+    public SaleDto registerDeposit(@NonNull Long id, @NonNull ServiceOrderPaymentRequest req, @Nullable String actor) {
+        ServiceOrder order = getOrThrow(id);
+        requireChargeable(order);
+        if (req.amount() == null) {
+            throw new IllegalArgumentException("Indique el monto del anticipo.");
+        }
+        BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.HALF_UP);
+        Billing billing = computeBilling(order);
+        if (billing.total().signum() > 0 && amount.compareTo(billing.balance()) > 0) {
+            throw new IllegalArgumentException("El anticipo (RD$ " + money(amount) + ") supera el saldo pendiente (RD$ "
+                    + money(billing.balance()) + ").");
+        }
+
+        SaleDto sale = saleService.createServiceOrderCharge(
+                order, SaleKind.DEPOSIT,
+                systemProduct(DEPOSIT_SKU, "Anticipo de orden de servicio"),
+                "Anticipo – " + order.getOrderNumber() + ": " + order.getTitle(),
+                amount, req.paymentMethod(), resolveTipoComprobante(order, req.tipoComprobante()),
+                blankToDefault(req.notes(), "Anticipo " + order.getOrderNumber()), actor);
+        refreshDepositTotal(order);
+        auditService.record(actor, "SERVICE_ORDER_DEPOSIT_REGISTERED", "ServiceOrder", id,
+                "Anticipo RD$ " + money(amount) + " en OS " + order.getOrderNumber() + " (NCF " + sale.getNcf() + ")");
+        return sale;
+    }
+
+    @Override
+    public ServiceOrderDto voidDeposit(@NonNull Long id, @NonNull Long saleId, @Nullable String reason, @Nullable String actor) {
+        ServiceOrder order = getOrThrow(id);
+        if (order.getStatus() == ServiceOrderStatus.COMPLETED) {
+            throw new IllegalStateException("No se pueden anular anticipos de una orden entregada.");
+        }
+        Sale sale = saleRepository.findById(saleId)
+                .filter(s -> s.getServiceOrder() != null && id.equals(s.getServiceOrder().getId()))
+                .filter(s -> s.getSaleKind() == SaleKind.DEPOSIT)
+                .orElseThrow(() -> new ResourceNotFoundException("Anticipo", "id", saleId));
+        saleService.voidWithCreditNote(saleId,
+                blankToDefault(reason, "Anulación de anticipo de la orden " + order.getOrderNumber()), actor);
+        refreshDepositTotal(order);
+        auditService.record(actor, "SERVICE_ORDER_DEPOSIT_VOIDED", "ServiceOrder", id,
+                "Anticipo " + sale.getNcf() + " anulado en OS " + order.getOrderNumber());
+        return findById(id);
+    }
+
+    @Override
+    public SaleDto billBalance(@NonNull Long id, @NonNull ServiceOrderPaymentRequest req, @Nullable String actor) {
+        ServiceOrder order = getOrThrow(id);
+        requireChargeable(order);
+        Billing billing = computeBilling(order);
+        if (billing.balance().compareTo(BALANCE_TOLERANCE) < 0) {
+            throw new IllegalStateException("La orden no tiene saldo pendiente.");
+        }
+
+        String delivered = itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(id).stream()
+                .map(i -> i.getQuantity() + "× " + i.getProduct().getName())
+                .reduce((a, b) -> a + ", " + b)
+                .map(list -> "Saldo " + order.getOrderNumber() + ". Incluye: " + list)
+                .orElse("Saldo " + order.getOrderNumber());
+        SaleDto sale = saleService.createServiceOrderCharge(
+                order, SaleKind.BALANCE,
+                systemProduct(BALANCE_SKU, "Saldo de orden de servicio"),
+                "Saldo – " + order.getOrderNumber() + ": " + order.getTitle(),
+                billing.balance(), req.paymentMethod(), resolveTipoComprobante(order, req.tipoComprobante()),
+                delivered.length() > 500 ? delivered.substring(0, 497) + "..." : delivered, actor);
+        auditService.record(actor, "SERVICE_ORDER_BALANCE_BILLED", "ServiceOrder", id,
+                "Saldo RD$ " + money(billing.balance()) + " facturado en OS " + order.getOrderNumber()
+                        + " (NCF " + sale.getNcf() + ")");
+        return sale;
+    }
+
+    Billing computeBilling(ServiceOrder order) {
+        List<ServiceOrderItem> items = itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(order.getId());
+        BigDecimal total;
+        if (items.isEmpty()) {
+            total = order.getEstimatedAmount() != null ? order.getEstimatedAmount() : BigDecimal.ZERO;
+        } else {
+            total = BigDecimal.ZERO;
+            for (ServiceOrderItem item : items) {
+                IndicadorFacturacion indicador = item.getProduct().getIndicadorFacturacion();
+                BigDecimal rate = indicador == null || indicador.isExento() ? BigDecimal.ZERO : indicador.getRate();
+                BigDecimal base = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+                total = total.add(base.add(base.multiply(rate)).setScale(2, java.math.RoundingMode.HALF_UP));
+            }
+        }
+
+        // Cobrado: facturas vinculadas (montoTotal ya descuenta notas de crédito) + anticipo heredado sin factura.
+        BigDecimal invoiced = BigDecimal.ZERO;
+        for (Sale sale : saleRepository.findByServiceOrderIdOrderBySaleDateDesc(order.getId())) {
+            if (sale.getStatus() == SaleStatus.COMPLETED) {
+                invoiced = invoiced.add(sale.getMontoTotal());
+            } else if (sale.getStatus() == SaleStatus.PARTIALLY_PAID) {
+                invoiced = invoiced.add(sale.getPaidAmount());
+            }
+        }
+        // El anticipo heredado solo cubre lo que las facturas no cubren: en el flujo anterior la factura del
+        // POS solía ir por el total aunque hubiera anticipo anotado, y no debe generar saldo negativo.
+        BigDecimal legacy = order.getLegacyDepositAmount() != null ? order.getLegacyDepositAmount() : BigDecimal.ZERO;
+        BigDecimal legacyApplied = legacy.min(total.subtract(invoiced).max(BigDecimal.ZERO));
+        BigDecimal billed = invoiced.add(legacyApplied);
+        return new Billing(total, billed, total.subtract(billed));
+    }
+
+    private List<Sale> activeDepositSales(Long orderId) {
+        return saleRepository.findByServiceOrderIdOrderBySaleDateDesc(orderId).stream()
+                .filter(s -> s.getSaleKind() == SaleKind.DEPOSIT)
+                .filter(s -> s.getStatus() == SaleStatus.COMPLETED && s.getMontoTotal().signum() > 0)
+                .toList();
+    }
+
+    private void refreshDepositTotal(ServiceOrder order) {
+        BigDecimal deposits = activeDepositSales(order.getId()).stream()
+                .map(Sale::getMontoTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setDepositAmount(deposits);
+        orderRepository.save(order);
+    }
+
+    private static void requireChargeable(ServiceOrder order) {
+        if (order.getStatus() == ServiceOrderStatus.COMPLETED || order.getStatus() == ServiceOrderStatus.CANCELLED) {
+            throw new IllegalStateException("No se pueden registrar cobros en una orden "
+                    + (order.getStatus() == ServiceOrderStatus.COMPLETED ? "entregada." : "cancelada."));
+        }
+    }
+
+    private static String resolveTipoComprobante(ServiceOrder order, @Nullable String requested) {
+        Customer customer = order.getCustomer();
+        boolean hasRnc = customer != null && customer.getTipoIdentificacion() == TipoIdentificacion.RNC;
+        if (requested != null && !requested.isBlank()) {
+            if ("31".equals(requested) && !hasRnc) {
+                throw new IllegalArgumentException("El crédito fiscal (31) requiere un cliente con RNC.");
+            }
+            return requested;
+        }
+        return hasRnc ? "31" : "32";
+    }
+
+    /** Producto de servicio interno (no se vende en el POS) usado como línea de anticipos y saldos. */
+    private Product systemProduct(String sku, String name) {
+        return productRepository.findBySku(sku).orElseGet(() -> {
+            Category category = categoryRepository.findByNameIgnoreCase(BILLING_CATEGORY).orElseGet(() -> {
+                Category c = new Category();
+                c.setName(BILLING_CATEGORY);
+                return categoryRepository.save(c);
+            });
+            Supplier supplier = supplierRepository.findAll().stream().findFirst().orElseGet(() -> {
+                Supplier s = new Supplier();
+                s.setName("Uso interno");
+                return supplierRepository.save(s);
+            });
+            Product p = new Product();
+            p.setSku(sku);
+            p.setName(name);
+            p.setDescription("Producto interno: lo usa el sistema para facturar cobros de órdenes de servicio.");
+            p.setCategory(category);
+            p.setSupplier(supplier);
+            p.setCostPrice(new BigDecimal("0.01"));
+            p.setSellingPrice(new BigDecimal("0.01"));
+            p.setStock(0);
+            p.setMinStock(0);
+            p.setForSale(false);
+            p.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+            p.setTipoBienServicio(TipoBienServicio.SERVICIO);
+            p.setUnidadMedida(58);
+            p.setStatus(ProductStatus.ACTIVE);
+            p.setTaxRate(new BigDecimal("18"));
+            return productRepository.save(p);
+        });
+    }
+
+    private static String money(BigDecimal value) {
+        return String.format(java.util.Locale.US, "%,.2f", value);
+    }
+
+    private static String blankToDefault(@Nullable String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
     // ── helpers ───────────────────────────────────────────
 
     private ServiceOrder getOrThrow(Long id) {
@@ -473,7 +689,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         boolean enabled = companyConfigRepository.findFirstByOrderByIdAsc()
                 .map(CompanyConfig::isServiceOrderDeductStock)
                 .orElse(false);
-        if (!enabled) {
+        boolean billedByCharges = saleRepository.findByServiceOrderIdOrderBySaleDateDesc(order.getId()).stream()
+                .anyMatch(sale -> sale.getSaleKind() != SaleKind.NORMAL);
+        if (!enabled && !billedByCharges) {
             return;
         }
 
@@ -584,6 +802,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     }
 
     private ServiceOrderDto toListDto(ServiceOrder o) {
+        Billing billing = computeBilling(o);
         return new ServiceOrderDto(
                 o.getId(), o.getOrderNumber(),
                 o.getCustomer() != null ? o.getCustomer().getId() : null,
@@ -595,13 +814,14 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getDeviceBrand(), o.getDeviceModel(), o.getDeviceSerial(),
                 o.getDeviceCondition(), o.getProblemDescription(),
                 o.getInternalNotes(), o.getCreatedBy(), o.getCreatedAt(), o.getUpdatedAt(),
-                null, null, null, null
+                null, null, null, null,
+                o.getLegacyDepositAmount(), billing.total(), billing.billed(), billing.balance()
         );
     }
 
     private ServiceOrderDto toDetailDto(ServiceOrder o, List<ServiceOrderStageDto> stages,
                                         List<ServiceOrderNoteDto> notes, List<LinkedSaleDto> linkedSales,
-                                        List<ServiceOrderItemDto> items) {
+                                        List<ServiceOrderItemDto> items, Billing billing) {
         return new ServiceOrderDto(
                 o.getId(), o.getOrderNumber(),
                 o.getCustomer() != null ? o.getCustomer().getId() : null,
@@ -613,7 +833,8 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getDeviceBrand(), o.getDeviceModel(), o.getDeviceSerial(),
                 o.getDeviceCondition(), o.getProblemDescription(),
                 o.getInternalNotes(), o.getCreatedBy(), o.getCreatedAt(), o.getUpdatedAt(),
-                stages, notes, linkedSales, items
+                stages, notes, linkedSales, items,
+                o.getLegacyDepositAmount(), billing.total(), billing.billed(), billing.balance()
         );
     }
 

@@ -55,8 +55,13 @@ public class ServiceOrder {
     @Column(name = "budget_approved_at")
     private LocalDateTime budgetApprovedAt;
 
+    /** Suma de los anticipos facturados (ventas DEPOSIT vigentes); la mantiene ServiceOrderServiceImpl. */
     @Column(name = "deposit_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal depositAmount = BigDecimal.ZERO;
+
+    /** Anticipo registrado antes de facturar anticipos (sin NCF). Cuenta para el saldo. */
+    @Column(name = "legacy_deposit_amount", nullable = false, precision = 18, scale = 2)
+    private BigDecimal legacyDepositAmount = BigDecimal.ZERO;
 
     // Repair device info
     @Column(name = "device_brand", length = 100)

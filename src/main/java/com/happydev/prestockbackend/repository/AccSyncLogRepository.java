@@ -8,4 +8,6 @@ import org.springframework.stereotype.Repository;
 public interface AccSyncLogRepository extends JpaRepository<AccSyncLog, Long> {
 
     boolean existsByEntityTypeAndEntityId(String entityType, Long entityId);
+
+    java.util.Optional<AccSyncLog> findFirstByEntityTypeAndEntityId(String entityType, Long entityId);
 }

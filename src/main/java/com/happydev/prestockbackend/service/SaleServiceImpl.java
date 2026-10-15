@@ -616,6 +616,14 @@ public class SaleServiceImpl implements SaleService {
         BigDecimal totalItbisRounded = DgiiTaxUtils.roundMoney(totalItbis);
         BigDecimal montoTotal = DgiiTaxUtils.roundMoney(montoGravadoTotal.add(montoExentoRounded).add(totalItbisRounded));
 
+        // Cobro con ITBIS incluido: el total es el monto cobrado y el ITBIS absorbe el céntimo de redondeo.
+        BigDecimal override = sale.getInclusiveTotalOverride();
+        if (override != null && totalItbisRounded.signum() > 0
+                && override.subtract(montoTotal).abs().compareTo(new BigDecimal("0.02")) <= 0) {
+            totalItbisRounded = override.subtract(montoGravadoTotal).subtract(montoExentoRounded);
+            montoTotal = override;
+        }
+
         sale.setMontoGravadoTotal(montoGravadoTotal);
         sale.setMontoExento(montoExentoRounded);
         sale.setTotalItbis(totalItbisRounded);
@@ -1094,6 +1102,100 @@ public class SaleServiceImpl implements SaleService {
                 ));
 
         return toCreditNoteDto(savedNote);
+    }
+
+    @Override
+    public SaleDto createServiceOrderCharge(
+            @NonNull ServiceOrder order,
+            @NonNull SaleKind kind,
+            @NonNull Product product,
+            @NonNull String lineDescription,
+            @NonNull BigDecimal amountWithItbis,
+            @NonNull PaymentMethod paymentMethod,
+            @NonNull String tipoComprobante,
+            @Nullable String paymentNotes,
+            @Nullable String actorUsername
+    ) {
+        BigDecimal amount = DgiiTaxUtils.roundMoney(amountWithItbis);
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El monto debe ser mayor que cero.");
+        }
+        IndicadorFacturacion indicador = product.getIndicadorFacturacion() == null
+                ? IndicadorFacturacion.EXENTO
+                : product.getIndicadorFacturacion();
+
+        Sale sale = new Sale();
+        sale.setSaleDate(LocalDateTime.now());
+        sale.setStatus(SaleStatus.PENDING);
+        sale.setTipoIngresos(TipoIngresos.OPERACIONES);
+        sale.setTipoComprobante(tipoComprobante);
+        sale.setPaymentMethod(paymentMethod);
+        sale.setCustomer(order.getCustomer());
+        sale.setServiceOrder(order);
+        sale.setSaleKind(kind);
+        sale.setInclusiveTotalOverride(amount);
+
+        SaleItem item = new SaleItem();
+        item.setSale(sale);
+        item.setProduct(product);
+        item.setProductName(lineDescription.length() > 255 ? lineDescription.substring(0, 255) : lineDescription);
+        item.setProductSku(product.getSku());
+        item.setQuantity(1);
+        item.setUnitPrice(baseForInclusiveAmount(amount, indicador.isExento() ? BigDecimal.ZERO : indicador.getRate()));
+        sale.getItems().add(item);
+
+        recalculateTaxTotals(sale);
+        ensureSaleMoneyColumnsForPersist(sale);
+        Sale saved = saleRepository.save(sale);
+
+        auditService.record(actorUsername, "SALE_CREATED", "Sale", saved.getId(),
+                Map.of("kind", kind.name(), "serviceOrder", String.valueOf(order.getOrderNumber())));
+
+        // Cobro completo: addPayment asigna el NCF y completa la venta.
+        addPayment(Objects.requireNonNull(saved.getId()), saved.getMontoTotal(), paymentMethod, paymentNotes, actorUsername);
+        return saleMapper.toDto(saleRepository.findById(saved.getId()).orElseThrow());
+    }
+
+    /**
+     * Base imponible tal que base + ITBIS(base) redondeado sea exactamente el monto cobrado.
+     * Con 18% ~1 de cada 6 montos no tiene base exacta: se usa monto/(1+tasa) y el ITBIS
+     * absorbe el céntimo (ver inclusiveTotalOverride en recalculateTaxTotals).
+     */
+    static BigDecimal baseForInclusiveAmount(BigDecimal amount, BigDecimal rate) {
+        if (rate.signum() == 0) {
+            return amount;
+        }
+        BigDecimal estimate = amount.divide(BigDecimal.ONE.add(rate), 2, java.math.RoundingMode.HALF_UP);
+        BigDecimal cent = new BigDecimal("0.01");
+        for (int delta : new int[]{0, -1, 1, -2, 2}) {
+            BigDecimal base = estimate.add(cent.multiply(BigDecimal.valueOf(delta)));
+            BigDecimal total = base.add(DgiiTaxUtils.roundMoney(base.multiply(rate)));
+            if (total.compareTo(amount) == 0) {
+                return base;
+            }
+        }
+        return estimate;
+    }
+
+    @Override
+    public CreditNoteDto voidWithCreditNote(@NonNull Long saleId, @NonNull String reason, @Nullable String actorUsername) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+        CreateCreditNoteRequest request = new CreateCreditNoteRequest();
+        request.setReason(reason);
+        for (SaleItem item : sale.getItems()) {
+            int remaining = item.getQuantity() - item.getQuantityReturned();
+            if (remaining > 0) {
+                CreateCreditNoteItemRequest line = new CreateCreditNoteItemRequest();
+                line.setSaleItemId(item.getId());
+                line.setQuantity(remaining);
+                request.getItems().add(line);
+            }
+        }
+        if (request.getItems().isEmpty()) {
+            throw new IllegalStateException("La factura ya fue anulada por completo.");
+        }
+        return createCreditNote(saleId, request, actorUsername);
     }
 
     @Override

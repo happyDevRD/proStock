@@ -16,6 +16,7 @@ public interface SaleMapper {
     @Mapping(target = "serviceOrder", ignore = true)
     @Mapping(target = "location", ignore = true)
     @Mapping(target = "employee", ignore = true)
+    @Mapping(target = "saleKind", ignore = true)
     Sale toEntity(SaleDto saleDto);
 
     @Mapping(target = "customerId", source = "customer.id")

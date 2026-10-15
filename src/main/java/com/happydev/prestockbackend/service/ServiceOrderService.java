@@ -43,7 +43,13 @@ public interface ServiceOrderService {
 
     ServiceOrderDto approveBudget(@NonNull Long id, @Nullable String actor);
 
-    ServiceOrderDto cancel(@NonNull Long id, @Nullable String notes, @Nullable String actor);
+    ServiceOrderDto cancel(@NonNull Long id, @Nullable String notes, boolean refundDeposits, @Nullable String actor);
+
+    SaleDto registerDeposit(@NonNull Long id, @NonNull ServiceOrderPaymentRequest request, @Nullable String actor);
+
+    ServiceOrderDto voidDeposit(@NonNull Long id, @NonNull Long saleId, @Nullable String reason, @Nullable String actor);
+
+    SaleDto billBalance(@NonNull Long id, @NonNull ServiceOrderPaymentRequest request, @Nullable String actor);
 
     ServiceOrderDto complete(@NonNull Long id, @Nullable String actor);
 

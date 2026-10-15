@@ -1,7 +1,9 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.ServiceOrderDto;
 import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.repository.*;
+import com.happydev.prestockbackend.service.ServiceOrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -29,6 +31,7 @@ public class PortalController {
     private final ServiceOrderStageRepository serviceOrderStageRepository;
     private final CompanyConfigRepository companyConfigRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ServiceOrderService serviceOrderService;
 
     public PortalController(
             CustomerRepository customerRepository,
@@ -37,7 +40,8 @@ public class PortalController {
             SalePaymentRepository salePaymentRepository,
             ServiceOrderStageRepository serviceOrderStageRepository,
             CompanyConfigRepository companyConfigRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            ServiceOrderService serviceOrderService
     ) {
         this.customerRepository = customerRepository;
         this.saleRepository = saleRepository;
@@ -46,6 +50,7 @@ public class PortalController {
         this.serviceOrderStageRepository = serviceOrderStageRepository;
         this.companyConfigRepository = companyConfigRepository;
         this.passwordEncoder = passwordEncoder;
+        this.serviceOrderService = serviceOrderService;
     }
 
     /** Información pública de la empresa (logo, nombre, contacto). No requiere auth. */
@@ -152,6 +157,7 @@ public class PortalController {
         if (order.getCustomer() == null || !order.getCustomer().getId().equals(customerId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        ServiceOrderDto billing = serviceOrderService.findById(id);
         List<PortalStageDto> stages = serviceOrderStageRepository
                 .findByServiceOrderIdOrderByEnteredAtAsc(id)
                 .stream().map(s -> new PortalStageDto(
@@ -164,12 +170,19 @@ public class PortalController {
                 order.getId(), order.getOrderNumber(), order.getTitle(),
                 order.getOrderType().name(), order.getStatus().name(), order.getCurrentStage(),
                 order.getAppointmentDate(), order.getEstimatedDelivery(),
-                order.getEstimatedAmount(), order.getDepositAmount(), order.getProblemDescription(),
+                order.getEstimatedAmount(), order.getDepositAmount().add(order.getLegacyDepositAmount()), order.getProblemDescription(),
                 order.getDeviceBrand(), order.getDeviceModel(),
                 order.getDeviceSerial(), order.getDeviceCondition(),
                 order.isBudgetApproved(),
                 order.getBudgetApprovedAt() != null ? order.getBudgetApprovedAt().toString() : null,
-                stages
+                stages,
+                billing.totalAmount(), billing.billedAmount(), billing.balance(),
+                billing.linkedSales() == null ? List.of() : billing.linkedSales().stream()
+                        .filter(s -> s.status() == SaleStatus.COMPLETED && s.montoTotal().signum() > 0)
+                        .map(s -> new PortalOrderChargeDto(
+                                s.kind() != null ? s.kind().name() : "NORMAL", s.ncf(),
+                                s.saleDate() != null ? s.saleDate().toString() : null, s.montoTotal()))
+                        .toList()
         );
     }
 
@@ -262,16 +275,18 @@ public class PortalController {
     }
 
     private PortalServiceOrderDto toServiceOrderDto(ServiceOrder o) {
+        ServiceOrderDto billing = serviceOrderService.findById(o.getId());
         return new PortalServiceOrderDto(
                 o.getId(), o.getOrderNumber(), o.getTitle(), o.getOrderType().name(),
                 o.getStatus().name(), o.getCurrentStage(),
                 o.getAppointmentDate(), o.getEstimatedDelivery(),
-                o.getEstimatedAmount(), o.getDepositAmount(),
+                o.getEstimatedAmount(), o.getDepositAmount().add(o.getLegacyDepositAmount()),
                 o.getProblemDescription(),
                 o.getDeviceBrand(), o.getDeviceModel(),
                 o.getDeviceSerial(), o.getDeviceCondition(),
                 o.isBudgetApproved(),
-                o.getBudgetApprovedAt() != null ? o.getBudgetApprovedAt().toString() : null
+                o.getBudgetApprovedAt() != null ? o.getBudgetApprovedAt().toString() : null,
+                billing.totalAmount(), billing.balance()
         );
     }
 
@@ -323,7 +338,8 @@ public class PortalController {
             String problemDescription,
             String deviceBrand, String deviceModel,
             String deviceSerial, String deviceCondition,
-            boolean budgetApproved, String budgetApprovedAt
+            boolean budgetApproved, String budgetApprovedAt,
+            BigDecimal totalAmount, BigDecimal balance
     ) {}
 
     public record PortalServiceOrderDetailDto(
@@ -335,8 +351,13 @@ public class PortalController {
             String deviceBrand, String deviceModel,
             String deviceSerial, String deviceCondition,
             boolean budgetApproved, String budgetApprovedAt,
-            List<PortalStageDto> stages
+            List<PortalStageDto> stages,
+            BigDecimal totalAmount, BigDecimal billedAmount, BigDecimal balance,
+            List<PortalOrderChargeDto> charges
     ) {}
+
+    /** Factura vinculada a la orden: kind = DEPOSIT (anticipo), BALANCE (saldo) o NORMAL. */
+    public record PortalOrderChargeDto(String kind, String ncf, String date, BigDecimal amount) {}
 
     public record PortalStageDto(
             String stageName, String enteredAt, String notes, String actor

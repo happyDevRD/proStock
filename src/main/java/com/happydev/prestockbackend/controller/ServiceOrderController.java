@@ -148,13 +148,52 @@ public class ServiceOrderController {
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ServiceOrderDto> cancel(
             @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body,
+            Principal principal
+    ) {
+        accessGuard.requireEnabled();
+        String actor = principal != null ? principal.getName() : null;
+        String notes = body != null && body.get("notes") != null ? body.get("notes").toString() : null;
+        boolean refundDeposits = body != null && Boolean.parseBoolean(String.valueOf(body.get("refundDeposits")));
+        return ResponseEntity.ok(serviceOrderService.cancel(id, notes, refundDeposits, actor));
+    }
+
+    /** Cobra un anticipo (monto libre): factura con NCF + pago, vinculada a la orden. */
+    @PostMapping("/{id}/deposits")
+    public ResponseEntity<SaleDto> registerDeposit(
+            @PathVariable Long id,
+            @Valid @RequestBody ServiceOrderPaymentRequest request,
+            Principal principal
+    ) {
+        accessGuard.requireEnabled();
+        String actor = principal != null ? principal.getName() : null;
+        return ResponseEntity.status(HttpStatus.CREATED).body(serviceOrderService.registerDeposit(id, request, actor));
+    }
+
+    /** Anula un anticipo con nota de crédito (corrección o devolución). */
+    @PostMapping("/{id}/deposits/{saleId}/void")
+    public ResponseEntity<ServiceOrderDto> voidDeposit(
+            @PathVariable Long id,
+            @PathVariable Long saleId,
             @RequestBody(required = false) Map<String, String> body,
             Principal principal
     ) {
         accessGuard.requireEnabled();
         String actor = principal != null ? principal.getName() : null;
-        String notes = body != null ? body.get("notes") : null;
-        return ResponseEntity.ok(serviceOrderService.cancel(id, notes, actor));
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(serviceOrderService.voidDeposit(id, saleId, reason, actor));
+    }
+
+    /** Factura y cobra el saldo pendiente de la orden (total − anticipos). */
+    @PostMapping("/{id}/balance-invoice")
+    public ResponseEntity<SaleDto> billBalance(
+            @PathVariable Long id,
+            @Valid @RequestBody ServiceOrderPaymentRequest request,
+            Principal principal
+    ) {
+        accessGuard.requireEnabled();
+        String actor = principal != null ? principal.getName() : null;
+        return ResponseEntity.status(HttpStatus.CREATED).body(serviceOrderService.billBalance(id, request, actor));
     }
 
     @PostMapping("/{id}/notes")

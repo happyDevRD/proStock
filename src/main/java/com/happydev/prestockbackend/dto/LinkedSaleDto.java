@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.dto;
 
+import com.happydev.prestockbackend.entity.SaleKind;
 import com.happydev.prestockbackend.entity.SaleStatus;
 
 import java.math.BigDecimal;
@@ -11,5 +12,6 @@ public record LinkedSaleDto(
         LocalDateTime saleDate,
         SaleStatus status,
         BigDecimal montoTotal,
-        BigDecimal paidAmount
+        BigDecimal paidAmount,
+        SaleKind kind
 ) {}

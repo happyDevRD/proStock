@@ -174,6 +174,10 @@ class ServiceOrderControllerTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }

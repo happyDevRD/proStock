@@ -6,7 +6,10 @@ import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.dto.SalePaymentDto;
 import com.happydev.prestockbackend.dto.SaleSummaryDto;
 import com.happydev.prestockbackend.entity.PaymentMethod;
+import com.happydev.prestockbackend.entity.Product;
+import com.happydev.prestockbackend.entity.SaleKind;
 import com.happydev.prestockbackend.entity.SaleStatus;
+import com.happydev.prestockbackend.entity.ServiceOrder;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.data.domain.Page;
@@ -74,4 +77,23 @@ public interface SaleService {
     );
 
     List<CreditNoteDto> getCreditNotesForSale(@NonNull Long saleId);
+
+    /**
+     * Emite y cobra en una sola operación una factura de una orden de servicio (anticipo o saldo):
+     * una línea por {@code amountWithItbis} (ITBIS incluido), NCF asignado y pago registrado.
+     */
+    SaleDto createServiceOrderCharge(
+            @NonNull ServiceOrder order,
+            @NonNull SaleKind kind,
+            @NonNull Product product,
+            @NonNull String lineDescription,
+            @NonNull BigDecimal amountWithItbis,
+            @NonNull PaymentMethod paymentMethod,
+            @NonNull String tipoComprobante,
+            @Nullable String paymentNotes,
+            @Nullable String actorUsername
+    );
+
+    /** Anula por completo una factura con NCF emitiendo una nota de crédito por todas sus líneas. */
+    CreditNoteDto voidWithCreditNote(@NonNull Long saleId, @NonNull String reason, @Nullable String actorUsername);
 }
