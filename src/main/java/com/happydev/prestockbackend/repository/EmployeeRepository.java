@@ -15,17 +15,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     @Query(value = """
             SELECT e FROM Employee e
-            WHERE (:search IS NULL OR
-                   LOWER(e.nombreCompleto) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(e.cargo) LIKE LOWER(CONCAT('%', :search, '%')))
+            WHERE (CAST(:search AS String) IS NULL OR
+                   LOWER(e.nombreCompleto) LIKE LOWER(CONCAT('%', CAST(:search AS String), '%'))
+                   OR LOWER(e.cargo) LIKE LOWER(CONCAT('%', CAST(:search AS String), '%')))
               AND (:status IS NULL OR e.status = :status)
               AND (:departamento IS NULL OR e.departamento = :departamento)
             """,
            countQuery = """
             SELECT COUNT(e) FROM Employee e
-            WHERE (:search IS NULL OR
-                   LOWER(e.nombreCompleto) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(e.cargo) LIKE LOWER(CONCAT('%', :search, '%')))
+            WHERE (CAST(:search AS String) IS NULL OR
+                   LOWER(e.nombreCompleto) LIKE LOWER(CONCAT('%', CAST(:search AS String), '%'))
+                   OR LOWER(e.cargo) LIKE LOWER(CONCAT('%', CAST(:search AS String), '%')))
               AND (:status IS NULL OR e.status = :status)
               AND (:departamento IS NULL OR e.departamento = :departamento)
             """)
