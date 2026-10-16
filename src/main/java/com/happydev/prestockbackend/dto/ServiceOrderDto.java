@@ -43,5 +43,11 @@ public record ServiceOrderDto(
         BigDecimal legacyDepositAmount,
         BigDecimal totalAmount,
         BigDecimal billedAmount,
-        BigDecimal balance
+        BigDecimal balance,
+        // Fotografía: responsables y carpeta de trabajo en el NAS
+        Long photographerId,
+        String photographerName,
+        Long editorId,
+        String editorName,
+        String workFolder
 ) {}

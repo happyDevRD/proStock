@@ -82,6 +82,19 @@ public class ServiceOrder {
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
 
+    // Fotografía: quién hace la sesión y quién edita
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "photographer_id")
+    private Employee photographer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "editor_id")
+    private Employee editor;
+
+    /** Ruta relativa a la raíz de carpetas de trabajo; null si aún no se creó. */
+    @Column(name = "work_folder", length = 500)
+    private String workFolder;
+
     @Column(name = "created_by", length = 100)
     private String createdBy;
 

@@ -5,6 +5,7 @@ import com.happydev.prestockbackend.entity.*;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.*;
 import jakarta.transaction.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -50,6 +51,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     private final SaleService saleService;
     private final CategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
+    private final EmployeeRepository employeeRepository;
+    private final WorkFolderService workFolderService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ServiceOrderServiceImpl(ServiceOrderRepository orderRepository,
                                    ServiceOrderStageRepository stageRepository,
@@ -64,7 +68,10 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                                    CompanyConfigRepository companyConfigRepository,
                                    SaleService saleService,
                                    CategoryRepository categoryRepository,
-                                   SupplierRepository supplierRepository) {
+                                   SupplierRepository supplierRepository,
+                                   EmployeeRepository employeeRepository,
+                                   WorkFolderService workFolderService,
+                                   ApplicationEventPublisher eventPublisher) {
         this.orderRepository = orderRepository;
         this.stageRepository = stageRepository;
         this.noteRepository = noteRepository;
@@ -79,6 +86,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         this.saleService = saleService;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
+        this.employeeRepository = employeeRepository;
+        this.workFolderService = workFolderService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -219,6 +229,8 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         order.setDeviceCondition(req.deviceCondition());
         order.setProblemDescription(req.problemDescription());
         order.setInternalNotes(req.internalNotes());
+        order.setPhotographer(employeeOrNull(req.photographerId()));
+        order.setEditor(employeeOrNull(req.editorId()));
         order.setCreatedBy(actor);
 
         if (req.customerId() != null) {
@@ -245,6 +257,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         auditService.record(actor, "SERVICE_ORDER_CREATED", "ServiceOrder", saved.getId(),
                 "OS " + saved.getOrderNumber() + " creada");
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(saved.getId()));
         return toListDto(saved);
     }
 
@@ -262,6 +275,8 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         order.setDeviceCondition(req.deviceCondition());
         order.setProblemDescription(req.problemDescription());
         order.setInternalNotes(req.internalNotes());
+        order.setPhotographer(employeeOrNull(req.photographerId()));
+        order.setEditor(employeeOrNull(req.editorId()));
 
         if (req.customerId() != null) {
             Customer customer = customerRepository.findById(req.customerId())
@@ -272,6 +287,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         auditService.record(actor, "SERVICE_ORDER_UPDATED", "ServiceOrder", id,
                 "OS " + order.getOrderNumber() + " actualizada");
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(id));
         return toListDto(orderRepository.save(order));
     }
 
@@ -308,6 +324,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         auditService.record(actor, "SERVICE_ORDER_STAGE_ADVANCED", "ServiceOrder", id,
                 "OS " + order.getOrderNumber() + " → " + req.stage());
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(id));
         return toListDto(orderRepository.save(order));
     }
 
@@ -438,6 +455,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         item.setNotes(req.notes());
         item.setPosition(position);
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(orderId));
         return toItemDtosWithBilling(orderId, List.of(itemRepository.save(item))).get(0);
     }
 
@@ -472,6 +490,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
             item.setNotes(req.notes().isBlank() ? null : req.notes().trim());
         }
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(orderId));
         return toItemDtosWithBilling(orderId, List.of(itemRepository.save(item))).get(0);
     }
 
@@ -489,6 +508,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                             + (invoiced == 1 ? "" : "es") + ").");
         }
         itemRepository.delete(item);
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(orderId));
     }
 
     // ── cobros: anticipos y saldo ─────────────────────────
@@ -795,6 +815,12 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         return map;
     }
 
+    private Employee employeeOrNull(Long id) {
+        if (id == null) return null;
+        return employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
+    }
+
     private String customerName(ServiceOrder o) {
         if (o.getCustomer() == null) return null;
         Customer c = o.getCustomer();
@@ -815,7 +841,12 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getDeviceCondition(), o.getProblemDescription(),
                 o.getInternalNotes(), o.getCreatedBy(), o.getCreatedAt(), o.getUpdatedAt(),
                 null, null, null, null,
-                o.getLegacyDepositAmount(), billing.total(), billing.billed(), billing.balance()
+                o.getLegacyDepositAmount(), billing.total(), billing.billed(), billing.balance(),
+                o.getPhotographer() != null ? o.getPhotographer().getId() : null,
+                o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
+                o.getEditor() != null ? o.getEditor().getId() : null,
+                o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,
+                workFolderService.displayPath(o.getWorkFolder())
         );
     }
 
@@ -834,7 +865,12 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getDeviceCondition(), o.getProblemDescription(),
                 o.getInternalNotes(), o.getCreatedBy(), o.getCreatedAt(), o.getUpdatedAt(),
                 stages, notes, linkedSales, items,
-                o.getLegacyDepositAmount(), billing.total(), billing.billed(), billing.balance()
+                o.getLegacyDepositAmount(), billing.total(), billing.billed(), billing.balance(),
+                o.getPhotographer() != null ? o.getPhotographer().getId() : null,
+                o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
+                o.getEditor() != null ? o.getEditor().getId() : null,
+                o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,
+                workFolderService.displayPath(o.getWorkFolder())
         );
     }
 

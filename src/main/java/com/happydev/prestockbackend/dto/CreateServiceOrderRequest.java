@@ -23,5 +23,8 @@ public record CreateServiceOrderRequest(
         String deviceCondition,
         String problemDescription,
         // General
-        String internalNotes
+        String internalNotes,
+        // Fotografía: empleados asignados
+        Long photographerId,
+        Long editorId
 ) {}

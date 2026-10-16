@@ -16,5 +16,7 @@ public record UpdateServiceOrderRequest(
         String deviceSerial,
         String deviceCondition,
         String problemDescription,
-        String internalNotes
+        String internalNotes,
+        Long photographerId,
+        Long editorId
 ) {}

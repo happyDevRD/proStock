@@ -1,5 +1,11 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.ServiceOrderStaffDto;
+import com.happydev.prestockbackend.entity.Employee;
+import com.happydev.prestockbackend.entity.EmployeeStatus;
+import com.happydev.prestockbackend.repository.EmployeeRepository;
+import com.happydev.prestockbackend.service.WorkFolderService;
+
 import com.happydev.prestockbackend.dto.*;
 import com.happydev.prestockbackend.entity.ServiceOrderStatus;
 import com.happydev.prestockbackend.entity.ServiceOrderType;
@@ -27,11 +33,45 @@ public class ServiceOrderController {
 
     private final ServiceOrderService serviceOrderService;
     private final ServiceOrderAccessGuard accessGuard;
+    private final WorkFolderService workFolderService;
+    private final EmployeeRepository employeeRepository;
 
     public ServiceOrderController(ServiceOrderService serviceOrderService,
-                                  ServiceOrderAccessGuard accessGuard) {
+                                  ServiceOrderAccessGuard accessGuard,
+                                  WorkFolderService workFolderService,
+                                  EmployeeRepository employeeRepository) {
         this.serviceOrderService = serviceOrderService;
         this.accessGuard = accessGuard;
+        this.workFolderService = workFolderService;
+        this.employeeRepository = employeeRepository;
+    }
+
+    /** Empleados activos para asignar como fotógrafo o editor (solo id, nombre y cargo). */
+    @GetMapping("/staff")
+    public ResponseEntity<List<ServiceOrderStaffDto>> staff() {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(employeeRepository.findAll().stream()
+                .filter(e -> e.getStatus() == EmployeeStatus.ACTIVO)
+                .sorted(java.util.Comparator.comparing(Employee::getNombreCompleto, String.CASE_INSENSITIVE_ORDER))
+                .map(e -> new ServiceOrderStaffDto(e.getId(), e.getNombreCompleto(), e.getCargo()))
+                .toList());
+    }
+
+    @GetMapping("/work-folders/status")
+    public ResponseEntity<java.util.Map<String, Boolean>> workFoldersStatus() {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(java.util.Map.of("enabled", workFolderService.isEnabled()));
+    }
+
+    /** Crea la carpeta en el NAS si falta (o reescribe INFO.txt). Para reintentar o para órdenes antiguas. */
+    @PostMapping("/{id}/work-folder")
+    public ResponseEntity<ServiceOrderDto> syncWorkFolder(@PathVariable Long id) throws java.io.IOException {
+        accessGuard.requireEnabled();
+        if (!workFolderService.isEnabled()) {
+            throw new IllegalStateException("Las carpetas de trabajo no están configuradas en este servidor.");
+        }
+        workFolderService.sync(id);
+        return ResponseEntity.ok(serviceOrderService.findById(id));
     }
 
     @GetMapping

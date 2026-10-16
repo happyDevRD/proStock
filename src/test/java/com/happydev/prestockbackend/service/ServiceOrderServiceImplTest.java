@@ -67,6 +67,9 @@ class ServiceOrderServiceImplTest {
     @Mock private SaleService saleService;
     @Mock private CategoryRepository categoryRepository;
     @Mock private SupplierRepository supplierRepository;
+    @Mock private EmployeeRepository employeeRepository;
+    @Mock private WorkFolderService workFolderService;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ServiceOrderServiceImpl service;
@@ -152,7 +155,7 @@ class ServiceOrderServiceImplTest {
                 null,
                 null,
                 null,
-                null
+                null, null, null
         );
 
         var created = service.create(request, "admin");
@@ -361,7 +364,7 @@ class ServiceOrderServiceImplTest {
                 null,
                 null,
                 null,
-                null
+                null, null, null
         );
 
         var created = service.create(request, "admin");
@@ -389,7 +392,7 @@ class ServiceOrderServiceImplTest {
                 null,
                 null,
                 null,
-                null
+                null, null, null
         );
 
         assertThrows(IllegalArgumentException.class, () -> service.create(request, "admin"));

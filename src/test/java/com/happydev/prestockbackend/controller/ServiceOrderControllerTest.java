@@ -57,6 +57,12 @@ class ServiceOrderControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
+    private com.happydev.prestockbackend.service.WorkFolderService workFolderService;
+
+    @MockitoBean
+    private com.happydev.prestockbackend.repository.EmployeeRepository employeeRepository;
+
+    @MockitoBean
     private ServiceOrderService serviceOrderService;
 
     @MockitoBean
@@ -135,7 +141,7 @@ class ServiceOrderControllerTest {
                 null,
                 null,
                 null,
-                null
+                null, null, null
         );
 
         mockMvc.perform(post("/api/service-orders")
@@ -178,7 +184,7 @@ class ServiceOrderControllerTest {
                 null,
                 null,
                 null,
-                null
+                null, null, null, null, null, null
         );
     }
 }
