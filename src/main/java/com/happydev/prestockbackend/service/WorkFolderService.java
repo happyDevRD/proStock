@@ -90,6 +90,14 @@ public class WorkFolderService {
         return root != null && Files.isDirectory(root);
     }
 
+    /** Carpeta absoluta de la orden, o null si la función está apagada o no existe. */
+    @Nullable
+    public Path resolve(@Nullable String workFolder) {
+        if (!isEnabled() || workFolder == null) return null;
+        Path folder = root.resolve(workFolder).normalize();
+        return folder.startsWith(root) && Files.isDirectory(folder) ? folder : null;
+    }
+
     /** Basura de sistemas que no cuenta como material (Mac, Windows, Synology). */
     private static final java.util.Set<String> IGNORED_FILES = java.util.Set.of(".DS_Store", "Thumbs.db", "desktop.ini");
     private static final int MAX_COUNT = 100_000;
@@ -116,6 +124,9 @@ public class WorkFolderService {
         try (var paths = Files.walk(dir)) {
             return (int) paths
                     .filter(p -> !p.toString().contains("@eaDir") && !p.toString().contains("#recycle"))
+                    // Carpetas ocultas (p. ej. ".miniaturas" del portal de selección) no son material
+                    .filter(p -> java.util.stream.StreamSupport.stream(dir.relativize(p).spliterator(), false)
+                            .noneMatch(seg -> seg.toString().startsWith(".")))
                     .filter(Files::isRegularFile)
                     .filter(p -> {
                         String name = p.getFileName().toString();

@@ -57,6 +57,9 @@ class ServiceOrderControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
+    private com.happydev.prestockbackend.service.SelectionService selectionService;
+
+    @MockitoBean
     private com.happydev.prestockbackend.service.WorkFolderService workFolderService;
 
     @MockitoBean

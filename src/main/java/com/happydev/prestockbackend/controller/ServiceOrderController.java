@@ -7,6 +7,8 @@ import com.happydev.prestockbackend.entity.EmployeeDepartment;
 import com.happydev.prestockbackend.entity.EmployeeStatus;
 import com.happydev.prestockbackend.repository.EmployeeRepository;
 import com.happydev.prestockbackend.service.WorkFolderService;
+import com.happydev.prestockbackend.service.SelectionService;
+import com.happydev.prestockbackend.dto.SelectionDtos;
 
 import com.happydev.prestockbackend.dto.*;
 import com.happydev.prestockbackend.entity.ServiceOrderStatus;
@@ -37,15 +39,48 @@ public class ServiceOrderController {
     private final ServiceOrderAccessGuard accessGuard;
     private final WorkFolderService workFolderService;
     private final EmployeeRepository employeeRepository;
+    private final SelectionService selectionService;
 
     public ServiceOrderController(ServiceOrderService serviceOrderService,
                                   ServiceOrderAccessGuard accessGuard,
                                   WorkFolderService workFolderService,
-                                  EmployeeRepository employeeRepository) {
+                                  EmployeeRepository employeeRepository,
+                                  SelectionService selectionService) {
         this.serviceOrderService = serviceOrderService;
         this.accessGuard = accessGuard;
         this.workFolderService = workFolderService;
         this.employeeRepository = employeeRepository;
+        this.selectionService = selectionService;
+    }
+
+    // ── Selección de fotos por el cliente (enlace público) ─────────────────
+
+    /** Enlace actual (o null) y valores sugeridos: cupo según los combos, previas disponibles. */
+    @GetMapping("/{id}/selection")
+    public ResponseEntity<java.util.Map<String, Object>> getSelection(@PathVariable Long id) {
+        accessGuard.requireEnabled();
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("selection", selectionService.get(id));
+        body.put("suggestion", selectionService.suggest(id));
+        return ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/{id}/selection")
+    public ResponseEntity<SelectionDtos.AdminSelection> createSelection(
+            @PathVariable Long id,
+            @Valid @RequestBody SelectionDtos.CreateSelectionRequest request,
+            Principal principal) {
+        accessGuard.requireEnabled();
+        int days = request.expiresInDays() != null ? request.expiresInDays() : 15;
+        return ResponseEntity.ok(selectionService.create(id, request.quota(), days,
+                principal != null ? principal.getName() : null));
+    }
+
+    @DeleteMapping("/{id}/selection")
+    public ResponseEntity<Void> revokeSelection(@PathVariable Long id) {
+        accessGuard.requireEnabled();
+        selectionService.revoke(id);
+        return ResponseEntity.noContent().build();
     }
 
     /** Empleados activos para asignar como fotógrafo o editor (solo id, nombre y cargo). */
