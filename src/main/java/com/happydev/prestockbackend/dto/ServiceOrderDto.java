@@ -49,5 +49,9 @@ public record ServiceOrderDto(
         String photographerName,
         Long editorId,
         String editorName,
-        String workFolder
+        String workFolder,
+        // Solo en el detalle: archivos por subcarpeta de la carpeta del NAS
+        java.util.Map<String, Integer> folderCounts,
+        /** Teléfono del cliente, para avisarle por WhatsApp */
+        String customerPhone
 ) {}

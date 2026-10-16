@@ -178,6 +178,10 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     // ── Mappers internos ────────────────────────────────────────────────────
 
+    private static boolean canViewSalary() {
+        return SecurityAuditUtils.currentUserHas("employees.view_salary");
+    }
+
     /** Vincula (o desvincula con null) el usuario del sistema; un usuario solo puede ser un empleado. */
     private void linkUser(Employee emp, Long userId) {
         if (userId == null) {
@@ -206,9 +210,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setTipoEmpleo(dto.getTipoEmpleo() != null ? dto.getTipoEmpleo() : EmployeeType.PERMANENTE);
         emp.setFechaIngreso(dto.getFechaIngreso());
         emp.setFechaSalida(dto.getFechaSalida());
-        emp.setSalarioBase(dto.getSalarioBase() != null ? dto.getSalarioBase() : BigDecimal.ZERO);
-        emp.setTipoSalario(dto.getTipoSalario() != null ? dto.getTipoSalario() : EmployeeSalaryType.MENSUAL);
-        emp.setComisionPorcentaje(dto.getComisionPorcentaje() != null ? dto.getComisionPorcentaje() : BigDecimal.ZERO);
+        // Sin permiso de salarios no se tocan: quien no los ve tampoco puede borrarlos al guardar.
+        if (canViewSalary()) {
+            emp.setSalarioBase(dto.getSalarioBase() != null ? dto.getSalarioBase() : BigDecimal.ZERO);
+            emp.setTipoSalario(dto.getTipoSalario() != null ? dto.getTipoSalario() : EmployeeSalaryType.MENSUAL);
+            emp.setComisionPorcentaje(dto.getComisionPorcentaje() != null ? dto.getComisionPorcentaje() : BigDecimal.ZERO);
+        }
         emp.setNumTss(dto.getNumTss());
         emp.setBanco(dto.getBanco());
         emp.setCuentaBancaria(dto.getCuentaBancaria());
@@ -233,9 +240,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         dto.setTipoEmpleo(emp.getTipoEmpleo());
         dto.setFechaIngreso(emp.getFechaIngreso());
         dto.setFechaSalida(emp.getFechaSalida());
-        dto.setSalarioBase(emp.getSalarioBase());
-        dto.setTipoSalario(emp.getTipoSalario());
-        dto.setComisionPorcentaje(emp.getComisionPorcentaje());
+        // El salario solo viaja a quien tiene permiso de verlo (antes solo lo ocultaba la interfaz).
+        if (canViewSalary()) {
+            dto.setSalarioBase(emp.getSalarioBase());
+            dto.setTipoSalario(emp.getTipoSalario());
+            dto.setComisionPorcentaje(emp.getComisionPorcentaje());
+        }
         dto.setNumTss(emp.getNumTss());
         dto.setBanco(emp.getBanco());
         dto.setCuentaBancaria(emp.getCuentaBancaria());

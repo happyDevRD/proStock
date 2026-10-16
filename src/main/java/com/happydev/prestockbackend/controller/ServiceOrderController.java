@@ -129,11 +129,12 @@ public class ServiceOrderController {
             @RequestParam(defaultValue = "false") boolean activeOnly,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long staffId,
             @PageableDefault(size = 40, sort = "createdAt") @NonNull Pageable pageable
     ) {
         accessGuard.requireEnabled();
         String term = search != null && !search.isBlank() ? search : q;
-        return ResponseEntity.ok(serviceOrderService.findPage(pageable, type, status, activeOnly, term));
+        return ResponseEntity.ok(serviceOrderService.findPage(pageable, type, status, activeOnly, term, staffId));
     }
 
     @GetMapping("/stats")

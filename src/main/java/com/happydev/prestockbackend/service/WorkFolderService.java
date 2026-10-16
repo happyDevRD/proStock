@@ -90,6 +90,45 @@ public class WorkFolderService {
         return root != null && Files.isDirectory(root);
     }
 
+    /** Basura de sistemas que no cuenta como material (Mac, Windows, Synology). */
+    private static final java.util.Set<String> IGNORED_FILES = java.util.Set.of(".DS_Store", "Thumbs.db", "desktop.ini");
+    private static final int MAX_COUNT = 100_000;
+
+    /**
+     * Archivos por subcarpeta ("1 Camara" → 412…), contando también los de
+     * subcarpetas (CAMARA UNO, CAMARA DOS…). null si la función está apagada o
+     * la carpeta no existe. Ignora archivos ocultos y carpetas internas de Synology.
+     */
+    @Nullable
+    public Map<String, Integer> fileCounts(@Nullable String workFolder) {
+        if (!isEnabled() || workFolder == null) return null;
+        Path folder = root.resolve(workFolder);
+        if (!Files.isDirectory(folder)) return null;
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (String sub : SUBFOLDERS) {
+            counts.put(sub, countFiles(folder.resolve(sub)));
+        }
+        return counts;
+    }
+
+    private static int countFiles(Path dir) {
+        if (!Files.isDirectory(dir)) return 0;
+        try (var paths = Files.walk(dir)) {
+            return (int) paths
+                    .filter(p -> !p.toString().contains("@eaDir") && !p.toString().contains("#recycle"))
+                    .filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return !name.startsWith(".") && !IGNORED_FILES.contains(name);
+                    })
+                    .limit(MAX_COUNT)
+                    .count();
+        } catch (IOException | java.io.UncheckedIOException e) {
+            log.warn("No se pudieron contar los archivos de {}: {}", dir, e.getMessage());
+            return 0;
+        }
+    }
+
     /** Ruta que ve el personal en su computadora, p. ej. \\ESTUDIO-NAS-01\Ordenes\1 Agendadas\OS-... */
     @Nullable
     public String displayPath(@Nullable String workFolder) {

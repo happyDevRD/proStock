@@ -20,7 +20,9 @@ public interface ServiceOrderService {
             @Nullable ServiceOrderType type,
             @Nullable ServiceOrderStatus status,
             @Nullable Boolean activeOnly,
-            @Nullable String search
+            @Nullable String search,
+            /** Solo órdenes donde este empleado es fotógrafo o editor */
+            @Nullable Long staffId
     );
 
     ServiceOrderStatsDto getStats();

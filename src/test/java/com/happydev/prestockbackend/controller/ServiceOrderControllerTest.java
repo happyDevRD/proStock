@@ -113,7 +113,7 @@ class ServiceOrderControllerTest {
     void getPage_ReturnsPaginatedList() throws Exception {
         doNothing().when(accessGuard).requireEnabled();
         ServiceOrderDto dto = sampleDto();
-        given(serviceOrderService.findPage(any(), any(), any(), eq(false), any()))
+        given(serviceOrderService.findPage(any(), any(), any(), eq(false), any(), any()))
                 .willReturn(new PageImpl<>(List.of(dto)));
 
         mockMvc.perform(get("/api/service-orders/paginated?page=0&size=10"))
@@ -184,7 +184,7 @@ class ServiceOrderControllerTest {
                 null,
                 null,
                 null,
-                null, null, null, null, null, null
+                null, null, null, null, null, null, null, null
         );
     }
 }

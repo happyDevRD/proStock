@@ -97,6 +97,7 @@ public class MyWorkService {
         if (expectedStage != null && !expectedStage.equals(step.to())) {
             throw new IllegalStateException("La orden ya cambió de etapa. Actualiza la pantalla.");
         }
+        requireMaterial(order, step);
         serviceOrderService.advanceStage(orderId, new AdvanceStageRequest(step.to(), step.status(), step.label()), username);
     }
 
@@ -105,6 +106,25 @@ public class MyWorkService {
                 new AccessDeniedException("Tu usuario no está vinculado a un empleado."));
         assignedOrder(orderId, e);
         serviceOrderService.addNote(orderId, new AddNoteRequest(content.trim(), true), username);
+    }
+
+    /**
+     * No deja avanzar sin el material en la carpeta: fotos en "1 Camara" para
+     * pasar a selección y fotos en "4 Final" para dar la edición por terminada.
+     * Si la orden no tiene carpeta (función apagada) no se valida.
+     */
+    private void requireMaterial(ServiceOrder order, Step step) {
+        String sub = switch (step.to()) {
+            case "SELECTION" -> "1 Camara";
+            case "READY" -> "4 Final";
+            default -> null;
+        };
+        if (sub == null) return;
+        Map<String, Integer> counts = workFolderService.fileCounts(order.getWorkFolder());
+        if (counts != null && counts.getOrDefault(sub, 0) == 0) {
+            throw new IllegalStateException("La carpeta «" + sub + "» está vacía. Copia ahí las fotos antes de marcar «"
+                    + step.label() + "».");
+        }
     }
 
     private Optional<Employee> employeeOf(String username) {
@@ -156,6 +176,7 @@ public class MyWorkService {
                 o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
                 o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,
                 workFolderService.displayPath(o.getWorkFolder()),
+                workFolderService.fileCounts(o.getWorkFolder()),
                 o.getInternalNotes(),
                 services, notes,
                 step != null ? new MyWorkAction(step.to(), step.label()) : null

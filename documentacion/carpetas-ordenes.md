@@ -73,3 +73,11 @@ En el NAS de Iridiscencia el compose monta `/volume1/Ordenes:/data/ordenes`. El 
   Selección → Edición (cliente) y la entrega (cobro del saldo) siguen en manos de administración. Una orden ajena responde 404, como si no existiera.
 - **Lista blanca de API** (`ProductionRoleAccessFilter`): el rol PRODUCCION solo llega a `/api/auth/**`, `/api/my-work/**` y lecturas de `features`, `modules/flags`, `company-config` y `portal/company-info`. Hace falta porque muchos endpoints de lectura solo exigen estar autenticado. El frontend no pide datos de negocio para este rol.
 - Migración `V49`: `employees.es_fotografo`, `es_editor`, `user_id`; permiso `view.my_work` para GESTOR, ADMIN, MANAGER y PRODUCCION.
+
+## Material en la carpeta, filtros y avisos
+
+- **Contadores**: el detalle de la orden y "Mis trabajos" muestran cuántos archivos hay en cada subcarpeta (incluye subcarpetas como `CAMARA UNO`; ignora `.DS_Store`, `Thumbs.db`, `@eaDir`, `#recycle` y ocultos).
+- **Validación de material** (solo en "Mis trabajos"): "Fotos cargadas" exige archivos en `1 Camara` y "Edición terminada" exige archivos en `4 Final`. Administración puede avanzar sin esa validación desde el detalle de la orden.
+- **Filtro por responsable** en el tablero (`GET /paginated?staffId=`): órdenes donde esa persona es fotógrafo o editor. Las tarjetas muestran fotógrafo y editor.
+- **WhatsApp al cliente**: el detalle de la orden ofrece un enlace `wa.me` con el mensaje ya escrito según la etapa (Selección: fotos listas para elegir; Lista: fotos listas para entregar, con el saldo pendiente si hay). Los números de RD de 10 dígitos se completan con el 1.
+- **Salarios**: el backend ya no devuelve `salarioBase`, `tipoSalario` ni `comisionPorcentaje` a quien no tiene `employees.view_salary`, y al guardar no los modifica.

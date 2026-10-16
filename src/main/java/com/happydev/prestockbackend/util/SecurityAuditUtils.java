@@ -16,4 +16,14 @@ public final class SecurityAuditUtils {
         }
         return auth.getName();
     }
+
+    /** true si el usuario actual tiene esa autoridad (permiso) o es GESTOR. */
+    public static boolean currentUserHas(String authority) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> authority.equals(a.getAuthority()) || "ROLE_GESTOR".equals(a.getAuthority()));
+    }
 }

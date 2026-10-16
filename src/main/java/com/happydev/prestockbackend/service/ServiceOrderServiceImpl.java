@@ -103,9 +103,15 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
             @Nullable ServiceOrderType type,
             @Nullable ServiceOrderStatus status,
             @Nullable Boolean activeOnly,
-            @Nullable String search
+            @Nullable String search,
+            @Nullable Long staffId
     ) {
         Specification<ServiceOrder> spec = ServiceOrderSpecifications.withFilters(type, status, activeOnly, search);
+        if (staffId != null) {
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.equal(root.get("photographer").get("id"), staffId),
+                    cb.equal(root.get("editor").get("id"), staffId)));
+        }
         return orderRepository.findAll(spec, pageable).map(this::toListDto);
     }
 
@@ -848,7 +854,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
                 o.getEditor() != null ? o.getEditor().getId() : null,
                 o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,
-                workFolderService.displayPath(o.getWorkFolder())
+                workFolderService.displayPath(o.getWorkFolder()),
+                null,
+                o.getCustomer() != null ? o.getCustomer().getPhoneNumber() : null
         );
     }
 
@@ -872,7 +880,9 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
                 o.getEditor() != null ? o.getEditor().getId() : null,
                 o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,
-                workFolderService.displayPath(o.getWorkFolder())
+                workFolderService.displayPath(o.getWorkFolder()),
+                workFolderService.fileCounts(o.getWorkFolder()),
+                o.getCustomer() != null ? o.getCustomer().getPhoneNumber() : null
         );
     }
 

@@ -192,4 +192,26 @@ class WorkFolderServiceTest {
 
         assertEquals("2 En sesion/OS-2026-00007 María Pérez (2)", order.getWorkFolder());
     }
+
+    @Test
+    void countsFilesPerSubfolderIgnoringSystemJunk() throws Exception {
+        given(orderRepository.findById(7L)).willReturn(Optional.of(order));
+        given(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(7L)).willReturn(List.of());
+        service.sync(7L);
+        Path folder = root.resolve(order.getWorkFolder());
+        Path camUno = Files.createDirectories(folder.resolve("1 Camara").resolve("CAMARA UNO"));
+        Files.writeString(camUno.resolve("IMG_0001.CR3"), "x");
+        Files.writeString(camUno.resolve("IMG_0002.CR3"), "x");
+        Files.writeString(folder.resolve("1 Camara").resolve(".DS_Store"), "x");
+        Files.createDirectories(folder.resolve("1 Camara").resolve("@eaDir"));
+        Files.writeString(folder.resolve("1 Camara").resolve("@eaDir").resolve("thumb.jpg"), "x");
+        Files.writeString(folder.resolve("4 Final").resolve("final.jpg"), "x");
+
+        var counts = service.fileCounts(order.getWorkFolder());
+
+        assertEquals(2, counts.get("1 Camara"));
+        assertEquals(0, counts.get("2 Seleccion"));
+        assertEquals(1, counts.get("4 Final"));
+        assertNull(service.fileCounts("no/existe"));
+    }
 }

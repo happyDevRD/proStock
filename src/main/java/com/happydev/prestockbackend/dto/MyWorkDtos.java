@@ -29,6 +29,8 @@ public final class MyWorkDtos {
             String photographerName,
             String editorName,
             String workFolder,
+            /** Archivos por subcarpeta ("1 Camara" → 412); null si no hay carpeta */
+            java.util.Map<String, Integer> folderCounts,
             String internalNotes,
             /** Servicios sin precio, p. ej. "1 x Combo XV Años 2" */
             List<String> services,

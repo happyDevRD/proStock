@@ -59,6 +59,8 @@ class MyWorkServiceTest {
         given(orderRepository.findById(10L)).willReturn(Optional.of(order));
         given(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(anyLong())).willReturn(List.of());
         given(noteRepository.findByServiceOrderIdOrderByCreatedAtAsc(anyLong())).willReturn(List.of());
+        // Sin carpeta (función apagada) no se valida el material
+        given(workFolderService.fileCounts(any())).willReturn(null);
     }
 
     private Employee employee(Long id, String name, String username) {
@@ -140,5 +142,38 @@ class MyWorkServiceTest {
         var forAna = service.list("ana").orders().get(0);
         assertEquals(List.of("EDITOR"), forAna.myRoles());
         assertNull(forAna.nextAction());
+    }
+
+    @Test
+    void cannotSendToSelectionWithEmptyCameraFolder() {
+        order.setCurrentStage("SESSION");
+        order.setWorkFolder("2 En sesion/OS-2026-00010 X");
+        given(workFolderService.fileCounts("2 En sesion/OS-2026-00010 X"))
+                .willReturn(java.util.Map.of("1 Camara", 0, "4 Final", 0));
+
+        var e = assertThrows(IllegalStateException.class, () -> service.advance(10L, "SELECTION", "juan"));
+        assertTrue(e.getMessage().contains("1 Camara"));
+        verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
+    }
+
+    @Test
+    void sendsToSelectionWhenCameraFolderHasFiles() {
+        order.setCurrentStage("SESSION");
+        order.setWorkFolder("2 En sesion/OS-2026-00010 X");
+        given(workFolderService.fileCounts("2 En sesion/OS-2026-00010 X"))
+                .willReturn(java.util.Map.of("1 Camara", 412, "4 Final", 0));
+
+        service.advance(10L, "SELECTION", "juan");
+        verify(serviceOrderService).advanceStage(eq(10L), any(), eq("juan"));
+    }
+
+    @Test
+    void cannotFinishEditingWithEmptyFinalFolder() {
+        order.setCurrentStage("EDITING");
+        order.setWorkFolder("4 En edicion/OS-2026-00010 X");
+        given(workFolderService.fileCounts("4 En edicion/OS-2026-00010 X"))
+                .willReturn(java.util.Map.of("1 Camara", 412, "4 Final", 0));
+
+        assertThrows(IllegalStateException.class, () -> service.advance(10L, "READY", "ana"));
     }
 }
