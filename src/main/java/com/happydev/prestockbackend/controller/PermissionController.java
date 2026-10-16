@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.PermissionDto;
 import com.happydev.prestockbackend.dto.RolePermissionsDto;
 import com.happydev.prestockbackend.dto.UserPermissionOverrideDto;
@@ -21,11 +24,13 @@ public class PermissionController {
         this.permissionService = permissionService;
     }
 
+    @PreAuthorize(Authz.PERMISSIONS_READ)
     @GetMapping
     public ResponseEntity<List<PermissionDto>> getPermissions() {
         return ResponseEntity.ok(permissionService.getAllPermissions());
     }
 
+    @PreAuthorize(Authz.PERMISSIONS_READ)
     @GetMapping("/role-matrix")
     public ResponseEntity<List<RolePermissionsDto>> getRoleMatrix() {
         return ResponseEntity.ok(permissionService.getRolePermissionMatrix());

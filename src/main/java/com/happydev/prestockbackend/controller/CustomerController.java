@@ -1,5 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.CustomerDto;
 import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.service.CustomerService;
@@ -26,18 +28,21 @@ public class CustomerController {
         this.customerService = customerService;
     }
 
+    @PreAuthorize(Authz.CUSTOMER_LIST)
     @GetMapping
     public ResponseEntity<List<CustomerDto>> getAllCustomers() {
         List<CustomerDto> customers = customerService.findAllCustomers();
         return new ResponseEntity<>(customers, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.CUSTOMER_READ)
     @GetMapping("/paginated")
     public ResponseEntity<Page<CustomerDto>> getAllCustomers(@NonNull Pageable pageable) {
         Page<CustomerDto> customers = customerService.findAllCustomers(pageable);
         return new ResponseEntity<>(customers, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.CUSTOMER_READ)
     @GetMapping("/{id}")
     public ResponseEntity<CustomerDto> getCustomerById(@PathVariable @NonNull Long id) {
         return customerService.findCustomerById(id)
@@ -45,6 +50,7 @@ public class CustomerController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @PreAuthorize(Authz.CUSTOMER_CREATE)
     @PostMapping
     public ResponseEntity<CustomerDto> createCustomer(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -54,18 +60,21 @@ public class CustomerController {
         return new ResponseEntity<>(savedCustomer, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.CUSTOMER_EDIT)
     @PutMapping("/{id}")
     public ResponseEntity<CustomerDto> updateCustomer(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull CustomerDto customerDto) {
         CustomerDto updatedCustomer = customerService.updateCustomer(id, customerDto);
         return new ResponseEntity<>(updatedCustomer, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.CUSTOMER_QUICK)
     @PostMapping("/quick")
     public ResponseEntity<CustomerDto> createQuickCustomer(@Valid @RequestBody @NonNull QuickCustomerRequest request) {
         CustomerDto saved = customerService.createQuickCustomer(request);
         return new ResponseEntity<>(saved, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.CUSTOMER_EDIT)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCustomer(@PathVariable @NonNull Long id) {
         customerService.deleteCustomer(id);

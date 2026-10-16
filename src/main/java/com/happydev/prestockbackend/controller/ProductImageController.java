@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 
 import com.happydev.prestockbackend.dto.ProductImageDto;
 import com.happydev.prestockbackend.entity.Product;
@@ -66,6 +69,7 @@ public class ProductImageController {
         return new ResponseEntity<>(images, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.PRODUCT_EDIT)
     @PostMapping
     public ResponseEntity<ProductImageDto> uploadImage(@RequestParam("file") @NonNull MultipartFile file,
                                                        @RequestParam("productId") @NonNull Long productId) { //Recibe el archivo y el productId
@@ -118,6 +122,7 @@ public class ProductImageController {
         }
     }
 
+    @PreAuthorize(Authz.PRODUCT_EDIT)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteImage(@PathVariable @NonNull Long id) {
         ProductImage image = productImageRepository.findById(id)
@@ -132,6 +137,7 @@ public class ProductImageController {
         }
     }
 
+    @PreAuthorize(Authz.PRODUCT_EDIT)
     @PutMapping("/{id}")
     public ResponseEntity<ProductImageDto> updateImage(@PathVariable @NonNull Long id,
                                                        @RequestParam("file") @NonNull MultipartFile file) { //Solo el archivo

@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.SaleDto;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.service.SaleService;
@@ -26,6 +29,7 @@ public class InvoiceController {
     /**
      * Listado paginado de facturas (ventas completadas con NCF), con filtros opcionales.
      */
+    @PreAuthorize(Authz.INVOICE_LIST)
     @GetMapping
     public ResponseEntity<Page<SaleDto>> listInvoices(
             @RequestParam(required = false) String ncf,
@@ -40,6 +44,7 @@ public class InvoiceController {
         return ResponseEntity.ok(page);
     }
 
+    @PreAuthorize(Authz.INVOICE_READ)
     @GetMapping("/by-ncf/{ncf}")
     public ResponseEntity<SaleDto> getByNcf(@PathVariable @NonNull String ncf) {
         return saleService.findSaleByNcf(ncf)

@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.entity.NcfSequence;
 import com.happydev.prestockbackend.service.SequenceService;
 import jakarta.validation.Valid;
@@ -26,6 +29,7 @@ public class NcfSequenceController {
         this.sequenceService = sequenceService;
     }
 
+    @PreAuthorize(Authz.NCF_READ)
     @GetMapping("/{tipoComprobante}")
     public ResponseEntity<NcfSequence> getSequence(@PathVariable String tipoComprobante) {
         return sequenceService.findByTipoComprobante(tipoComprobante)
@@ -33,6 +37,7 @@ public class NcfSequenceController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @PreAuthorize(Authz.COMPANY_CONFIG_EDIT)
     @PutMapping
     public ResponseEntity<NcfSequence> saveOrUpdate(@Valid @RequestBody NcfSequence ncfSequence) {
         NcfSequence savedSequence = sequenceService.saveOrUpdate(
@@ -41,6 +46,7 @@ public class NcfSequenceController {
         return new ResponseEntity<>(savedSequence, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.NCF_CONSUME)
     @PostMapping("/{tipoComprobante}/next")
     public ResponseEntity<Map<String, String>> getNextNcf(@PathVariable String tipoComprobante) {
         String nextNcf = sequenceService.getNextSequence(tipoComprobante);

@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.StockMovementDto;
 import com.happydev.prestockbackend.entity.StockMovement;
 import com.happydev.prestockbackend.entity.StockMovementType;
@@ -26,6 +29,7 @@ public class StockMovementController {
         this.stockMovementService = stockMovementService;
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping
     public ResponseEntity<Page<StockMovementDto>> getAllMovements(
             @RequestParam(required = false) Long productId,
@@ -40,6 +44,7 @@ public class StockMovementController {
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping("/{id}")
     public ResponseEntity<StockMovementDto> getMovementById(@PathVariable @NonNull Long id) {
         return stockMovementService.getMovementById(id)
@@ -47,6 +52,7 @@ public class StockMovementController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping("/product/{productId}")
     public ResponseEntity<List<StockMovementDto>> getMovementsByProduct(@PathVariable @NonNull Long productId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByProduct(productId)
@@ -56,6 +62,7 @@ public class StockMovementController {
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping("/product/{productId}/range")
     public ResponseEntity<List<StockMovementDto>> getMovementsByProductAndDateRange(
             @PathVariable @NonNull Long productId,
@@ -70,6 +77,7 @@ public class StockMovementController {
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping("/type/{type}")
     public ResponseEntity<List<StockMovementDto>> getMovementsByType(@PathVariable @NonNull StockMovementType type) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByType(type)
@@ -79,6 +87,7 @@ public class StockMovementController {
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping("/sale/{saleId}")
     public ResponseEntity<List<StockMovementDto>> getMovementsBySale(@PathVariable @NonNull Long saleId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsBySale(saleId)
@@ -88,6 +97,7 @@ public class StockMovementController {
         return new ResponseEntity<>(movements, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.STOCK_MOVEMENTS)
     @GetMapping("/purchase-order/{purchaseOrderId}")
     public ResponseEntity<List<StockMovementDto>> getMovementsByPurchaseOrder(@PathVariable @NonNull Long purchaseOrderId) {
         List<StockMovementDto> movements = stockMovementService.getMovementsByPurchaseOrder(purchaseOrderId)

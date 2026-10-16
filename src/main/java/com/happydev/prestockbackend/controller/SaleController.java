@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.AddPaymentRequest;
 import com.happydev.prestockbackend.dto.CreateCreditNoteRequest;
 import com.happydev.prestockbackend.dto.CreditNoteDto;
@@ -34,18 +37,21 @@ public class SaleController {
         this.saleService = saleService;
     }
 
+    @PreAuthorize(Authz.SALES_LIST)
     @GetMapping
     public ResponseEntity<List<SaleDto>> getAllSales() {
         List<SaleDto> sales = saleService.findAllSales();
         return new ResponseEntity<>(sales, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.SALES_RECENT)
     @GetMapping("/paginated")
     public ResponseEntity<Page<SaleDto>> getAllSales(@NonNull Pageable pageable) {
         Page<SaleDto> sales = saleService.findAllSales(pageable);
         return new ResponseEntity<>(sales, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.SALES_SUMMARY)
     @GetMapping("/summary")
     public ResponseEntity<SaleSummaryDto> getSalesSummary(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
@@ -55,6 +61,7 @@ public class SaleController {
         return ResponseEntity.ok(saleService.getSalesSummary(startDate, endDate, status));
     }
 
+    @PreAuthorize(Authz.SALES_EXPORT)
     @GetMapping("/export")
     public ResponseEntity<String> exportSales(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
@@ -83,6 +90,7 @@ public class SaleController {
                 .body(csv);
     }
 
+    @PreAuthorize(Authz.SALE_READ)
     @GetMapping("/{id}")
     public ResponseEntity<SaleDto> getSaleById(@PathVariable @NonNull Long id) {
         return saleService.findSaleById(id)
@@ -90,6 +98,7 @@ public class SaleController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @PreAuthorize(Authz.SALE_WRITE)
     @PostMapping
     public ResponseEntity<SaleDto> createSale(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -99,6 +108,7 @@ public class SaleController {
         return new ResponseEntity<>(savedSale, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.SALE_WRITE)
     @PutMapping("/{id}")
     public ResponseEntity<SaleDto> updateSale(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull SaleDto saleDto) {
         SaleDto updatedSale = saleService.updateSale(id, saleDto);
@@ -106,12 +116,14 @@ public class SaleController {
     }
 
 
+    @PreAuthorize(Authz.SALE_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSale(@PathVariable @NonNull Long id) {
         saleService.deleteSale(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
+    @PreAuthorize(Authz.SALE_WRITE)
     @PutMapping("/{id}/complete")
     public ResponseEntity<SaleDto> completeSale(@PathVariable @NonNull Long id, Principal principal) {
         String actor = principal != null ? principal.getName() : null;
@@ -119,6 +131,7 @@ public class SaleController {
         return new ResponseEntity<>(completedSale, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.SALE_PAYMENT_CREATE)
     @PostMapping("/{id}/payments")
     public ResponseEntity<SalePaymentDto> addPayment(
             @PathVariable @NonNull Long id,
@@ -130,11 +143,13 @@ public class SaleController {
         return new ResponseEntity<>(dto, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.SALE_PAYMENTS)
     @GetMapping("/{id}/payments")
     public ResponseEntity<List<SalePaymentDto>> getPayments(@PathVariable @NonNull Long id) {
         return ResponseEntity.ok(saleService.getPaymentsForSale(id));
     }
 
+    @PreAuthorize(Authz.SALE_PAYMENTS)
     @DeleteMapping("/{id}/payments/{paymentId}")
     public ResponseEntity<SaleDto> voidPayment(
             @PathVariable @NonNull Long id,
@@ -145,6 +160,7 @@ public class SaleController {
         return ResponseEntity.ok(updatedSale);
     }
 
+    @PreAuthorize(Authz.SALE_SERVICE_ORDER)
     @PostMapping("/{saleId}/service-order/{serviceOrderId}")
     public ResponseEntity<SaleDto> linkToServiceOrder(
             @PathVariable @NonNull Long saleId,
@@ -152,16 +168,19 @@ public class SaleController {
         return ResponseEntity.ok(saleService.linkToServiceOrder(saleId, serviceOrderId));
     }
 
+    @PreAuthorize(Authz.SALE_SERVICE_ORDER)
     @DeleteMapping("/{saleId}/service-order")
     public ResponseEntity<SaleDto> unlinkFromServiceOrder(@PathVariable @NonNull Long saleId) {
         return ResponseEntity.ok(saleService.unlinkFromServiceOrder(saleId));
     }
 
+    @PreAuthorize(Authz.SALE_SERVICE_ORDER)
     @GetMapping("/by-service-order/{serviceOrderId}")
     public ResponseEntity<List<SaleDto>> findByServiceOrder(@PathVariable @NonNull Long serviceOrderId) {
         return ResponseEntity.ok(saleService.findByServiceOrderId(serviceOrderId));
     }
 
+    @PreAuthorize(Authz.CREDIT_NOTES)
     @PostMapping("/{id}/credit-notes")
     public ResponseEntity<CreditNoteDto> createCreditNote(
             @PathVariable @NonNull Long id,
@@ -173,6 +192,7 @@ public class SaleController {
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.CREDIT_NOTES)
     @GetMapping("/{id}/credit-notes")
     public ResponseEntity<List<CreditNoteDto>> getCreditNotes(@PathVariable @NonNull Long id) {
         return ResponseEntity.ok(saleService.getCreditNotesForSale(id));

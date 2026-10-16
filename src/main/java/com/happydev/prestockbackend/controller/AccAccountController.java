@@ -1,5 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.AccountDto;
 import com.happydev.prestockbackend.service.AccAccountService;
 import org.springframework.http.HttpStatus;
@@ -19,11 +21,13 @@ public class AccAccountController {
         this.accountService = accountService;
     }
 
+    @PreAuthorize(Authz.ACCOUNTING_READ)
     @GetMapping
     public ResponseEntity<List<AccountDto>> findAll() {
         return ResponseEntity.ok(accountService.findAll());
     }
 
+    @PreAuthorize(Authz.ACCOUNTING_READ)
     @GetMapping("/{id}")
     public ResponseEntity<AccountDto> findById(@PathVariable Long id) {
         return ResponseEntity.ok(accountService.findById(id));

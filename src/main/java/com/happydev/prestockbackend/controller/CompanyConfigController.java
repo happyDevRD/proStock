@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.entity.CompanyConfig;
 import com.happydev.prestockbackend.service.CompanyConfigService;
 import jakarta.validation.Valid;
@@ -30,6 +33,7 @@ public class CompanyConfigController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @PreAuthorize(Authz.COMPANY_CONFIG_EDIT)
     @PutMapping
     public ResponseEntity<CompanyConfig> saveOrUpdateCompanyConfig(@Valid @RequestBody CompanyConfig companyConfig) {
         CompanyConfig savedConfig = companyConfigService.saveOrUpdate(

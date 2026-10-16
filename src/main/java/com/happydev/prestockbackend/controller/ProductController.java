@@ -1,5 +1,8 @@
 package com.happydev.prestockbackend.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.happydev.prestockbackend.security.Authz;
+
 import com.happydev.prestockbackend.dto.BulkProductPromoRequest;
 import com.happydev.prestockbackend.dto.ProductDto;
 import com.happydev.prestockbackend.dto.StockAdjustmentRequestDto;
@@ -41,6 +44,7 @@ public class ProductController {
                             schema = @Schema(implementation = ProductDto.class))}), //Define el Schema
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize(Authz.PRODUCT_READ)
     @GetMapping
     public ResponseEntity<Page<ProductDto>> getAllProducts(@NonNull Pageable pageable) { //Recibe Pageable
         Page<ProductDto> products = productService.findAllProducts(pageable);
@@ -56,6 +60,7 @@ public class ProductController {
                     content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize(Authz.PRODUCT_READ)
     @GetMapping("/{id}")
     public ResponseEntity<ProductDto> getProductById(@PathVariable @NonNull Long id) {
         return productService.findProductById(id)
@@ -72,18 +77,21 @@ public class ProductController {
             @ApiResponse(responseCode = "400", description = "Invalid input"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize(Authz.PRODUCT_EDIT)
     @PostMapping
     public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody @NonNull ProductDto productDto) {
         ProductDto savedProduct = productService.saveProduct(productDto); //Guarda y retorna DTO
         return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.PRODUCT_EDIT)
     @PutMapping("/{id}")
     public ResponseEntity<ProductDto> updateProduct(@PathVariable @NonNull Long id, @RequestBody @NonNull ProductDto productDetails) {
         ProductDto updatedProduct = productService.updateProduct(id, productDetails);
         return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.PRODUCT_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable @NonNull Long id) {
         productService.deleteProduct(id);
@@ -91,36 +99,42 @@ public class ProductController {
     }
 
 
+    @PreAuthorize(Authz.LOW_STOCK)
     @GetMapping("/below-min-stock")
     public ResponseEntity<List<ProductDto>> getProductsBelowMinStock() {
         List<ProductDto> products = productService.findProductsBelowMinStock();
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.LOW_STOCK)
     @GetMapping("/below-min-stock/paginated")
     public ResponseEntity<Page<ProductDto>> getProductsBelowMinStock(@NonNull Pageable pageable) {
         Page<ProductDto> products = productService.findProductsBelowMinStock(pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.PRODUCT_READ)
     @GetMapping("/search")
     public ResponseEntity<Page<ProductDto>> searchProducts(@RequestParam("q") @NonNull String query, @NonNull Pageable pageable) {
         Page<ProductDto> products = productService.searchProducts(query, pageable);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
+    @PreAuthorize(Authz.PRODUCT_BULK_PRICE)
     @PostMapping("/bulk-promotional-pricing")
     public ResponseEntity<Void> bulkPromotionalPricing(@Valid @RequestBody @NonNull BulkProductPromoRequest request) {
         productService.bulkApplyPromotionalPricing(request);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
+    @PreAuthorize(Authz.PRODUCT_IMPORT)
     @PostMapping("/import-csv")
     public ResponseEntity<List<ProductDto>> importProductsFromCsv(@RequestParam("file") @NonNull MultipartFile file) {
         List<ProductDto> importedProducts = productService.importProductsFromCsv(file);
         return new ResponseEntity<>(importedProducts, HttpStatus.CREATED);
     }
 
+    @PreAuthorize(Authz.STOCK_ADJUST)
     @PostMapping("/{id}/stock-adjustments")
     public ResponseEntity<Void> adjustStock(@PathVariable @NonNull Long id, @Valid @RequestBody @NonNull StockAdjustmentRequestDto request) {
         StockMovementType type = Objects.requireNonNull(request.getType(), "Stock movement type is required");

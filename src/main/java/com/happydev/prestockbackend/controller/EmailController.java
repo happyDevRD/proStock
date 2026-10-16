@@ -25,7 +25,7 @@ public class EmailController {
      * Si no se indica, usa el email registrado del cliente de la venta.
      */
     @PostMapping("/invoice/{saleId}")
-    @PreAuthorize("hasAnyAuthority('invoice.view', 'ROLE_GESTOR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'view.invoice')")  // antes 'invoice.view', código inexistente
     public ResponseEntity<Map<String, String>> sendInvoice(
             @PathVariable Long saleId,
             @RequestBody(required = false) Map<String, String> body
