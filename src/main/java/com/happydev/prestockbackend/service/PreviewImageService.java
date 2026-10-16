@@ -2,14 +2,24 @@ package com.happydev.prestockbackend.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,11 +29,12 @@ import java.util.Iterator;
 import java.util.concurrent.Semaphore;
 
 /**
- * Versiones reducidas de las previas para el portal de selección, guardadas junto a
- * ellas en "2 Seleccion/.miniaturas" (carpeta oculta: no cuenta como material).
+ * Versiones reducidas y con marca de agua de las previas del portal de selección,
+ * guardadas junto a ellas en carpetas ocultas de "2 Seleccion" (no cuentan como material).
  *
  * <p>El backend corre con poca memoria (NAS de 1,75 GB): se decodifica con submuestreo
- * (nunca la imagen completa) y de a una a la vez.
+ * (nunca la imagen completa) y de a una a la vez. Si no se puede generar la versión
+ * reducida, falla: nunca se entrega el original al cliente.
  */
 @Service
 public class PreviewImageService {
@@ -44,37 +55,50 @@ public class PreviewImageService {
         }
     }
 
-    /** Ruta de la versión reducida (la genera si falta); si no se puede, la original. */
-    public Path resized(Path original, Size size) {
-        Path cached = original.getParent().resolve(size.cacheDir).resolve(original.getFileName() + ".jpg");
+    /**
+     * Ruta de la versión reducida, generándola si falta o si la previa cambió.
+     *
+     * @param watermark texto de la marca de agua; null o vacío = sin marca
+     * @throws IOException si no se pudo generar (el llamador no debe servir el original)
+     */
+    public Path resized(Path original, Size size, @Nullable String watermark) throws IOException {
+        String mark = watermark == null ? "" : watermark.trim();
+        // La carpeta depende del texto de la marca: si cambia, se regeneran todas.
+        String dir = size.cacheDir + (mark.isEmpty() ? "" : "-" + Integer.toHexString(mark.hashCode()));
+        Path cached = original.getParent().resolve(dir).resolve(original.getFileName() + ".jpg");
+        if (isFresh(cached, original)) return cached;
         try {
-            if (Files.exists(cached) && Files.getLastModifiedTime(cached).compareTo(Files.getLastModifiedTime(original)) >= 0) {
-                return cached;
-            }
             ONE_AT_A_TIME.acquire();
-            try {
-                if (!Files.exists(cached)) {
-                    BufferedImage img = readSubsampled(original, size.maxSide);
-                    if (img == null) return original;
-                    Files.createDirectories(cached.getParent());
-                    Path tmp = cached.resolveSibling(cached.getFileName() + ".tmp");
-                    ImageIO.write(scale(img, size.maxSide), "jpg", tmp.toFile());
-                    Files.move(tmp, cached, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-                }
-            } finally {
-                ONE_AT_A_TIME.release();
-            }
-            return cached;
-        } catch (IOException | RuntimeException e) {
-            log.warn("No se pudo reducir {}: {}", original, e.getMessage());
-            return original;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return original;
+            throw new IOException("Interrumpido", e);
+        }
+        try {
+            if (isFresh(cached, original)) return cached; // otro hilo la generó mientras esperaba
+            BufferedImage img = readSubsampled(original, size.maxSide);
+            if (img == null) throw new IOException("Formato de imagen no soportado: " + original.getFileName());
+            BufferedImage out = scale(img, size.maxSide);
+            if (!mark.isEmpty()) watermark(out, mark, size);
+            Files.createDirectories(cached.getParent());
+            Path tmp = cached.resolveSibling(cached.getFileName() + ".tmp");
+            writeJpeg(out, tmp, size == Size.THUMB ? 0.8f : 0.85f);
+            Files.move(tmp, cached, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return cached;
+        } catch (IOException | RuntimeException e) {
+            log.warn("No se pudo reducir {}: {}", original, e.toString());
+            throw e instanceof IOException io ? io : new IOException(e);
+        } finally {
+            ONE_AT_A_TIME.release();
         }
     }
 
+    private static boolean isFresh(Path cached, Path original) throws IOException {
+        return Files.exists(cached)
+                && Files.getLastModifiedTime(cached).compareTo(Files.getLastModifiedTime(original)) >= 0;
+    }
+
     /** Decodifica saltando píxeles para quedar cerca del tamaño pedido sin cargar la imagen completa. */
+    @Nullable
     private static BufferedImage readSubsampled(Path file, int maxSide) throws IOException {
         try (ImageInputStream in = ImageIO.createImageInputStream(file.toFile())) {
             if (in == null) return null;
@@ -111,5 +135,57 @@ public class PreviewImageService {
             g.dispose();
         }
         return out;
+    }
+
+    /**
+     * Texto del estudio repetido en diagonal, tenue: deja ver la foto para elegir pero
+     * la inutiliza como entrega. En miniaturas, una sola vez y más pequeño.
+     */
+    static void watermark(BufferedImage img, String text, Size size) {
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = img.getWidth();
+            int h = img.getHeight();
+            int fontSize = Math.max(12, Math.min(w, h) / (size == Size.THUMB ? 9 : 14));
+            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, fontSize));
+            FontMetrics fm = g.getFontMetrics();
+            int tw = fm.stringWidth(text);
+
+            AffineTransform base = g.getTransform();
+            g.rotate(Math.toRadians(-30), w / 2.0, h / 2.0);
+            int stepX = tw + fontSize * 3;
+            int stepY = fontSize * 5;
+            int diag = (int) Math.hypot(w, h);
+            for (int y = -diag / 2; y < h + diag / 2; y += stepY) {
+                int offset = ((y / stepY) % 2 == 0) ? 0 : stepX / 2;
+                for (int x = -diag / 2 - offset; x < w + diag / 2; x += stepX) {
+                    // Contorno oscuro + relleno claro: visible en fotos claras y oscuras
+                    g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f));
+                    g.setColor(Color.BLACK);
+                    g.drawString(text, x + 1, y + 1);
+                    g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.32f));
+                    g.setColor(Color.WHITE);
+                    g.drawString(text, x, y);
+                }
+            }
+            g.setTransform(base);
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private static void writeJpeg(BufferedImage img, Path target, float quality) throws IOException {
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("jpg").next();
+        try (ImageOutputStream out = ImageIO.createImageOutputStream(target.toFile())) {
+            writer.setOutput(out);
+            ImageWriteParam p = writer.getDefaultWriteParam();
+            p.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            p.setCompressionQuality(quality);
+            writer.write(null, new IIOImage(img, null, null), p);
+        } finally {
+            writer.dispose();
+        }
     }
 }

@@ -95,3 +95,10 @@ Técnico:
 - Miniaturas (480 px) y vista (1600 px) en `2 Seleccion/.miniaturas` y `.vista` (ocultas: no cuentan como material), generadas de a una con submuestreo por la poca memoria del NAS.
 - Exposición: el nginx de `iridiscencia-web` reenvía solo `/api/seleccion/` al backend, que está en la red `iridiscencia-web-net`. Ninguna otra ruta de ProStock llega a internet.
 - Variables: `SELECTION_PUBLIC_URL` (base de los enlaces), `SELECTION_EXTRA_SKU` (por defecto `ADI-FOTO-DIG`).
+
+### Mejoras del portal (fase 3 completa)
+
+- **Marca de agua**: miniaturas y vista ampliada llevan el nombre del estudio repetido en diagonal (tenue). `SELECTION_WATERMARK` cambia el texto; `off` la quita. Las versiones con marca se guardan en carpetas ocultas que dependen del texto (si cambia, se regeneran). Si no se puede generar, el portal no muestra la foto: nunca entrega la previa original. Requiere fuentes en la imagen (`ttf-dejavu` en el Dockerfile).
+- **Previas reemplazadas**: si el fotógrafo reexporta una previa, su miniatura se regenera.
+- **Seguimiento en la orden**: fecha del enlace, última actividad del cliente, lista de fotos marcadas/elegidas y botón "Recordar por WhatsApp" (a partir de 2 días sin confirmar).
+- **Aviso al estudio** al confirmar: nota en la orden y, si están `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` (el mismo bot del monitor), mensaje por Telegram.

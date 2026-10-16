@@ -40,6 +40,7 @@ class SelectionServiceTest {
     @Mock private ProductRepository productRepository;
     @Mock private CompanyConfigRepository companyConfigRepository;
     @Mock private ServiceOrderService serviceOrderService;
+    @Mock private StudioNotifier notifier;
     @TempDir Path root;
 
     private SelectionService service;
@@ -53,7 +54,7 @@ class SelectionServiceTest {
         WorkFolderService folders = new WorkFolderService(orderRepository, itemRepository, root.toString(), "");
         service = new SelectionService(selectionRepository, orderRepository, itemRepository, productRepository,
                 companyConfigRepository, serviceOrderService, folders, new ObjectMapper(),
-                "https://iridiscencia.com/seleccion/", "ADI-FOTO-DIG");
+                "https://iridiscencia.com/seleccion/", "ADI-FOTO-DIG", "", notifier);
 
         folder = Files.createDirectories(root.resolve("3 En seleccion").resolve("OS-2026-00009 Ana"));
         Path previews = Files.createDirectories(folder.resolve("2 Seleccion"));
@@ -155,6 +156,7 @@ class SelectionServiceTest {
         verify(serviceOrderService).advanceStage(eq(9L), adv.capture(), eq(SelectionService.CLIENT_ACTOR));
         assertEquals("EDITING", adv.getValue().stage());
         assertNotNull(sel.getSubmittedAt());
+        verify(notifier).send(contains("eligió 3 foto(s), 1 extra"));
         assertThrows(IllegalStateException.class, () -> service.saveDraft("tok", List.of()), "ya confirmada");
     }
 
@@ -175,6 +177,16 @@ class SelectionServiceTest {
         var created = service.create(9L, 25, 15, "admin");
         assertTrue(created.url().startsWith("https://iridiscencia.com/seleccion/"));
         assertEquals(3, created.previewCount());
+    }
+
+    @Test
+    void watermarkDefaultsToStudioNameAndCanBeTurnedOff() {
+        assertEquals("Iridiscencia", service.watermarkText());
+        SelectionService off = new SelectionService(selectionRepository, orderRepository, itemRepository, productRepository,
+                companyConfigRepository, serviceOrderService,
+                new WorkFolderService(orderRepository, itemRepository, root.toString(), ""), new ObjectMapper(),
+                "", "ADI-FOTO-DIG", "off", notifier);
+        assertNull(off.watermarkText());
     }
 
     @Test

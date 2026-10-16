@@ -9,6 +9,8 @@ RUN gradle bootJar --no-daemon
 # Runtime
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
+# Fuentes para dibujar texto con Java (marca de agua de las previas del portal de selección)
+RUN apk add --no-cache fontconfig ttf-dejavu
 RUN addgroup -S spring && adduser -S spring -G spring
 COPY --from=builder /workspace/build/libs/*.jar /app/app.jar
 RUN chown spring:spring /app/app.jar

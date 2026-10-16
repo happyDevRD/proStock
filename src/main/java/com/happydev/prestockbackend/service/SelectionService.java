@@ -71,6 +71,8 @@ public class SelectionService {
     private final ObjectMapper objectMapper;
     private final String publicUrl;
     private final String extraSku;
+    private final String watermark;
+    private final StudioNotifier notifier;
 
     public SelectionService(ServiceOrderSelectionRepository selectionRepository,
                             ServiceOrderRepository orderRepository,
@@ -81,7 +83,9 @@ public class SelectionService {
                             WorkFolderService workFolderService,
                             ObjectMapper objectMapper,
                             @Value("${app.selection.public-url:}") String publicUrl,
-                            @Value("${app.selection.extra-sku:ADI-FOTO-DIG}") String extraSku) {
+                            @Value("${app.selection.extra-sku:ADI-FOTO-DIG}") String extraSku,
+                            @Value("${app.selection.watermark:}") String watermark,
+                            StudioNotifier notifier) {
         this.selectionRepository = selectionRepository;
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
@@ -92,6 +96,19 @@ public class SelectionService {
         this.objectMapper = objectMapper;
         this.publicUrl = publicUrl.replaceAll("/+$", "");
         this.extraSku = extraSku;
+        this.watermark = watermark.trim();
+        this.notifier = notifier;
+    }
+
+    /**
+     * Texto de la marca de agua de las previas: el configurado, o el nombre del estudio.
+     * "off" la desactiva.
+     */
+    @Transactional(readOnly = true)
+    @Nullable
+    public String watermarkText() {
+        if ("off".equalsIgnoreCase(watermark)) return null;
+        return watermark.isEmpty() ? companyName() : watermark;
     }
 
     // ── Administración ──────────────────────────────────────────────────────
@@ -130,6 +147,7 @@ public class SelectionService {
             throw new IllegalStateException("El cliente ya confirmó su selección.");
         }
         sel.setToken(newToken());
+        sel.setCreatedAt(LocalDateTime.now());
         sel.setQuota(quota);
         sel.setExpiresAt(LocalDateTime.now().plusDays(expiresInDays));
         sel.setExtraProduct(extraProduct().orElse(null));
@@ -216,6 +234,11 @@ public class SelectionService {
                     p.getId(), extra, basePrice(p), "Fotos extra elegidas por el cliente en la web"));
         }
         prepareEditingFolder(folderOf(sel), chosen, sel, extra);
+        Customer customer = order.getCustomer();
+        notifier.send("Selección confirmada: " + order.getOrderNumber()
+                + (customer != null ? " (" + (customer.getFirstName() + " " + Optional.ofNullable(customer.getLastName()).orElse("")).trim() + ")" : "")
+                + " eligió " + chosen.size() + " foto(s)" + (extra > 0 ? ", " + extra + " extra" : "")
+                + ". Ya está en «4 En edicion».");
         serviceOrderService.advanceStage(order.getId(), new AdvanceStageRequest("EDITING", ServiceOrderStatus.IN_PROGRESS,
                 "Selección confirmada por el cliente: " + chosen.size() + " foto(s)" + (extra > 0 ? ", " + extra + " extra" : "")),
                 CLIENT_ACTOR);
@@ -399,7 +422,10 @@ public class SelectionService {
                 selected(sel).size(),
                 sel.getSubmittedAt(),
                 sel.getExtraCount(),
-                sel.getExtraProduct() != null ? inclusivePrice(sel.getExtraProduct()) : null);
+                sel.getExtraProduct() != null ? inclusivePrice(sel.getExtraProduct()) : null,
+                selected(sel),
+                sel.getCreatedAt(),
+                sel.getUpdatedAt());
     }
 
     private ServiceOrder order(Long id) {

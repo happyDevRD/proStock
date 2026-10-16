@@ -45,8 +45,15 @@ public class PublicSelectionController {
                                           @PathVariable String name,
                                           @RequestParam(defaultValue = "thumb") String size) {
         Path original = selectionService.preview(token, name);
-        Path file = imageService.resized(original,
-                "view".equals(size) ? PreviewImageService.Size.VIEW : PreviewImageService.Size.THUMB);
+        Path file;
+        try {
+            file = imageService.resized(original,
+                    "view".equals(size) ? PreviewImageService.Size.VIEW : PreviewImageService.Size.THUMB,
+                    selectionService.watermarkText());
+        } catch (java.io.IOException e) {
+            // Nunca se entrega el original: sin versión reducida, no hay foto.
+            return ResponseEntity.status(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
         MediaType type = MediaTypeFactory.getMediaType(file.getFileName().toString()).orElse(MediaType.IMAGE_JPEG);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(1, TimeUnit.DAYS).cachePrivate())

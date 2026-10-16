@@ -23,7 +23,12 @@ public final class SelectionDtos {
             int selectedCount,
             LocalDateTime submittedAt,
             int extraCount,
-            BigDecimal extraUnitPrice
+            BigDecimal extraUnitPrice,
+            /** Nombres de las previas marcadas por el cliente (borrador o confirmadas) */
+            List<String> selectedFiles,
+            /** Cuándo se generó el enlace actual y la última vez que el cliente marcó algo */
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
     ) {}
 
     /** Valores sugeridos antes de generar el enlace (cupo según los combos de la orden). */
