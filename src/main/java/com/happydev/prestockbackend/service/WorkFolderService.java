@@ -4,6 +4,7 @@ import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.entity.Employee;
 import com.happydev.prestockbackend.entity.ServiceOrder;
 import com.happydev.prestockbackend.entity.ServiceOrderItem;
+import com.happydev.prestockbackend.entity.ServiceOrderStatus;
 import com.happydev.prestockbackend.entity.ServiceOrderType;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.ServiceOrderItemRepository;
@@ -38,9 +39,13 @@ import java.util.Map;
  *     INFO.txt   1 Camara/   2 Seleccion/   3 Edicion/   4 Final/
  * </pre>
  *
+ * Al cambiar de etapa la carpeta se mueve a la carpeta de la etapa nueva
+ * (renombrado dentro del mismo volumen: instantáneo sin importar el tamaño).
+ *
  * La función se activa solo si {@code app.work-folders.root} apunta a un
  * directorio existente. Cualquier error de disco se registra y se reintenta
- * con el botón "Crear carpeta"; nunca bloquea la orden.
+ * en el siguiente cambio de la orden o con el botón del detalle; nunca
+ * bloquea la orden.
  */
 @Service
 public class WorkFolderService {
@@ -56,6 +61,7 @@ public class WorkFolderService {
             "READY", "5 Listas para entregar",
             "DELIVERED", "6 Entregadas"
     );
+    static final String CANCELLED_DIR = "7 Canceladas";
     static final List<String> SUBFOLDERS = List.of("1 Camara", "2 Seleccion", "3 Edicion", "4 Final");
     static final String INFO_FILE = "INFO.txt";
 
@@ -104,9 +110,10 @@ public class WorkFolderService {
     }
 
     /**
-     * Crea la carpeta si falta y reescribe INFO.txt. Idempotente: si la carpeta
-     * existe, solo actualiza la información. Lanza IOException para que el
-     * botón manual pueda mostrar el error.
+     * Deja la carpeta de la orden donde corresponde: la crea si falta, la mueve
+     * a la carpeta de su etapa actual y reescribe INFO.txt. Idempotente. Lanza
+     * IOException (después de actualizar lo que sí pudo) para que el botón
+     * manual muestre el error.
      */
     @Transactional
     public void sync(Long orderId) throws IOException {
@@ -115,20 +122,81 @@ public class WorkFolderService {
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceOrder", "id", orderId));
         if (order.getOrderType() != ServiceOrderType.PHOTOGRAPHY) return;
 
-        Path folder;
-        if (order.getWorkFolder() != null && Files.isDirectory(root.resolve(order.getWorkFolder()))) {
-            folder = root.resolve(order.getWorkFolder());
-        } else {
-            folder = root.resolve(stageDir(order.getCurrentStage())).resolve(folderName(order));
+        Path targetDir = root.resolve(targetDir(order));
+        Path folder = locate(order);
+        IOException moveError = null;
+
+        if (folder == null) {
+            folder = uniqueChild(targetDir, folderName(order));
             Files.createDirectories(folder);
-            order.setWorkFolder(root.relativize(folder).toString().replace('\\', '/'));
-            orderRepository.save(order);
             log.info("Carpeta creada para {}: {}", order.getOrderNumber(), folder);
+        } else if (!folder.getParent().equals(targetDir)) {
+            Files.createDirectories(targetDir);
+            Path dest = uniqueChild(targetDir, folder.getFileName().toString());
+            try {
+                Files.move(folder, dest, StandardCopyOption.ATOMIC_MOVE);
+                log.info("Carpeta de {} movida a {}", order.getOrderNumber(), dest);
+                folder = dest;
+            } catch (IOException e) {
+                // Típicamente un archivo abierto por SMB; se reintenta en el próximo cambio.
+                moveError = new IOException("No se pudo mover la carpeta a \"" + targetDir.getFileName()
+                        + "\": " + e.getMessage() + ". ¿Hay archivos abiertos en ella?", e);
+                log.warn("No se pudo mover la carpeta de {} a {}: {}", order.getOrderNumber(), dest, e.toString());
+            }
+        }
+
+        String relative = root.relativize(folder).toString().replace('\\', '/');
+        if (!relative.equals(order.getWorkFolder())) {
+            order.setWorkFolder(relative);
+            orderRepository.save(order);
         }
         for (String sub : SUBFOLDERS) {
             Files.createDirectories(folder.resolve(sub));
         }
         writeAtomically(folder.resolve(INFO_FILE), info(order));
+        if (moveError != null) throw moveError;
+    }
+
+    static String targetDir(ServiceOrder order) {
+        if (order.getStatus() == ServiceOrderStatus.CANCELLED) return CANCELLED_DIR;
+        return stageDir(order.getCurrentStage());
+    }
+
+    /**
+     * La carpeta guardada si sigue existiendo; si no (alguien la movió a mano),
+     * la busca por número de orden en las carpetas de etapa.
+     */
+    @Nullable
+    private Path locate(ServiceOrder order) throws IOException {
+        if (order.getWorkFolder() != null) {
+            Path stored = root.resolve(order.getWorkFolder());
+            if (Files.isDirectory(stored)) return stored;
+        }
+        String number = order.getOrderNumber();
+        try (var stages = Files.list(root)) {
+            for (Path stage : stages.filter(Files::isDirectory).toList()) {
+                try (var folders = Files.list(stage)) {
+                    var found = folders
+                            .filter(Files::isDirectory)
+                            .filter(f -> {
+                                String name = f.getFileName().toString();
+                                return name.equals(number) || name.startsWith(number + " ");
+                            })
+                            .findFirst();
+                    if (found.isPresent()) return found.get();
+                }
+            }
+        }
+        return null;
+    }
+
+    /** dir/name, o "name (2)", "name (3)"… si ya existe otra carpeta con ese nombre. */
+    private static Path uniqueChild(Path dir, String name) {
+        Path candidate = dir.resolve(name);
+        for (int n = 2; Files.exists(candidate); n++) {
+            candidate = dir.resolve(name + " (" + n + ")");
+        }
+        return candidate;
     }
 
     static String stageDir(String stage) {

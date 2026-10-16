@@ -3,6 +3,7 @@ package com.happydev.prestockbackend.service;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.entity.Employee;
 import com.happydev.prestockbackend.entity.ServiceOrder;
+import com.happydev.prestockbackend.entity.ServiceOrderStatus;
 import com.happydev.prestockbackend.entity.ServiceOrderType;
 import com.happydev.prestockbackend.repository.ServiceOrderItemRepository;
 import com.happydev.prestockbackend.repository.ServiceOrderRepository;
@@ -88,12 +89,11 @@ class WorkFolderServiceTest {
         String first = order.getWorkFolder();
 
         order.getCustomer().setFirstName("Mariela");
-        order.setCurrentStage("SELECTION");
         service.sync(7L);
 
         assertEquals(first, order.getWorkFolder());
-        try (var dirs = Files.list(root)) {
-            assertEquals(1, dirs.count());
+        try (var dirs = Files.list(root.resolve("1 Agendadas"))) {
+            assertEquals(1, dirs.count(), "no crea otra carpeta aunque cambie el nombre del cliente");
         }
         String info = Files.readString(root.resolve(first).resolve("INFO.txt"), StandardCharsets.UTF_8);
         assertTrue(info.contains("Cliente: Mariela Pérez"));
@@ -131,5 +131,65 @@ class WorkFolderServiceTest {
         assertEquals("\\\\ESTUDIO-NAS-01\\Ordenes\\1 Agendadas\\OS-2026-00007 María Pérez",
                 service.displayPath("1 Agendadas/OS-2026-00007 María Pérez"));
         assertNull(service.displayPath(null));
+    }
+
+    @Test
+    void movesFolderWhenStageChanges() throws Exception {
+        given(orderRepository.findById(7L)).willReturn(Optional.of(order));
+        given(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(7L)).willReturn(List.of());
+        service.sync(7L);
+        Files.writeString(root.resolve(order.getWorkFolder()).resolve("1 Camara").resolve("IMG_0001.CR3"), "raw");
+
+        order.setCurrentStage("SELECTION");
+        service.sync(7L);
+
+        assertEquals("3 En seleccion/OS-2026-00007 María Pérez", order.getWorkFolder());
+        Path moved = root.resolve("3 En seleccion").resolve("OS-2026-00007 María Pérez");
+        assertTrue(Files.exists(moved.resolve("1 Camara").resolve("IMG_0001.CR3")), "el contenido se mueve con la carpeta");
+        assertFalse(Files.exists(root.resolve("1 Agendadas").resolve("OS-2026-00007 María Pérez")));
+    }
+
+    @Test
+    void cancelledOrdersGoToCancelledFolder() throws Exception {
+        given(orderRepository.findById(7L)).willReturn(Optional.of(order));
+        given(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(7L)).willReturn(List.of());
+        service.sync(7L);
+
+        order.setStatus(ServiceOrderStatus.CANCELLED);
+        order.setCurrentStage("CANCELLED");
+        service.sync(7L);
+
+        assertEquals("7 Canceladas/OS-2026-00007 María Pérez", order.getWorkFolder());
+    }
+
+    @Test
+    void findsFolderMovedByHandInsteadOfCreatingAnother() throws Exception {
+        given(orderRepository.findById(7L)).willReturn(Optional.of(order));
+        given(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(7L)).willReturn(List.of());
+        service.sync(7L);
+        // Alguien la arrastró a otra etapa desde el Explorador
+        Files.createDirectories(root.resolve("4 En edicion"));
+        Files.move(root.resolve(order.getWorkFolder()), root.resolve("4 En edicion").resolve("OS-2026-00007 María Pérez"));
+
+        order.setCurrentStage("SESSION");
+        service.sync(7L);
+
+        assertEquals("2 En sesion/OS-2026-00007 María Pérez", order.getWorkFolder());
+        try (var edicion = Files.list(root.resolve("4 En edicion"))) {
+            assertEquals(0, edicion.count());
+        }
+    }
+
+    @Test
+    void doesNotOverwriteAnExistingFolderWithTheSameName() throws Exception {
+        given(orderRepository.findById(7L)).willReturn(Optional.of(order));
+        given(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(7L)).willReturn(List.of());
+        service.sync(7L);
+        Files.createDirectories(root.resolve("2 En sesion").resolve("OS-2026-00007 María Pérez"));
+
+        order.setCurrentStage("SESSION");
+        service.sync(7L);
+
+        assertEquals("2 En sesion/OS-2026-00007 María Pérez (2)", order.getWorkFolder());
     }
 }

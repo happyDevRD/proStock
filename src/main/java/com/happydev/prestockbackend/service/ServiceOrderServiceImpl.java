@@ -376,6 +376,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         auditService.record(actor, "SERVICE_ORDER_CANCELLED", "ServiceOrder", id,
                 "OS " + order.getOrderNumber() + " cancelada");
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(id));
         return toListDto(orderRepository.save(order));
     }
 
@@ -410,6 +411,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         auditService.record(actor, "SERVICE_ORDER_COMPLETED", "ServiceOrder", id,
                 "OS " + order.getOrderNumber() + " completada");
 
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(id));
         return toListDto(orderRepository.save(order));
     }
 

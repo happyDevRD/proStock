@@ -11,7 +11,8 @@ Ordenes/                                ← carpeta compartida de DSM (raíz)
 ├── 3 En seleccion/
 ├── 4 En edicion/
 ├── 5 Listas para entregar/
-└── 6 Entregadas/
+├── 6 Entregadas/
+└── 7 Canceladas/
       └── OS-2026-00123 Maria Perez/
             ├── INFO.txt      ← cliente, teléfono, evento, fecha, fotógrafo, editor, servicios
             ├── 1 Camara/     ← material tal como sale de la cámara
@@ -29,10 +30,16 @@ Ordenes/                                ← carpeta compartida de DSM (raíz)
 | Fase | Estado | Qué hace |
 |---|---|---|
 | 1 | Hecha | Carpeta e `INFO.txt` al crear la orden; fotógrafo y editor asignables; ruta visible en el detalle; botón "Crear carpeta" para órdenes viejas o si falló |
-| 2 | Pendiente | Al avanzar de etapa, la carpeta se mueve a la carpeta de la etapa nueva |
+| 2 | Hecha | Al avanzar de etapa (o cancelar/entregar), la carpeta se mueve a la carpeta de la etapa nueva |
 | 3 | Pendiente | Portal web de selección para el cliente |
 
-Hasta la fase 2, la carpeta se queda en la etapa en que se creó (normalmente `1 Agendadas`).
+## Movimiento entre etapas (fase 2)
+
+- Cada cambio de la orden deja la carpeta en la carpeta de su etapa actual (`7 Canceladas` si se canceló). Es un renombrado dentro del mismo volumen: instantáneo y sin copiar.
+- Si alguien la movió a mano, se busca por número de orden (`OS-AAAA-NNNNN …`) en todas las carpetas de etapa antes de crear otra.
+- Si en el destino ya hay una carpeta con el mismo nombre, se usa `… (2)`; nunca se sobrescribe.
+- Si no se puede mover (normalmente archivos abiertos por SMB), la carpeta se queda donde estaba, se registra en el log y el detalle de la orden muestra un aviso con el botón "Mover carpeta". También se reintenta sola en el siguiente cambio de la orden.
+- Conviene cerrar los archivos de la carpeta antes de avanzar la etapa: un programa que tenga un archivo abierto (Photoshop, Lightroom) puede fallar al guardar después del movimiento.
 
 ## Cómo funciona
 
