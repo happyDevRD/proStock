@@ -6,5 +6,7 @@ public enum UserRole {
     MANAGER,
     CONTADOR,
     CASHIER,
-    USER
+    USER,
+    /** Fotógrafo o editor: solo ve "Mis trabajos" (órdenes asignadas) y avanza su parte. */
+    PRODUCCION
 }

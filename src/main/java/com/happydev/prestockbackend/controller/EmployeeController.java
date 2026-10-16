@@ -1,5 +1,15 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.LinkableUserDto;
+import com.happydev.prestockbackend.entity.Employee;
+import com.happydev.prestockbackend.entity.User;
+import com.happydev.prestockbackend.entity.UserRole;
+import com.happydev.prestockbackend.repository.EmployeeRepository;
+import com.happydev.prestockbackend.repository.UserRepository;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.happydev.prestockbackend.dto.AttendanceRecordDto;
 import com.happydev.prestockbackend.dto.CommissionSummaryDto;
 import com.happydev.prestockbackend.dto.EmployeeDto;
@@ -23,9 +33,34 @@ import java.util.List;
 public class EmployeeController {
 
     private final EmployeeService employeeService;
+    private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
 
-    public EmployeeController(EmployeeService employeeService) {
+    public EmployeeController(EmployeeService employeeService,
+                              UserRepository userRepository,
+                              EmployeeRepository employeeRepository) {
         this.employeeService = employeeService;
+        this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
+    }
+
+    /** Usuarios del sistema para vincular a un empleado (indica cuáles ya están vinculados). */
+    @GetMapping("/linkable-users")
+    @PreAuthorize("hasAnyAuthority('employees.create', 'employees.edit')")
+    public ResponseEntity<List<LinkableUserDto>> linkableUsers() {
+        Map<Long, String> linked = employeeRepository.findAll().stream()
+                .filter(e -> e.getUserId() != null)
+                .collect(Collectors.toMap(Employee::getUserId, Employee::getNombreCompleto, (a, b) -> a));
+        return ResponseEntity.ok(userRepository.findAll().stream()
+                .filter(u -> u.getRole() != UserRole.GESTOR)
+                .sorted(Comparator.comparing(User::getUsername, String.CASE_INSENSITIVE_ORDER))
+                .map(u -> new LinkableUserDto(
+                        u.getId(), u.getUsername(),
+                        ((u.getFirstName() != null ? u.getFirstName() : "") + " "
+                                + (u.getLastName() != null ? u.getLastName() : "")).trim(),
+                        u.getRole().name(),
+                        linked.get(u.getId())))
+                .toList());
     }
 
     // ── CRUD empleados ──────────────────────────────────────────────────────

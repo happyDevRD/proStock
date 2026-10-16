@@ -4,6 +4,7 @@ package com.happydev.prestockbackend.config;
 import com.happydev.prestockbackend.entity.UserRole;
 import com.happydev.prestockbackend.repository.UserRepository;
 import com.happydev.prestockbackend.security.JwtAuthenticationFilter;
+import com.happydev.prestockbackend.security.ProductionRoleAccessFilter;
 import com.happydev.prestockbackend.security.LoginRateLimitFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -99,7 +100,9 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(loginRateLimitFilter, JwtAuthenticationFilter.class);
+                .addFilterBefore(loginRateLimitFilter, JwtAuthenticationFilter.class)
+                // Fotógrafos y editores: solo "Mis trabajos" (lista blanca, ver la clase)
+                .addFilterAfter(new ProductionRoleAccessFilter(), JwtAuthenticationFilter.class);
         return http.build();
     }
 

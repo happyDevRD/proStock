@@ -28,6 +28,12 @@ public class EmployeeDto {
     private EmployeeStatus status;
     private String fotoUrl;
     private String notas;
+    /** null = no cambiar (en actualizaciones parciales desde pantallas sin estos campos) */
+    private Boolean esFotografo;
+    private Boolean esEditor;
+    private Long userId;
+    /** Solo lectura: usuario vinculado */
+    private String username;
     private String createdBy;
     private LocalDateTime createdAt;
 }

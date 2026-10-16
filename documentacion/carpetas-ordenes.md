@@ -56,3 +56,20 @@ Ordenes/                                ← carpeta compartida de DSM (raíz)
 | `WORK_FOLDERS_DISPLAY_PREFIX` | `\\ESTUDIO-NAS-01\Ordenes` | Cómo ve la raíz el personal; se antepone a la ruta en la interfaz |
 
 En el NAS de Iridiscencia el compose monta `/volume1/Ordenes:/data/ordenes`. El backend corre como `spring` (uid 100, gid 101), y el gid 101 del NAS es el grupo `administrators`, así que la carpeta compartida debe dar lectura/escritura a `administrators`.
+
+## Fotógrafos y editores: rol PRODUCCION y "Mis trabajos"
+
+- **Funciones del empleado**: casillas Fotógrafo y Editor (puede tener ambas). En la orden, cada lista muestra a quienes tienen esa función, más el ya asignado. "+ Nuevo" crea el empleado con solo nombre y funciones (`POST /api/service-orders/staff`, requiere `employees.create`).
+- **Empleado ↔ usuario**: `employees.user_id` (único). Se elige en el formulario del empleado ("Usuario del sistema"); `GET /api/employees/linkable-users` lista los usuarios e indica los ya vinculados.
+- **Rol PRODUCCION**: solo tiene `view.my_work`. Entra directo a "Mis trabajos" (`/api/my-work`): sus órdenes abiertas como fotógrafo o editor, sin montos ni cobros, con la carpeta del NAS y notas.
+- **Pasos permitidos** (validados en `MyWorkService`, no en la interfaz):
+
+| Etapa actual | Quién | Acción | Etapa nueva |
+|---|---|---|---|
+| Agendada | Fotógrafo | Sesión realizada | Sesión |
+| Sesión | Fotógrafo | Fotos cargadas: pasar a selección | Selección |
+| Edición | Editor | Edición terminada | Lista |
+
+  Selección → Edición (cliente) y la entrega (cobro del saldo) siguen en manos de administración. Una orden ajena responde 404, como si no existiera.
+- **Lista blanca de API** (`ProductionRoleAccessFilter`): el rol PRODUCCION solo llega a `/api/auth/**`, `/api/my-work/**` y lecturas de `features`, `modules/flags`, `company-config` y `portal/company-info`. Hace falta porque muchos endpoints de lectura solo exigen estar autenticado. El frontend no pide datos de negocio para este rol.
+- Migración `V49`: `employees.es_fotografo`, `es_editor`, `user_id`; permiso `view.my_work` para GESTOR, ADMIN, MANAGER y PRODUCCION.

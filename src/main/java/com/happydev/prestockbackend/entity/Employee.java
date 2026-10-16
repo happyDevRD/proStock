@@ -74,6 +74,17 @@ public class Employee {
     @Column(columnDefinition = "TEXT")
     private String notas;
 
+    // Funciones de producción (fotografía): puede tener ambas
+    @Column(name = "es_fotografo", nullable = false)
+    private boolean esFotografo = false;
+
+    @Column(name = "es_editor", nullable = false)
+    private boolean esEditor = false;
+
+    /** Usuario con el que este empleado entra al sistema (opcional, uno a uno). */
+    @Column(name = "user_id", unique = true)
+    private Long userId;
+
     @Column(name = "created_by", length = 100)
     private String createdBy;
 

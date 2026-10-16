@@ -120,4 +120,14 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, Long
             GROUP BY o.orderType
             """)
     List<Object[]> countCompletedGroupByType(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** Órdenes abiertas donde el empleado es fotógrafo o editor ("Mis trabajos"). */
+    @Query("""
+            SELECT o FROM ServiceOrder o
+            WHERE (o.photographer.id = :employeeId OR o.editor.id = :employeeId)
+              AND o.status NOT IN :closed
+            ORDER BY o.appointmentDate ASC NULLS LAST, o.id ASC
+            """)
+    List<ServiceOrder> findAssignedTo(@Param("employeeId") Long employeeId,
+                                      @Param("closed") List<ServiceOrderStatus> closed);
 }

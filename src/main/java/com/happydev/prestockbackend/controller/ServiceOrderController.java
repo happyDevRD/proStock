@@ -1,7 +1,9 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.ServiceOrderStaffDto;
+import com.happydev.prestockbackend.dto.QuickStaffRequest;
 import com.happydev.prestockbackend.entity.Employee;
+import com.happydev.prestockbackend.entity.EmployeeDepartment;
 import com.happydev.prestockbackend.entity.EmployeeStatus;
 import com.happydev.prestockbackend.repository.EmployeeRepository;
 import com.happydev.prestockbackend.service.WorkFolderService;
@@ -53,8 +55,37 @@ public class ServiceOrderController {
         return ResponseEntity.ok(employeeRepository.findAll().stream()
                 .filter(e -> e.getStatus() == EmployeeStatus.ACTIVO)
                 .sorted(java.util.Comparator.comparing(Employee::getNombreCompleto, String.CASE_INSENSITIVE_ORDER))
-                .map(e -> new ServiceOrderStaffDto(e.getId(), e.getNombreCompleto(), e.getCargo()))
+                .map(this::toStaffDto)
                 .toList());
+    }
+
+    /**
+     * Crea un empleado con lo mínimo (nombre y funciones) desde el formulario de la orden.
+     * El resto de datos (cédula, salario…) se completa luego en Empleados.
+     */
+    @PostMapping("/staff")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'employees.create')")
+    public ResponseEntity<ServiceOrderStaffDto> createStaff(@Valid @RequestBody QuickStaffRequest request,
+                                                            Principal principal) {
+        accessGuard.requireEnabled();
+        if (!request.fotografo() && !request.editor()) {
+            throw new IllegalArgumentException("Marca al menos una función: fotógrafo o editor.");
+        }
+        Employee e = new Employee();
+        e.setNombreCompleto(request.nombreCompleto().trim());
+        e.setCargo(request.fotografo() && request.editor() ? "Fotógrafo y editor"
+                : request.fotografo() ? "Fotógrafo" : "Editor");
+        e.setDepartamento(EmployeeDepartment.PRODUCCION);
+        e.setFechaIngreso(java.time.LocalDate.now());
+        e.setEsFotografo(request.fotografo());
+        e.setEsEditor(request.editor());
+        e.setCreatedBy(principal != null ? principal.getName() : null);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(toStaffDto(employeeRepository.save(e)));
+    }
+
+    private ServiceOrderStaffDto toStaffDto(Employee e) {
+        return new ServiceOrderStaffDto(e.getId(), e.getNombreCompleto(), e.getCargo(), e.isEsFotografo(), e.isEsEditor());
     }
 
     @GetMapping("/work-folders/status")

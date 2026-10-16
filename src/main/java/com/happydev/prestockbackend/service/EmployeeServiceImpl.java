@@ -8,6 +8,7 @@ import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.AttendanceRecordRepository;
 import com.happydev.prestockbackend.repository.EmployeeRepository;
 import com.happydev.prestockbackend.repository.SaleRepository;
+import com.happydev.prestockbackend.repository.UserRepository;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
@@ -29,13 +30,16 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final SaleRepository saleRepository;
+    private final UserRepository userRepository;
 
     public EmployeeServiceImpl(EmployeeRepository employeeRepository,
                                AttendanceRecordRepository attendanceRepository,
-                               SaleRepository saleRepository) {
+                               SaleRepository saleRepository,
+                               UserRepository userRepository) {
         this.employeeRepository = employeeRepository;
         this.attendanceRepository = attendanceRepository;
         this.saleRepository = saleRepository;
+        this.userRepository = userRepository;
     }
 
     // ── Empleados ───────────────────────────────────────────────────────────
@@ -174,6 +178,24 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     // ── Mappers internos ────────────────────────────────────────────────────
 
+    /** Vincula (o desvincula con null) el usuario del sistema; un usuario solo puede ser un empleado. */
+    private void linkUser(Employee emp, Long userId) {
+        if (userId == null) {
+            emp.setUserId(null);
+            return;
+        }
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
+        employeeRepository.findByUserId(userId)
+                .filter(other -> !other.getId().equals(emp.getId()))
+                .ifPresent(other -> {
+                    throw new IllegalArgumentException(
+                            "Ese usuario ya está vinculado al empleado " + other.getNombreCompleto() + ".");
+                });
+        emp.setUserId(userId);
+    }
+
     private Employee fromDto(Employee emp, EmployeeDto dto) {
         emp.setNombreCompleto(dto.getNombreCompleto());
         emp.setCedula(dto.getCedula());
@@ -193,6 +215,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setStatus(dto.getStatus() != null ? dto.getStatus() : EmployeeStatus.ACTIVO);
         emp.setFotoUrl(dto.getFotoUrl());
         emp.setNotas(dto.getNotas());
+        if (dto.getEsFotografo() != null) emp.setEsFotografo(dto.getEsFotografo());
+        if (dto.getEsEditor() != null) emp.setEsEditor(dto.getEsEditor());
+        linkUser(emp, dto.getUserId());
         return emp;
     }
 
@@ -217,6 +242,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         dto.setStatus(emp.getStatus());
         dto.setFotoUrl(emp.getFotoUrl());
         dto.setNotas(emp.getNotas());
+        dto.setEsFotografo(emp.isEsFotografo());
+        dto.setEsEditor(emp.isEsEditor());
+        dto.setUserId(emp.getUserId());
+        if (emp.getUserId() != null) {
+            userRepository.findById(emp.getUserId()).ifPresent(u -> dto.setUsername(u.getUsername()));
+        }
         dto.setCreatedBy(emp.getCreatedBy());
         dto.setCreatedAt(emp.getCreatedAt());
         return dto;
