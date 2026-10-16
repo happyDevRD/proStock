@@ -81,3 +81,17 @@ En el NAS de Iridiscencia el compose monta `/volume1/Ordenes:/data/ordenes`. El 
 - **Filtro por responsable** en el tablero (`GET /paginated?staffId=`): órdenes donde esa persona es fotógrafo o editor. Las tarjetas muestran fotógrafo y editor.
 - **WhatsApp al cliente**: el detalle de la orden ofrece un enlace `wa.me` con el mensaje ya escrito según la etapa (Selección: fotos listas para elegir; Lista: fotos listas para entregar, con el saldo pendiente si hay). Los números de RD de 10 dígitos se completan con el 1.
 - **Salarios**: el backend ya no devuelve `salarioBase`, `tipoSalario` ni `comisionPorcentaje` a quien no tiene `employees.view_salary`, y al guardar no los modifica.
+
+## Fase 3: el cliente elige sus fotos en la web
+
+1. El fotógrafo exporta previas en JPG (idealmente con marca de agua) a `2 Seleccion` y marca "Fotos cargadas"; la orden queda en Selección.
+2. En el detalle de la orden, "Selección del cliente en la web": cupo sugerido según los combos (primer "N fotos" de la descripción × cantidad), vigencia (15 días por defecto) → **Generar enlace** → copiar o **Enviar enlace por WhatsApp**.
+3. El cliente abre `https://iridiscencia.com/seleccion/<token>`, marca sus fotos (se guardan solas como borrador), las ve en grande y confirma. Si elige más que el cupo, ve el costo y debe aceptarlo.
+4. Al confirmar: las fotos extra se agregan a la orden con `ADI-FOTO-DIG` (precio base, sin duplicar ITBIS); los originales de `1 Camara` con el mismo nombre se enlazan (hardlink) en `3 Edicion` junto con `SELECCION.txt`; la orden pasa a Edición y la carpeta se mueve a `4 En edicion`.
+
+Técnico:
+- Tabla `service_order_selections` (V50): un enlace por orden; regenerarlo cambia el token y conserva lo marcado.
+- API pública `/api/public/selection/{token}` (permitAll; el acceso es el token de 32 bytes). Los nombres de archivo se validan contra el listado de `2 Seleccion` (sin rutas ni ocultos).
+- Miniaturas (480 px) y vista (1600 px) en `2 Seleccion/.miniaturas` y `.vista` (ocultas: no cuentan como material), generadas de a una con submuestreo por la poca memoria del NAS.
+- Exposición: el nginx de `iridiscencia-web` reenvía solo `/api/seleccion/` al backend, que está en la red `iridiscencia-web-net`. Ninguna otra ruta de ProStock llega a internet.
+- Variables: `SELECTION_PUBLIC_URL` (base de los enlaces), `SELECTION_EXTRA_SKU` (por defecto `ADI-FOTO-DIG`).
