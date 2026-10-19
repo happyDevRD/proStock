@@ -28,19 +28,22 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
     private final AccAccountRepository accountRepository;
     private final AccJournalEntryRepository journalEntryRepository;
     private final CreditNoteRepository creditNoteRepository;
+    private final PurchaseReceptionAccounting receptionAccounting;
 
     public AccountingSyncServiceImpl(SaleRepository saleRepository,
                                      PurchaseOrderRepository purchaseOrderRepository,
                                      AccSyncLogRepository syncLogRepository,
                                      AccAccountRepository accountRepository,
                                      AccJournalEntryRepository journalEntryRepository,
-                                     CreditNoteRepository creditNoteRepository) {
+                                     CreditNoteRepository creditNoteRepository,
+                                     PurchaseReceptionAccounting receptionAccounting) {
         this.saleRepository = saleRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.syncLogRepository = syncLogRepository;
         this.accountRepository = accountRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.receptionAccounting = receptionAccounting;
     }
 
     // -------------------------------------------------------
@@ -55,11 +58,9 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
                 .filter(s -> !syncLogRepository.existsByEntityTypeAndEntityId(ENTITY_SALE, s.getId()))
                 .toList();
 
+        // Compras con mercancía recibida sin contabilizar (incluye recepciones parciales)
         List<PurchaseOrder> receivedOrders = purchaseOrderRepository.findAll().stream()
-                .filter(po -> po.getStatus() == PurchaseOrderStatus.RECEIVED
-                           || po.getStatus() == PurchaseOrderStatus.PARTIALLY_PAID
-                           || po.getStatus() == PurchaseOrderStatus.PAID)
-                .filter(po -> !syncLogRepository.existsByEntityTypeAndEntityId(ENTITY_PURCHASE, po.getId()))
+                .filter(PurchaseReceptionAccounting::hasUnbooked)
                 .toList();
 
         BigDecimal totalSalesAmount = completedSales.stream()
@@ -67,10 +68,12 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalPurchasesAmount = receivedOrders.stream()
-                .map(po -> BigDecimal.valueOf(
-                        po.getItems().stream()
-                                .mapToDouble(i -> i.getUnitPrice() * i.getQuantity())
-                                .sum()))
+                .map(po -> {
+                    BigDecimal net = PurchaseOrderAmounts.receivedNet(po);
+                    BigDecimal booked = po.getAccountedReceivedNet() != null ? po.getAccountedReceivedNet() : BigDecimal.ZERO;
+                    return net.subtract(booked).add(PurchaseOrderAmounts.itbisFor(po, net))
+                            .subtract(PurchaseOrderAmounts.itbisFor(po, booked));
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<CreditNote> pendingCreditNotes = pendingCreditNotes();
@@ -118,18 +121,16 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
         }
 
         // --- Purchase Orders ---
+        // Compras con mercancía recibida sin contabilizar (incluye recepciones parciales)
         List<PurchaseOrder> receivedOrders = purchaseOrderRepository.findAll().stream()
-                .filter(po -> po.getStatus() == PurchaseOrderStatus.RECEIVED
-                           || po.getStatus() == PurchaseOrderStatus.PARTIALLY_PAID
-                           || po.getStatus() == PurchaseOrderStatus.PAID)
-                .filter(po -> !syncLogRepository.existsByEntityTypeAndEntityId(ENTITY_PURCHASE, po.getId()))
+                .filter(PurchaseReceptionAccounting::hasUnbooked)
                 .toList();
 
         for (PurchaseOrder po : receivedOrders) {
-            AccJournalEntry entry = buildPurchaseEntry(po, username);
-            AccJournalEntry saved = journalEntryRepository.save(entry);
-            recordSync(ENTITY_PURCHASE, po.getId(), saved.getId());
-            count++;
+            if (receptionAccounting.bookPendingReception(po, username) != null) {
+                purchaseOrderRepository.save(po);
+                count++;
+            }
         }
 
         return count;
@@ -282,34 +283,6 @@ public class AccountingSyncServiceImpl implements AccountingSyncService {
                         .reduce(BigDecimal.ZERO, BigDecimal::add)
                         .compareTo(originalTotals(sale).total()) < 0)
                 .orElse(false);
-    }
-
-    private AccJournalEntry buildPurchaseEntry(PurchaseOrder po, String username) {
-        AccAccount inventoryAccount    = requireAccount("1.1.3");
-        AccAccount cuentasPorPagarAccount = requireAccount("2.1.1");
-
-        String supplierName = po.getSupplier() != null ? po.getSupplier().getName() : "Desconocido";
-        String description = "Compra #" + po.getId() + " - Suplidor: " + supplierName;
-        String reference   = "CMP-" + po.getId();
-
-        LocalDate entryDate = po.getReceptionDate() != null
-                ? po.getReceptionDate().toLocalDate()
-                : (po.getOrderDate() != null ? po.getOrderDate() : LocalDate.now());
-
-        AccJournalEntry entry = createBaseEntry(
-                description, reference, AccEntryType.AUTO_PURCHASE, username, entryDate);
-
-        BigDecimal total = BigDecimal.valueOf(
-                po.getItems().stream()
-                        .mapToDouble(i -> i.getUnitPrice() * i.getQuantity())
-                        .sum());
-
-        // Dr inventario
-        addLine(entry, inventoryAccount.getId(), total, BigDecimal.ZERO, "Ingreso de mercancía");
-        // Cr cuentas por pagar
-        addLine(entry, cuentasPorPagarAccount.getId(), BigDecimal.ZERO, total, "Obligación con suplidor");
-
-        return entry;
     }
 
     // -------------------------------------------------------

@@ -41,7 +41,14 @@ public class PurchaseOrderController {
         return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders());
     }
 
-    /** Todas las órdenes por recibir (pendientes o recibidas en parte), sin límite de página. */
+    /** Cancela una orden que aún no tiene mercancía recibida ni pagos. */
+    @PreAuthorize(Authz.PURCHASE_EDIT)
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<PurchaseOrderDto> cancelPurchaseOrder(@PathVariable @NonNull Long id) {
+        return ResponseEntity.ok(purchaseOrderService.cancelPurchaseOrder(id));
+    }
+
+    /** Todas las órdenes con mercancía por recibir, sin límite de página. */
     @PreAuthorize(Authz.PURCHASE_READ)
     @GetMapping("/receivable")
     public ResponseEntity<List<PurchaseOrderDto>> getReceivableOrders() {

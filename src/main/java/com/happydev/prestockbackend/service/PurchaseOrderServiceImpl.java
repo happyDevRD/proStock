@@ -39,6 +39,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final SupplierPaymentRepository supplierPaymentRepository;
     private final AccAccountRepository accAccountRepository;
     private final AccJournalEntryRepository accJournalEntryRepository;
+    private final PurchaseReceptionAccounting receptionAccounting;
 
     public PurchaseOrderServiceImpl(PurchaseOrderRepository purchaseOrderRepository,
                                     SupplierRepository supplierRepository,
@@ -48,7 +49,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                                     AuditService auditService,
                                     SupplierPaymentRepository supplierPaymentRepository,
                                     AccAccountRepository accAccountRepository,
-                                    AccJournalEntryRepository accJournalEntryRepository) {
+                                    AccJournalEntryRepository accJournalEntryRepository,
+                                    PurchaseReceptionAccounting receptionAccounting) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.supplierRepository = supplierRepository;
         this.productRepository = productRepository;
@@ -58,6 +60,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         this.supplierPaymentRepository = supplierPaymentRepository;
         this.accAccountRepository = accAccountRepository;
         this.accJournalEntryRepository = accJournalEntryRepository;
+        this.receptionAccounting = receptionAccounting;
     }
 
     @Override
@@ -118,6 +121,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     public PurchaseOrderDto updatePurchaseOrder(@NonNull Long id, @NonNull PurchaseOrderDto purchaseOrderDto) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", id));
+        requireUntouched(purchaseOrder, "editar");
 
         if (purchaseOrderDto.getSupplierId() != null) {
             Long supplierId = Objects.requireNonNull(purchaseOrderDto.getSupplierId());
@@ -138,10 +142,6 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 ? purchaseOrderDto.getTotalItbis() : BigDecimal.ZERO);
         purchaseOrder.setFechaPago(purchaseOrderDto.getFechaPago());
         purchaseOrder.setPaymentMethod(purchaseOrderDto.getPaymentMethod());
-
-        if (purchaseOrderDto.getStatus() != null) {
-            purchaseOrder.setStatus(purchaseOrderDto.getStatus());
-        }
 
         purchaseOrder.getItems().clear();
 
@@ -172,6 +172,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     public void deletePurchaseOrder(@NonNull Long id) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", id));
+        requireUntouched(purchaseOrder, "eliminar");
         String status = purchaseOrder.getStatus().name();
         purchaseOrderRepository.delete(purchaseOrder);
         auditService.record(
@@ -193,9 +194,12 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", id));
 
-        if (purchaseOrder.getStatus() != PurchaseOrderStatus.PENDING
-                && purchaseOrder.getStatus() != PurchaseOrderStatus.PARTIALLY_RECEIVED) {
-            throw new IllegalStateException("Solo se pueden recibir órdenes pendientes o parcialmente recibidas.");
+        // Se puede recibir mientras quede mercancía, aunque la orden ya tenga pagos.
+        if (purchaseOrder.getStatus() == PurchaseOrderStatus.CANCELED) {
+            throw new IllegalStateException("No se puede recibir una orden cancelada.");
+        }
+        if (PurchaseOrderAmounts.remainingUnits(purchaseOrder) == 0) {
+            throw new IllegalStateException("Esta orden ya se recibió completa.");
         }
 
         boolean fullReceive = request == null
@@ -252,19 +256,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new IllegalArgumentException("Indica al menos una cantidad pendiente para recibir.");
         }
 
-        boolean allReceived = purchaseOrder.getItems().stream()
-                .allMatch(i -> i.getQuantityReceived() >= i.getQuantity());
-
-        if (allReceived) {
-            purchaseOrder.setStatus(PurchaseOrderStatus.RECEIVED);
-        } else {
-            purchaseOrder.setStatus(PurchaseOrderStatus.PARTIALLY_RECEIVED);
-        }
+        boolean allReceived = PurchaseOrderAmounts.fullyReceived(purchaseOrder);
+        purchaseOrder.setStatus(PurchaseOrderAmounts.deriveStatus(purchaseOrder));
 
         if (purchaseOrder.getReceptionDate() == null) {
             purchaseOrder.setReceptionDate(LocalDateTime.now());
         }
 
+        // La deuda con el suplidor nace al recibir: asiento de lo recibido (inventario + ITBIS / CxP)
+        receptionAccounting.bookPendingReception(purchaseOrder, actorOrSystem());
         PurchaseOrder updated = purchaseOrderRepository.save(purchaseOrder);
 
         auditService.record(
@@ -290,17 +290,22 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder po = purchaseOrderRepository.findById(poId)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", poId));
 
-        if (po.getStatus() != PurchaseOrderStatus.RECEIVED && po.getStatus() != PurchaseOrderStatus.PARTIALLY_PAID) {
-            throw new IllegalStateException("Solo se pueden registrar pagos en órdenes en estado RECIBIDA o PARCIALMENTE PAGADA.");
+        if (po.getStatus() == PurchaseOrderStatus.CANCELED) {
+            throw new IllegalStateException("No se pueden registrar pagos en una orden cancelada.");
         }
-
-        BigDecimal poTotal = BigDecimal.valueOf(po.getTotal());
-        BigDecimal pending = poTotal.subtract(po.getPaidAmount() == null ? BigDecimal.ZERO : po.getPaidAmount());
+        // Solo se paga lo recibido (neto + su ITBIS): la deuda nace con la recepción.
+        BigDecimal pending = PurchaseOrderAmounts.balanceDue(po);
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("El monto del pago debe ser mayor que cero.");
         }
+        if (pending.signum() == 0) {
+            throw new IllegalStateException(PurchaseOrderAmounts.anyReceived(po)
+                    ? "Lo recibido de esta orden ya está pagado."
+                    : "Primero hay que recibir la mercancía: la deuda con el suplidor nace al recibirla.");
+        }
         if (amount.compareTo(pending) > 0) {
-            throw new IllegalArgumentException("El monto del pago (" + amount + ") excede el saldo pendiente (" + pending + ").");
+            throw new IllegalArgumentException("El monto del pago (" + amount
+                    + ") excede lo que se debe por la mercancía recibida (" + pending + ").");
         }
 
         SupplierPayment payment = new SupplierPayment();
@@ -315,9 +320,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         BigDecimal newPaid = supplierPaymentRepository.sumAmountByPurchaseOrderId(poId);
         po.setPaidAmount(newPaid);
-        boolean fullyPaid = newPaid.compareTo(poTotal) >= 0;
-        po.setStatus(fullyPaid ? PurchaseOrderStatus.PAID : PurchaseOrderStatus.PARTIALLY_PAID);
-        if (fullyPaid) {
+        po.setStatus(PurchaseOrderAmounts.deriveStatus(po));
+        if (po.getStatus() == PurchaseOrderStatus.PAID) {
             // Datos para el reporte DGII 606: fecha y forma del pago que saldó la orden
             po.setFechaPago(saved.getPaymentDate().toLocalDate());
             if (po.getPaymentMethod() == null) {
@@ -348,9 +352,6 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder po = purchaseOrderRepository.findById(poId)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", poId));
 
-        if (po.getStatus() == PurchaseOrderStatus.PAID) {
-            throw new IllegalStateException("No se pueden anular pagos de una orden completamente pagada.");
-        }
         if (po.getStatus() == PurchaseOrderStatus.CANCELED) {
             throw new IllegalStateException("No se pueden anular pagos de una orden cancelada.");
         }
@@ -362,13 +363,16 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new ResourceNotFoundException("SupplierPayment", "id", paymentId);
         }
 
+        // Los asientos no se borran: el del pago se revierte con uno de signo contrario.
+        recordSupplierPaymentReversal(po, payment, actorUsername);
         supplierPaymentRepository.delete(payment);
 
         BigDecimal newPaid = supplierPaymentRepository.sumAmountByPurchaseOrderId(poId);
         po.setPaidAmount(newPaid);
-        po.setStatus(newPaid.compareTo(BigDecimal.ZERO) == 0
-                ? PurchaseOrderStatus.RECEIVED
-                : PurchaseOrderStatus.PARTIALLY_PAID);
+        po.setStatus(PurchaseOrderAmounts.deriveStatus(po));
+        if (po.getStatus() != PurchaseOrderStatus.PAID) {
+            po.setFechaPago(null);
+        }
         PurchaseOrder updated = purchaseOrderRepository.save(po);
 
         auditService.record(actorUsername, "PURCHASE_ORDER_PAYMENT_VOIDED", "SupplierPayment",
@@ -379,21 +383,70 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     @Override
     public List<PurchaseOrderDto> findReceivableOrders() {
-        return purchaseOrderRepository.findByStatusIn(
-                List.of(PurchaseOrderStatus.PENDING, PurchaseOrderStatus.PARTIALLY_RECEIVED))
-                .stream().map(purchaseOrderMapper::toDto).toList();
+        return purchaseOrderRepository.findByStatusIn(List.of(PurchaseOrderStatus.PENDING,
+                        PurchaseOrderStatus.PARTIALLY_RECEIVED, PurchaseOrderStatus.PARTIALLY_PAID))
+                .stream()
+                .filter(po -> PurchaseOrderAmounts.remainingUnits(po) > 0)
+                .map(purchaseOrderMapper::toDto).toList();
+    }
+
+    @Override
+    public PurchaseOrderDto cancelPurchaseOrder(@NonNull Long id) {
+        PurchaseOrder po = purchaseOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", id));
+        if (po.getStatus() == PurchaseOrderStatus.CANCELED) {
+            return purchaseOrderMapper.toDto(po);
+        }
+        requireUntouched(po, "cancelar");
+        po.setStatus(PurchaseOrderStatus.CANCELED);
+        PurchaseOrder updated = purchaseOrderRepository.save(po);
+        auditService.record(SecurityAuditUtils.currentUsernameOrNull(), "PURCHASE_ORDER_CANCELED",
+                "PurchaseOrder", id, Map.of());
+        return purchaseOrderMapper.toDto(updated);
     }
 
     @Override
     public List<PurchaseOrderDto> findPayableOrders() {
-        return purchaseOrderRepository.findByStatusIn(
-                List.of(PurchaseOrderStatus.RECEIVED, PurchaseOrderStatus.PARTIALLY_PAID))
-                .stream().map(purchaseOrderMapper::toDto).toList();
+        return purchaseOrderRepository.findByStatusIn(List.of(PurchaseOrderStatus.PARTIALLY_RECEIVED,
+                        PurchaseOrderStatus.RECEIVED, PurchaseOrderStatus.PARTIALLY_PAID))
+                .stream()
+                .filter(po -> PurchaseOrderAmounts.balanceDue(po).signum() > 0)
+                .map(purchaseOrderMapper::toDto).toList();
     }
 
     // -------------------------------------------------------
     // Helpers
     // -------------------------------------------------------
+
+    /** Editar, eliminar o cancelar solo se permite antes de recibir o pagar nada. */
+    private static void requireUntouched(PurchaseOrder po, String action) {
+        if (PurchaseOrderAmounts.anyReceived(po) || PurchaseOrderAmounts.paid(po).signum() > 0) {
+            throw new IllegalStateException("No se puede " + action
+                    + " una orden que ya tiene mercancía recibida o pagos registrados.");
+        }
+        if (po.getStatus() == PurchaseOrderStatus.CANCELED && !"cancelar".equals(action)) {
+            throw new IllegalStateException("No se puede " + action + " una orden cancelada.");
+        }
+    }
+
+    private static String actorOrSystem() {
+        String user = SecurityAuditUtils.currentUsernameOrNull();
+        return user != null ? user : "system";
+    }
+
+    private void recordSupplierPaymentReversal(PurchaseOrder po, SupplierPayment payment, String username) {
+        AccAccount apAccount = requireAccount("2.1.1");
+        String cashBankCode = payment.getPaymentMethod() == PaymentMethod.CASH ? "1.1.1.01" : "1.1.1.02";
+        AccAccount cashBankAccount = requireAccount(cashBankCode);
+        String supplierName = po.getSupplier() != null ? po.getSupplier().getName() : "Desconocido";
+        AccJournalEntry entry = createBaseEntry(
+                "Anulación de pago a suplidor: " + supplierName + " - OC #" + po.getId(),
+                "ANU-PAG-" + po.getId() + "-" + payment.getId(),
+                AccEntryType.AUTO_SUPPLIER_PAYMENT, username, LocalDate.now());
+        addLine(entry, cashBankAccount.getId(), payment.getAmount(), BigDecimal.ZERO, "Reverso de pago");
+        addLine(entry, apAccount.getId(), BigDecimal.ZERO, payment.getAmount(), "Reverso cancelación CxP");
+        accJournalEntryRepository.save(entry);
+    }
 
     private void recordSupplierPaymentJournalEntry(PurchaseOrder po, SupplierPayment payment, String username) {
         AccAccount apAccount = requireAccount("2.1.1");

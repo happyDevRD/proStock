@@ -29,4 +29,14 @@ public class PurchaseOrderDto {
     private BigDecimal totalItbis;
     private LocalDate fechaPago;
     private PaymentMethod paymentMethod;
+
+    // Calculados (solo lectura; ver PurchaseOrderAmounts)
+    /** Neto + ITBIS de toda la orden. */
+    private BigDecimal orderValue;
+    /** Neto + ITBIS de lo ya recibido: lo que se le debe al suplidor. */
+    private BigDecimal receivedValue;
+    /** Lo que se puede pagar hoy: valor recibido − pagado. */
+    private BigDecimal balanceDue;
+    /** Unidades pendientes de recibir. */
+    private Integer remainingUnits;
 }

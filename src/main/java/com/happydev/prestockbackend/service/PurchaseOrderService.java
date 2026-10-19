@@ -26,8 +26,11 @@ public interface PurchaseOrderService {
     SupplierPaymentDto addPayment(Long poId, BigDecimal amount, PaymentMethod paymentMethod, String notes, String actorUsername);
     List<SupplierPaymentDto> getPaymentsForPurchaseOrder(Long poId);
     PurchaseOrderDto voidPayment(Long poId, Long paymentId, String actorUsername);
-    /** Órdenes por recibir: PENDING o PARTIALLY_RECEIVED. */
+    /** Órdenes con mercancía pendiente de recibir (aunque ya tengan pagos). */
     List<PurchaseOrderDto> findReceivableOrders();
+
+    /** Cancela una orden sin recepciones ni pagos. */
+    PurchaseOrderDto cancelPurchaseOrder(@org.springframework.lang.NonNull Long id);
 
     List<PurchaseOrderDto> findPayableOrders();
 }

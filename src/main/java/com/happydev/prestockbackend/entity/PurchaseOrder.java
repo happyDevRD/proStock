@@ -39,6 +39,10 @@ public class PurchaseOrder {
     @Column(name = "paid_amount", nullable = false)
     private BigDecimal paidAmount = BigDecimal.ZERO;
 
+    /** Neto recibido que ya tiene asiento contable (ver PurchaseReceptionAccounting). */
+    @Column(name = "accounted_received_net", nullable = false, precision = 18, scale = 2)
+    private BigDecimal accountedReceivedNet = BigDecimal.ZERO;
+
     /** NCF de la factura del proveedor — necesario para el reporte DGII 606. */
     @Column(name = "ncf_proveedor", length = 19)
     private String ncfProveedor;
