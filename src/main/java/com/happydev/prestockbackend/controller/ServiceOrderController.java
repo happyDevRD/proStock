@@ -233,6 +233,17 @@ public class ServiceOrderController {
         return ResponseEntity.ok(serviceOrderService.update(id, request, actor));
     }
 
+    public record TeamRequest(Long photographerId, Long editorId) {}
+
+    /** Fotógrafo y editor desde el detalle de la orden, sin reenviar la orden completa. */
+    @PutMapping("/{id}/team")
+    public ResponseEntity<ServiceOrderDto> assignTeam(@PathVariable Long id, @RequestBody TeamRequest request,
+                                                      Principal principal) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(serviceOrderService.assignTeam(id, request.photographerId(), request.editorId(),
+                principal != null ? principal.getName() : null));
+    }
+
     @PostMapping("/{id}/advance-stage")
     public ResponseEntity<ServiceOrderDto> advanceStage(
             @PathVariable Long id,

@@ -45,6 +45,9 @@ public interface ServiceOrderService {
 
     ServiceOrderDto update(@NonNull Long id, @NonNull UpdateServiceOrderRequest request, @Nullable String actor);
 
+    /** Asigna fotógrafo y editor sin tocar el resto de la orden (null = sin asignar). */
+    ServiceOrderDto assignTeam(@NonNull Long id, @Nullable Long photographerId, @Nullable Long editorId, @Nullable String actor);
+
     ServiceOrderDto advanceStage(@NonNull Long id, @NonNull AdvanceStageRequest request, @Nullable String actor);
 
     ServiceOrderDto approveBudget(@NonNull Long id, @Nullable String actor);

@@ -839,6 +839,19 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         return map;
     }
 
+    @Override
+    public ServiceOrderDto assignTeam(@NonNull Long id, @Nullable Long photographerId, @Nullable Long editorId,
+                                      @Nullable String actor) {
+        ServiceOrder order = getOrThrow(id);
+        order.setPhotographer(employeeOrNull(photographerId));
+        order.setEditor(employeeOrNull(editorId));
+        auditService.record(actor, "SERVICE_ORDER_TEAM_ASSIGNED", "ServiceOrder", id,
+                "OS " + order.getOrderNumber() + ": equipo asignado");
+        ServiceOrderDto saved = toListDto(orderRepository.save(order));
+        eventPublisher.publishEvent(new ServiceOrderChangedEvent(id));
+        return saved;
+    }
+
     private Employee employeeOrNull(Long id) {
         if (id == null) return null;
         return employeeRepository.findById(id)
