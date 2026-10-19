@@ -8,6 +8,7 @@ import com.happydev.prestockbackend.dto.UpdateServiceOrderItemRequest;
 import com.happydev.prestockbackend.dto.ServiceOrderDto;
 import com.happydev.prestockbackend.dto.ServiceOrderPaymentRequest;
 import com.happydev.prestockbackend.entity.CompanyConfig;
+import com.happydev.prestockbackend.entity.Employee;
 import com.happydev.prestockbackend.entity.IndicadorFacturacion;
 import com.happydev.prestockbackend.entity.PaymentMethod;
 import com.happydev.prestockbackend.entity.Product;
@@ -581,5 +582,32 @@ class ServiceOrderServiceImplTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 service.updateItem(1L, 100L, new UpdateServiceOrderItemRequest(2, null, null)));
+    }
+
+    @Test
+    void findScheduledFiltersByTypeAndStaff() {
+        Employee ana = new Employee();
+        ana.setId(3L);
+        ServiceOrder photo = new ServiceOrder();
+        photo.setId(1L);
+        photo.setOrderType(ServiceOrderType.PHOTOGRAPHY);
+        photo.setPhotographer(ana);
+        ServiceOrder otherStaff = new ServiceOrder();
+        otherStaff.setId(2L);
+        otherStaff.setOrderType(ServiceOrderType.PHOTOGRAPHY);
+        ServiceOrder repair = new ServiceOrder();
+        repair.setId(4L);
+        repair.setOrderType(ServiceOrderType.REPAIR);
+        java.time.LocalDate from = java.time.LocalDate.of(2026, 11, 1);
+        when(orderRepository.findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
+                from.atStartOfDay(), from.plusDays(30).atStartOfDay(), ServiceOrderStatus.CANCELLED))
+                .thenReturn(java.util.List.of(photo, otherStaff, repair));
+
+        assertEquals(2, service.findScheduled(from, from.plusDays(29), ServiceOrderType.PHOTOGRAPHY, null).size());
+        var mine = service.findScheduled(from, from.plusDays(29), ServiceOrderType.PHOTOGRAPHY, 3L);
+        assertEquals(1, mine.size());
+        assertEquals(1L, mine.get(0).id());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.findScheduled(from, from.plusDays(90), null, null));
     }
 }

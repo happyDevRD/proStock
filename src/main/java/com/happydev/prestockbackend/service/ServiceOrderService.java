@@ -33,6 +33,10 @@ public interface ServiceOrderService {
 
     List<ServiceOrderDto> findActiveOrders();
 
+    /** Calendario: órdenes no canceladas con cita entre {@code from} y {@code to} (inclusive). */
+    List<ServiceOrderDto> findScheduled(@NonNull LocalDate from, @NonNull LocalDate to,
+                                        @Nullable ServiceOrderType type, @Nullable Long staffId);
+
     List<ServiceOrderDto> findByCustomer(@NonNull Long customerId);
 
     ServiceOrderDto findById(@NonNull Long id);

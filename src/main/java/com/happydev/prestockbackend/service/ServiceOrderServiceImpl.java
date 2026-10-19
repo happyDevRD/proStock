@@ -184,6 +184,22 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     }
 
     @Override
+    public List<ServiceOrderDto> findScheduled(@NonNull LocalDate from, @NonNull LocalDate to,
+                                               @Nullable ServiceOrderType type, @Nullable Long staffId) {
+        if (to.isBefore(from)) throw new IllegalArgumentException("La fecha final es anterior a la inicial.");
+        if (from.plusDays(62).isBefore(to)) throw new IllegalArgumentException("El rango máximo es de 62 días.");
+        return orderRepository.findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
+                        from.atStartOfDay(), to.plusDays(1).atStartOfDay(), ServiceOrderStatus.CANCELLED)
+                .stream()
+                .filter(o -> type == null || o.getOrderType() == type)
+                .filter(o -> staffId == null
+                        || (o.getPhotographer() != null && staffId.equals(o.getPhotographer().getId()))
+                        || (o.getEditor() != null && staffId.equals(o.getEditor().getId())))
+                .map(this::toListDto)
+                .toList();
+    }
+
+    @Override
     public List<ServiceOrderDto> findActiveOrders() {
         return orderRepository.findByStatusInOrderByCreatedAtDesc(
                 List.of(ServiceOrderStatus.OPEN, ServiceOrderStatus.IN_PROGRESS,

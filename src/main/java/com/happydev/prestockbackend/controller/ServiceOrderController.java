@@ -172,6 +172,18 @@ public class ServiceOrderController {
         return ResponseEntity.ok(serviceOrderService.findPage(pageable, type, status, activeOnly, term, staffId));
     }
 
+    /** Calendario: citas del rango (máx. 62 días), sin las canceladas. */
+    @GetMapping("/calendar")
+    public ResponseEntity<List<ServiceOrderDto>> calendar(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @RequestParam(required = false) ServiceOrderType type,
+            @RequestParam(required = false) Long staffId
+    ) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(serviceOrderService.findScheduled(from, to, type, staffId));
+    }
+
     @GetMapping("/stats")
     public ResponseEntity<ServiceOrderStatsDto> getStats() {
         accessGuard.requireEnabled();
