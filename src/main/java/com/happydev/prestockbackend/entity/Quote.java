@@ -56,6 +56,10 @@ public class Quote {
     @Column(name = "converted_sale_id")
     private Long convertedSaleId;
 
+    /** Orden de servicio creada desde esta cotización (paquetes de un estudio, por ejemplo). */
+    @Column(name = "converted_service_order_id")
+    private Long convertedServiceOrderId;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

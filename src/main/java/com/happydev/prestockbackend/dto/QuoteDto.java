@@ -18,6 +18,7 @@ public record QuoteDto(
         BigDecimal discountAmount,
         BigDecimal montoTotal,
         Long convertedSaleId,
+        Long convertedServiceOrderId,
         boolean expired,
         List<QuoteItemDto> items,
         LocalDateTime createdAt,

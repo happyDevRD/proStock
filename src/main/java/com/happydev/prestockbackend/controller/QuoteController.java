@@ -17,9 +17,12 @@ import org.springframework.web.bind.annotation.*;
 public class QuoteController {
 
     private final QuoteService quoteService;
+    private final com.happydev.prestockbackend.service.ServiceOrderAccessGuard serviceOrderAccessGuard;
 
-    public QuoteController(QuoteService quoteService) {
+    public QuoteController(QuoteService quoteService,
+                           com.happydev.prestockbackend.service.ServiceOrderAccessGuard serviceOrderAccessGuard) {
         this.quoteService = quoteService;
+        this.serviceOrderAccessGuard = serviceOrderAccessGuard;
     }
 
     @GetMapping
@@ -85,6 +88,16 @@ public class QuoteController {
     @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'quotes.convert')")
     public ResponseEntity<QuoteConvertResponse> convert(@PathVariable Long id) {
         return ResponseEntity.ok(quoteService.convert(id));
+    }
+
+    /** Convierte la cotización en una orden de servicio (cliente, monto y líneas) y devuelve la orden. */
+    // Crea una orden: además de convertir cotizaciones hay que poder crear órdenes (como POST /api/service-orders)
+    @PostMapping("/{id}/convert-to-service-order")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN') or (hasAuthority('quotes.convert') and hasAuthority('view.service_orders'))")
+    public ResponseEntity<com.happydev.prestockbackend.dto.ServiceOrderDto> convertToServiceOrder(
+            @PathVariable Long id, java.security.Principal principal) {
+        serviceOrderAccessGuard.requireEnabled();
+        return ResponseEntity.ok(quoteService.convertToServiceOrder(id, principal != null ? principal.getName() : null));
     }
 
     public record ConvertedSaleRequest(@jakarta.validation.constraints.NotNull Long saleId) {}

@@ -1,6 +1,9 @@
 package com.happydev.prestockbackend.service;
 
+import com.happydev.prestockbackend.dto.AddServiceOrderItemRequest;
 import com.happydev.prestockbackend.dto.CreateQuoteRequest;
+import com.happydev.prestockbackend.dto.CreateServiceOrderRequest;
+import com.happydev.prestockbackend.dto.ServiceOrderDto;
 import com.happydev.prestockbackend.dto.QuoteConvertResponse;
 import com.happydev.prestockbackend.dto.QuoteDto;
 import com.happydev.prestockbackend.dto.QuoteItemDto;
@@ -36,15 +39,18 @@ public class QuoteServiceImpl implements QuoteService {
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final SaleRepository saleRepository;
+    private final ServiceOrderService serviceOrderService;
 
     public QuoteServiceImpl(QuoteRepository quoteRepository,
                             CustomerRepository customerRepository,
                             ProductRepository productRepository,
-                            SaleRepository saleRepository) {
+                            SaleRepository saleRepository,
+                            ServiceOrderService serviceOrderService) {
         this.quoteRepository = quoteRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.saleRepository = saleRepository;
+        this.serviceOrderService = serviceOrderService;
     }
 
     @Override
@@ -170,9 +176,7 @@ public class QuoteServiceImpl implements QuoteService {
         if (quote.getStatus() == QuoteStatus.EXPIRED || quote.getStatus() == QuoteStatus.CANCELED) {
             throw new IllegalStateException("No se puede convertir una cotización en estado " + quote.getStatus());
         }
-        if (quote.getConvertedSaleId() != null) {
-            throw new IllegalStateException("Esta cotización ya se convirtió en la venta #" + quote.getConvertedSaleId());
-        }
+        requireNotConverted(quote);
         // No se marca CONVERTED aquí: si el usuario abandona el POS, la cotización sigue abierta.
 
         Long customerId = quote.getCustomer() != null ? quote.getCustomer().getId() : null;
@@ -200,6 +204,62 @@ public class QuoteServiceImpl implements QuoteService {
         quote.setConvertedSaleId(saleId);
         quote.setUpdatedAt(LocalDateTime.now());
         quoteRepository.save(quote);
+    }
+
+    @Override
+    public ServiceOrderDto convertToServiceOrder(Long id, String actor) {
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Quote", "id", id));
+        if (quote.getStatus() == QuoteStatus.EXPIRED || quote.getStatus() == QuoteStatus.CANCELED) {
+            throw new IllegalStateException("No se puede convertir una cotización en estado " + quote.getStatus());
+        }
+        requireNotConverted(quote);
+
+        // Las líneas sin artículo del inventario no pueden ser líneas de la orden: van a sus notas
+        List<String> sinArticulo = quote.getItems().stream()
+                .filter(i -> i.getProduct() == null)
+                .map(i -> i.getQuantity() + " × " + i.getProductName())
+                .toList();
+        StringBuilder notes = new StringBuilder("Creada desde la cotización #" + quote.getId() + ".");
+        if (!sinArticulo.isEmpty()) {
+            notes.append(" Incluye además: ").append(String.join("; ", sinArticulo)).append('.');
+        }
+        if (quote.getNotes() != null && !quote.getNotes().isBlank()) {
+            notes.append("\n").append(quote.getNotes().trim());
+        }
+
+        String customerName = quote.getCustomer() != null
+                ? (java.util.Objects.toString(quote.getCustomer().getFirstName(), "") + " "
+                        + java.util.Objects.toString(quote.getCustomer().getLastName(), "")).trim()
+                : null;
+        String title = "Cotización #" + quote.getId() + (customerName != null && !customerName.isBlank() ? " — " + customerName : "");
+        ServiceOrderDto order = serviceOrderService.create(new CreateServiceOrderRequest(
+                quote.getCustomer() != null ? quote.getCustomer().getId() : null,
+                null, title, null, null, quote.getMontoTotal(), null,
+                null, null, null, null, null,
+                notes.toString(), null, null), actor);
+
+        for (QuoteItem item : quote.getItems()) {
+            if (item.getProduct() == null) continue;
+            serviceOrderService.addItem(order.id(), new AddServiceOrderItemRequest(
+                    item.getProduct().getId(), item.getQuantity(), effectiveUnitPrice(item), item.getProductName()));
+        }
+
+        quote.setStatus(QuoteStatus.CONVERTED);
+        quote.setConvertedServiceOrderId(order.id());
+        quote.setUpdatedAt(LocalDateTime.now());
+        quoteRepository.save(quote);
+        return serviceOrderService.findById(order.id());
+    }
+
+    private static void requireNotConverted(Quote quote) {
+        if (quote.getConvertedSaleId() != null) {
+            throw new IllegalStateException("Esta cotización ya se convirtió en la venta #" + quote.getConvertedSaleId());
+        }
+        if (quote.getConvertedServiceOrderId() != null) {
+            throw new IllegalStateException("Esta cotización ya se convirtió en la orden de servicio #"
+                    + quote.getConvertedServiceOrderId());
+        }
     }
 
     /** Precio base por unidad con el descuento de la línea aplicado (subtotal / cantidad). */
@@ -316,6 +376,7 @@ public class QuoteServiceImpl implements QuoteService {
                 quote.getDiscountAmount(),
                 quote.getMontoTotal(),
                 quote.getConvertedSaleId(),
+                quote.getConvertedServiceOrderId(),
                 expired,
                 itemDtos,
                 quote.getCreatedAt(),

@@ -22,6 +22,9 @@ public interface QuoteService {
 
     QuoteConvertResponse convert(Long id);
 
+    /** Crea una orden de servicio con el cliente, el monto y las líneas de la cotización, y la marca convertida. */
+    com.happydev.prestockbackend.dto.ServiceOrderDto convertToServiceOrder(Long id, String actor);
+
     /** Marca la cotización como convertida en la venta indicada (tras cobrarla en el POS). */
     void markConverted(Long id, Long saleId);
 
