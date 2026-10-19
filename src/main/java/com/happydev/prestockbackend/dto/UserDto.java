@@ -25,4 +25,7 @@ public class UserDto {
     private String role;
 
     private String password;
+
+    /** Pedir cambio de contraseña al entrar. Al crear, si no viene, se activa; al editar, null = no cambia. */
+    private Boolean mustChangePassword;
 }

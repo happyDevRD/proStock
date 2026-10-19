@@ -118,6 +118,19 @@ class AuthControllerTest {
     }
 
     @Test
+    void login_withTemporaryPassword_asksToChangeIt() throws Exception {
+        user.setMustChangePassword(true);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"admin1234"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mustChangePassword").value(true));
+    }
+
+    @Test
     void logout_clearsCookie() throws Exception {
         mockMvc.perform(post("/api/auth/logout"))
                 .andExpect(status().isOk());
@@ -261,6 +274,7 @@ class AuthControllerTest {
     @org.springframework.security.test.context.support.WithMockUser(username = "admin")
     void changePassword_validRequest_returns204AndUpdatesPassword() throws Exception {
         user.setPassword("hashed-old");
+        user.setMustChangePassword(true);
         given(passwordEncoder.matches("admin1234", "hashed-old")).willReturn(true);
         given(passwordEncoder.encode("NewP@ss123")).willReturn("hashed-new");
 
@@ -275,5 +289,7 @@ class AuthControllerTest {
         verify(userRepository).save(captor.capture());
         org.junit.jupiter.api.Assertions.assertEquals("hashed-new", captor.getValue().getPassword());
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getPasswordChangedAt());
+        // Ya no es temporal
+        org.junit.jupiter.api.Assertions.assertFalse(captor.getValue().isMustChangePassword());
     }
 }

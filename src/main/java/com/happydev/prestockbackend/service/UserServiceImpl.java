@@ -74,6 +74,23 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public User setMustChangePassword(@NonNull Long id, boolean value, @NonNull String actorUsername) {
+        User actor = userRepository.findByUsername(actorUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", actorUsername));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        if (user.getRole() == UserRole.GESTOR && actor.getRole() != UserRole.GESTOR) {
+            throw new IllegalArgumentException("No se puede modificar un usuario de gestión sin tener el rol de gestor.");
+        }
+        user.setMustChangePassword(value);
+        User saved = userRepository.save(user);
+        auditService.record(actorUsername, "USER_UPDATED", "User", saved.getId(),
+                Map.of("username", saved.getUsername(), "mustChangePassword", String.valueOf(value)));
+        return saved;
+    }
+
+    @Override
+    @Transactional
     public User updateUser(@NonNull Long id, @NonNull User userDetails, @NonNull String actorUsername) {
         User actor = userRepository.findByUsername(actorUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "username", actorUsername));
@@ -128,6 +145,10 @@ public class UserServiceImpl implements UserService {
             passwordPolicyService.validate(userDetails.getPassword());
             user.setPassword(passwordEncoder.encode(userDetails.getPassword()));
             user.setPasswordChangedAt(LocalDateTime.now());
+            // Si se la pone otra persona, es temporal hasta que el usuario la cambie
+            if (!actor.getId().equals(user.getId())) {
+                user.setMustChangePassword(true);
+            }
         }
 
         User saved = userRepository.save(Objects.requireNonNull(user));

@@ -143,4 +143,32 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.code", is("ILLEGAL_ARGUMENT")))
                 .andExpect(jsonPath("$.message", is("No puedes eliminar tu propio usuario.")));
     }
+
+    @Test
+    void createUser_marksPasswordAsTemporaryByDefault() throws Exception {
+        User saved = new User();
+        saved.setId(3L);
+        saved.setUsername("anyara");
+        saved.setEmail("a@test.local");
+        saved.setRole(UserRole.PRODUCCION);
+        saved.setMustChangePassword(true);
+        given(userService.createUser(any(User.class), anyString())).willReturn(saved);
+
+        UserDto dto = new UserDto();
+        dto.setUsername("anyara");
+        dto.setEmail("a@test.local");
+        dto.setRole("PRODUCCION");
+        dto.setPassword("temporal123");
+
+        mockMvc.perform(post("/api/users")
+                        .principal(() -> "admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mustChangePassword", is(true)));
+
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.Mockito.verify(userService).createUser(captor.capture(), anyString());
+        org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().isMustChangePassword());
+    }
 }

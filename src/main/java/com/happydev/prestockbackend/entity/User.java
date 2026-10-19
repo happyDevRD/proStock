@@ -63,6 +63,10 @@ public class User {
     @Column(name = "password_changed_at")
     private LocalDateTime passwordChangedAt;
 
+    /** Contraseña temporal puesta por un administrador: debe cambiarla al entrar. */
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword = false;
+
     //Relacion con StockMovement
     @OneToMany(mappedBy = "user") //Un usuario puede realizar muchos movimientos
     private List<StockMovement> stockMovements;

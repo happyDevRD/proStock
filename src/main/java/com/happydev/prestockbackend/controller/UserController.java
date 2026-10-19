@@ -39,7 +39,10 @@ public class UserController {
         if (dto.getPassword().length() < 6) {
             throw new IllegalArgumentException("La contraseña debe tener al menos 6 caracteres.");
         }
-        User created = userService.createUser(fromDto(dto), principal.getName());
+        User user = fromDto(dto);
+        // La contraseña la pone un administrador: por defecto es temporal
+        user.setMustChangePassword(dto.getMustChangePassword() == null || dto.getMustChangePassword());
+        User created = userService.createUser(user, principal.getName());
         return new ResponseEntity<>(toDto(created), HttpStatus.CREATED);
     }
 
@@ -59,6 +62,9 @@ public class UserController {
             throw new IllegalArgumentException("La contraseña debe tener al menos 6 caracteres.");
         }
         User updated = userService.updateUser(id, fromDto(dto), principal.getName());
+        if (dto.getMustChangePassword() != null && dto.getMustChangePassword() != updated.isMustChangePassword()) {
+            updated = userService.setMustChangePassword(id, dto.getMustChangePassword(), principal.getName());
+        }
         return ResponseEntity.ok(toDto(updated));
     }
 
@@ -79,6 +85,7 @@ public class UserController {
         dto.setFirstName(user.getFirstName());
         dto.setLastName(user.getLastName());
         dto.setRole(user.getRole() != null ? user.getRole().name() : UserRole.USER.name());
+        dto.setMustChangePassword(user.isMustChangePassword());
         return dto;
     }
 

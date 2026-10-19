@@ -12,6 +12,9 @@ public interface UserService {
     Optional<User> getUserById(@NonNull Long id);
     User updateUser(@NonNull Long id, @NonNull User userDetails, @NonNull String actorUsername);
 
+    /** Activa o quita el "debe cambiar la contraseña al entrar" de un usuario. */
+    User setMustChangePassword(@NonNull Long id, boolean value, @NonNull String actorUsername);
+
     void deleteUser(@NonNull Long id, @NonNull String actorUsername);
     Optional<User> findByUsername(@NonNull String username);
     boolean existsByUsername(@NonNull String username);

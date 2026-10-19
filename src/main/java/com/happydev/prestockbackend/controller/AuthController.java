@@ -128,7 +128,8 @@ public class AuthController {
                 me.permissions(),
                 token,
                 totpSetupRequired,
-                passwordExpired
+                passwordExpired,
+                me.mustChangePassword()
         );
     }
 
@@ -184,6 +185,7 @@ public class AuthController {
         passwordPolicyService.validate(request.newPassword());
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         user.setPasswordChangedAt(LocalDateTime.now());
+        user.setMustChangePassword(false);
         userRepository.save(user);
     }
 
@@ -244,7 +246,8 @@ public class AuthController {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getRole() != null ? user.getRole().name() : UserRole.USER.name(),
-                permissions
+                permissions,
+                user.isMustChangePassword() || passwordPolicyService.isExpired(user)
         );
     }
 
@@ -254,7 +257,9 @@ public class AuthController {
             String firstName,
             String lastName,
             String role,
-            List<String> permissions
+            List<String> permissions,
+            /** Contraseña temporal o caducada: la interfaz pide cambiarla antes de seguir. */
+            boolean mustChangePassword
     ) {}
 
     /** Incluye JWT para clientes SPA (p. ej. frontend en otro puerto que la cookie HttpOnly). */
@@ -267,6 +272,7 @@ public class AuthController {
             List<String> permissions,
             String accessToken,
             boolean totpSetupRequired,
-            boolean passwordExpired
+            boolean passwordExpired,
+            boolean mustChangePassword
     ) {}
 }
