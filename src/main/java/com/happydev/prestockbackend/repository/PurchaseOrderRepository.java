@@ -14,6 +14,8 @@ import java.util.List;
 public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Long> {
     List<PurchaseOrder> findByStatusIn(List<PurchaseOrderStatus> statuses);
 
+    List<PurchaseOrder> findBySupplierIdOrderByOrderDateDescIdDesc(Long supplierId);
+
     @Query("""
             SELECT DISTINCT po FROM PurchaseOrder po
             LEFT JOIN FETCH po.supplier

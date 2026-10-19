@@ -98,6 +98,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         if (purchaseOrder.getItems() != null) {
             for (PurchaseOrderItem item : purchaseOrder.getItems()) {
                 item.setPurchaseOrder(purchaseOrder);
+                // Una orden nace sin nada recibido: la recepción pasa por receive (stock + asiento)
+                item.setQuantityReceived(0);
                 Long productId = Objects.requireNonNull(item.getProduct().getId());
                 if (!productRepository.existsById(productId)) {
                     throw new ResourceNotFoundException("Product", "id", productId);
@@ -149,6 +151,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             List<PurchaseOrderItem> newItems = purchaseOrderMapper.toItemEntityList(purchaseOrderDto.getItems());
             for (PurchaseOrderItem item : newItems) {
                 item.setPurchaseOrder(purchaseOrder);
+                item.setQuantityReceived(0);
                 Long productId = Objects.requireNonNull(item.getProduct().getId());
                 if (!productRepository.existsById(productId)) {
                     throw new ResourceNotFoundException("Product", "id", productId);
@@ -379,6 +382,12 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 paymentId, Map.of("poId", poId.toString()));
 
         return purchaseOrderMapper.toDto(updated);
+    }
+
+    @Override
+    public List<PurchaseOrderDto> findBySupplier(@NonNull Long supplierId) {
+        return purchaseOrderRepository.findBySupplierIdOrderByOrderDateDescIdDesc(supplierId)
+                .stream().map(purchaseOrderMapper::toDto).toList();
     }
 
     @Override

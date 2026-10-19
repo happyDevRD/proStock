@@ -21,6 +21,7 @@ public class PurchaseOrderDto {
     private LocalDateTime receptionDate;
     @NotNull
     private PurchaseOrderStatus status;
+    @jakarta.validation.Valid
     private List<PurchaseOrderItemDto> items;
     private BigDecimal paidAmount;
     private Double total;

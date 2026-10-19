@@ -48,6 +48,13 @@ public class PurchaseOrderController {
         return ResponseEntity.ok(purchaseOrderService.cancelPurchaseOrder(id));
     }
 
+    /** Órdenes de un suplidor (ficha del suplidor: lo comprado, lo que se le debe y lo pendiente). */
+    @PreAuthorize(Authz.PURCHASE_READ)
+    @GetMapping("/by-supplier/{supplierId}")
+    public ResponseEntity<List<PurchaseOrderDto>> getBySupplier(@PathVariable @NonNull Long supplierId) {
+        return ResponseEntity.ok(purchaseOrderService.findBySupplier(supplierId));
+    }
+
     /** Todas las órdenes con mercancía por recibir, sin límite de página. */
     @PreAuthorize(Authz.PURCHASE_READ)
     @GetMapping("/receivable")

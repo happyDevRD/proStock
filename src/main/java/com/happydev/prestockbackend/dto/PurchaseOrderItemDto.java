@@ -20,6 +20,8 @@ public class PurchaseOrderItemDto {
 
     private int quantityReceived;
 
-    private double unitPrice; //Se podría omitir, si se trae del producto, pero es mejor tenerlo.
+    /** Costo unitario sin ITBIS. Obligatorio y mayor que cero: un nombre de campo equivocado no debe guardar 0. */
+    @Positive(message = "El costo unitario de cada línea debe ser mayor que cero.")
+    private double unitPrice;
 
 }

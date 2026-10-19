@@ -26,6 +26,9 @@ public interface PurchaseOrderService {
     SupplierPaymentDto addPayment(Long poId, BigDecimal amount, PaymentMethod paymentMethod, String notes, String actorUsername);
     List<SupplierPaymentDto> getPaymentsForPurchaseOrder(Long poId);
     PurchaseOrderDto voidPayment(Long poId, Long paymentId, String actorUsername);
+    /** Todas las órdenes de un suplidor, de la más reciente a la más antigua. */
+    List<PurchaseOrderDto> findBySupplier(@org.springframework.lang.NonNull Long supplierId);
+
     /** Órdenes con mercancía pendiente de recibir (aunque ya tengan pagos). */
     List<PurchaseOrderDto> findReceivableOrders();
 
