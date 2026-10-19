@@ -17,6 +17,10 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, Long
 
     List<ServiceOrder> findAllByOrderByCreatedAtDesc();
 
+    /** Órdenes agendadas en un rango (solicitudes web: qué hay ese día). */
+    List<ServiceOrder> findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
+            LocalDateTime start, LocalDateTime end, ServiceOrderStatus status);
+
     List<ServiceOrder> findByStatusInOrderByCreatedAtDesc(List<ServiceOrderStatus> statuses);
 
     List<ServiceOrder> findByOrderTypeOrderByCreatedAtDesc(ServiceOrderType orderType);

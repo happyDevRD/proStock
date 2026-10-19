@@ -190,6 +190,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
+    // 429 - Solicitudes web en exceso
+    @ExceptionHandler(com.happydev.prestockbackend.service.BookingRequestService.TooManyBookingRequestsException.class)
+    public ResponseEntity<ErrorDetails> handleTooManyBookingRequests(RuntimeException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "TOO_MANY_REQUESTS",
+                ex.getMessage(),
+                request.getDescription(false)
+        );
+        return new ResponseEntity<>(errorDetails, HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     // 400 Bad Request - Illegal State
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorDetails> handleIllegalStateException(IllegalStateException ex, WebRequest request) {
