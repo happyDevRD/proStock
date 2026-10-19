@@ -1,11 +1,13 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.CustomerDto;
+import com.happydev.prestockbackend.dto.CustomerStatsDto;
 import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.CustomerMapper;
 import com.happydev.prestockbackend.repository.CustomerRepository;
+import com.happydev.prestockbackend.repository.SaleRepository;
 import com.happydev.prestockbackend.util.SecurityAuditUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
@@ -31,17 +33,25 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerMapper customerMapper;
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
+    private final SaleRepository saleRepository;
 
     public CustomerServiceImpl(
             CustomerRepository customerRepository,
             CustomerMapper customerMapper,
             AuditService auditService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            SaleRepository saleRepository
     ) {
         this.customerRepository = customerRepository;
         this.customerMapper = customerMapper;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
+        this.saleRepository = saleRepository;
+    }
+
+    @Override
+    public List<CustomerStatsDto> findCustomerStats() {
+        return saleRepository.findCustomerStats();
     }
 
     @Override

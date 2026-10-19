@@ -3,6 +3,7 @@ package com.happydev.prestockbackend.controller;
 import com.happydev.prestockbackend.security.Authz;
 
 import com.happydev.prestockbackend.dto.CustomerDto;
+import com.happydev.prestockbackend.dto.CustomerStatsDto;
 import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.service.CustomerService;
 import jakarta.validation.Valid;
@@ -33,6 +34,13 @@ public class CustomerController {
     public ResponseEntity<List<CustomerDto>> getAllCustomers() {
         List<CustomerDto> customers = customerService.findAllCustomers();
         return new ResponseEntity<>(customers, HttpStatus.OK);
+    }
+
+    /** Total comprado, saldo, facturas y última compra de cada cliente, sobre todas sus ventas. */
+    @PreAuthorize(Authz.CUSTOMER_READ)
+    @GetMapping("/stats")
+    public ResponseEntity<List<CustomerStatsDto>> getCustomerStats() {
+        return ResponseEntity.ok(customerService.findCustomerStats());
     }
 
     @PreAuthorize(Authz.CUSTOMER_READ)

@@ -13,6 +13,7 @@ import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.repository.CustomerRepository;
 import com.happydev.prestockbackend.repository.ProductRepository;
 import com.happydev.prestockbackend.repository.QuoteRepository;
+import com.happydev.prestockbackend.repository.SaleRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +22,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,13 +35,16 @@ public class QuoteServiceImpl implements QuoteService {
     private final QuoteRepository quoteRepository;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
+    private final SaleRepository saleRepository;
 
     public QuoteServiceImpl(QuoteRepository quoteRepository,
                             CustomerRepository customerRepository,
-                            ProductRepository productRepository) {
+                            ProductRepository productRepository,
+                            SaleRepository saleRepository) {
         this.quoteRepository = quoteRepository;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
+        this.saleRepository = saleRepository;
     }
 
     @Override
@@ -165,23 +170,42 @@ public class QuoteServiceImpl implements QuoteService {
         if (quote.getStatus() == QuoteStatus.EXPIRED || quote.getStatus() == QuoteStatus.CANCELED) {
             throw new IllegalStateException("No se puede convertir una cotización en estado " + quote.getStatus());
         }
-
-        quote.setStatus(QuoteStatus.CONVERTED);
-        quote.setConvertedSaleId(null);
-        quote.setUpdatedAt(LocalDateTime.now());
-        quoteRepository.save(quote);
+        if (quote.getConvertedSaleId() != null) {
+            throw new IllegalStateException("Esta cotización ya se convirtió en la venta #" + quote.getConvertedSaleId());
+        }
+        // No se marca CONVERTED aquí: si el usuario abandona el POS, la cotización sigue abierta.
 
         Long customerId = quote.getCustomer() != null ? quote.getCustomer().getId() : null;
 
         List<QuoteConvertResponse.QuoteItemForPos> posItems = quote.getItems().stream()
                 .map(item -> new QuoteConvertResponse.QuoteItemForPos(
                         item.getProduct() != null ? item.getProduct().getId() : null,
+                        item.getProductName(),
                         item.getQuantity(),
-                        item.getUnitPrice()
+                        effectiveUnitPrice(item)
                 ))
                 .collect(Collectors.toList());
 
         return new QuoteConvertResponse(id, customerId, posItems, quote.getMontoTotal());
+    }
+
+    @Override
+    public void markConverted(Long id, Long saleId) {
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Quote", "id", id));
+        if (!saleRepository.existsById(saleId)) {
+            throw new ResourceNotFoundException("Sale", "id", saleId);
+        }
+        quote.setStatus(QuoteStatus.CONVERTED);
+        quote.setConvertedSaleId(saleId);
+        quote.setUpdatedAt(LocalDateTime.now());
+        quoteRepository.save(quote);
+    }
+
+    /** Precio base por unidad con el descuento de la línea aplicado (subtotal / cantidad). */
+    private static BigDecimal effectiveUnitPrice(QuoteItem item) {
+        if (item.getQuantity() <= 0 || item.getSubtotal() == null) return item.getUnitPrice();
+        return item.getSubtotal().divide(BigDecimal.valueOf(item.getQuantity()), 2, RoundingMode.HALF_UP);
     }
 
     @Override

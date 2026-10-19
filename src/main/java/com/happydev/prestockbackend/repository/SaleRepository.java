@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.repository;
 
+import com.happydev.prestockbackend.dto.CustomerStatsDto;
 import com.happydev.prestockbackend.entity.Sale;
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.entity.ServiceOrderType;
@@ -129,6 +130,22 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
     BigDecimal sumPendingBalance();
 
     List<Sale> findByServiceOrderIdOrderBySaleDateDesc(Long serviceOrderId);
+
+    /** Cifras por cliente sobre todas sus ventas abonadas o completadas (ver CustomerStatsDto). */
+    @Query("""
+            SELECT new com.happydev.prestockbackend.dto.CustomerStatsDto(
+                s.customer.id,
+                COALESCE(SUM(s.montoTotal), 0),
+                COALESCE(SUM(CASE WHEN s.montoTotal > s.paidAmount THEN s.montoTotal - s.paidAmount ELSE 0 END), 0),
+                COUNT(s),
+                MAX(s.saleDate))
+            FROM Sale s
+            WHERE s.customer IS NOT NULL
+              AND s.status IN (com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID,
+                               com.happydev.prestockbackend.entity.SaleStatus.COMPLETED)
+            GROUP BY s.customer.id
+            """)
+    List<CustomerStatsDto> findCustomerStats();
 
     @Query(value = """
             SELECT s.customer_id,

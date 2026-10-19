@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.CustomerDto;
+import com.happydev.prestockbackend.dto.CustomerStatsDto;
 import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import org.springframework.lang.NonNull;
 import org.springframework.data.domain.Page;
@@ -12,6 +13,9 @@ import java.util.Optional;
 
 public interface CustomerService {
     List<CustomerDto> findAllCustomers();
+
+    /** Cifras de cada cliente con ventas (total, saldo, facturas, última compra). */
+    List<CustomerStatsDto> findCustomerStats();
     Page<CustomerDto> findAllCustomers(@NonNull Pageable pageable);
     Optional<CustomerDto> findCustomerById(@NonNull Long id);
     CustomerDto createCustomer(@NonNull CustomerDto customerDto);

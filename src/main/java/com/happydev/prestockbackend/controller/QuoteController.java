@@ -87,6 +87,16 @@ public class QuoteController {
         return ResponseEntity.ok(quoteService.convert(id));
     }
 
+    public record ConvertedSaleRequest(@jakarta.validation.constraints.NotNull Long saleId) {}
+
+    @PostMapping("/{id}/converted-sale")
+    @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'quotes.convert')")
+    public ResponseEntity<Void> markConverted(@PathVariable Long id,
+                                              @jakarta.validation.Valid @RequestBody ConvertedSaleRequest body) {
+        quoteService.markConverted(id, body.saleId());
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'quotes.delete')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {

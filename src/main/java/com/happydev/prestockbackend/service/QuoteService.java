@@ -22,6 +22,9 @@ public interface QuoteService {
 
     QuoteConvertResponse convert(Long id);
 
+    /** Marca la cotización como convertida en la venta indicada (tras cobrarla en el POS). */
+    void markConverted(Long id, Long saleId);
+
     void delete(Long id);
 
     void expireOverdue();
