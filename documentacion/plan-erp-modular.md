@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-06-27 (sesiones feedback)
+- **Última actualización:** 2026-10-19
 - **Fases completadas (migraciones hasta V43):**
   - ✅ Fase 1: Modularización y permisos granulares por usuario
   - ✅ Fase 2: Centro de Módulos (feature flags por instancia)
@@ -66,8 +66,15 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ permissions.ts + navigation.ts + modules.ts (EMPLOYEES removido de COMING_SOON) actualizados
   - proStock@HEAD (F5, NOT pushed to origin)
   - proStockFront@HEAD (F5, NOT pushed to origin)
+- **(2026-10-12 → 10-16) Vertical fotografía (Iridiscencia), en producción en el DS420+:**
+  - ✅ Robustez POS/API: ventas offline con fecha real y sin bloquear por stock, 409 en concurrencia, `POST /api/auth/refresh`, sucursales visibles para todos
+  - ✅ Anticipos y saldo de órdenes de servicio como facturas reales con NCF (`anticipos-ordenes-servicio.md`)
+  - ✅ Carpetas de trabajo en el NAS por orden de fotografía, movidas por etapa (V48)
+  - ✅ Rol PRODUCCION + "Mis trabajos" para fotógrafos/editores (V49), contadores de material, filtro por responsable, avisos WhatsApp
+  - ✅ Seguridad: la API exige permisos, no solo sesión (`ProductionRoleAccessFilter`, salarios ocultos sin `employees.view_salary`)
+  - ✅ Portal de selección de fotos del cliente en `iridiscencia.com/seleccion/<token>` (V50): marca de agua, cupo y fotos extra, hardlinks a `3 Edicion`, aviso Telegram
+  - Detalle completo en `carpetas-ordenes.md`. Desplegado: backend `6c44027`, frontend `116ffa3` (verificado 2026-10-19)
 - **Pendiente de acción inmediata:**
-  - Push de ambos repos a origin (proStock master, proStockFront main)
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
   - Validar TXT 606/607/608 con pre-validador oficial DGII (acción manual única)
   - Configurar SMTP en instancia de Irisdicencia para probar envío real

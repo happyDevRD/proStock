@@ -31,7 +31,7 @@ Ordenes/                                ← carpeta compartida de DSM (raíz)
 |---|---|---|
 | 1 | Hecha | Carpeta e `INFO.txt` al crear la orden; fotógrafo y editor asignables; ruta visible en el detalle; botón "Crear carpeta" para órdenes viejas o si falló |
 | 2 | Hecha | Al avanzar de etapa (o cancelar/entregar), la carpeta se mueve a la carpeta de la etapa nueva |
-| 3 | Pendiente | Portal web de selección para el cliente |
+| 3 | Hecha | Portal web de selección para el cliente (en producción desde 2026-10-16) |
 
 ## Movimiento entre etapas (fase 2)
 
