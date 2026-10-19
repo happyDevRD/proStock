@@ -26,5 +26,8 @@ public interface PurchaseOrderService {
     SupplierPaymentDto addPayment(Long poId, BigDecimal amount, PaymentMethod paymentMethod, String notes, String actorUsername);
     List<SupplierPaymentDto> getPaymentsForPurchaseOrder(Long poId);
     PurchaseOrderDto voidPayment(Long poId, Long paymentId, String actorUsername);
+    /** Órdenes por recibir: PENDING o PARTIALLY_RECEIVED. */
+    List<PurchaseOrderDto> findReceivableOrders();
+
     List<PurchaseOrderDto> findPayableOrders();
 }

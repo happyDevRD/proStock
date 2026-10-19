@@ -378,6 +378,13 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     @Override
+    public List<PurchaseOrderDto> findReceivableOrders() {
+        return purchaseOrderRepository.findByStatusIn(
+                List.of(PurchaseOrderStatus.PENDING, PurchaseOrderStatus.PARTIALLY_RECEIVED))
+                .stream().map(purchaseOrderMapper::toDto).toList();
+    }
+
+    @Override
     public List<PurchaseOrderDto> findPayableOrders() {
         return purchaseOrderRepository.findByStatusIn(
                 List.of(PurchaseOrderStatus.RECEIVED, PurchaseOrderStatus.PARTIALLY_PAID))

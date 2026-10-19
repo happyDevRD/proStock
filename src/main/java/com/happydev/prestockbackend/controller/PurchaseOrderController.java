@@ -41,6 +41,13 @@ public class PurchaseOrderController {
         return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders());
     }
 
+    /** Todas las órdenes por recibir (pendientes o recibidas en parte), sin límite de página. */
+    @PreAuthorize(Authz.PURCHASE_READ)
+    @GetMapping("/receivable")
+    public ResponseEntity<List<PurchaseOrderDto>> getReceivableOrders() {
+        return ResponseEntity.ok(purchaseOrderService.findReceivableOrders());
+    }
+
     @PreAuthorize(Authz.PURCHASE_READ)
     @GetMapping("/paginated")
     public ResponseEntity<Page<PurchaseOrderDto>> getAllPurchaseOrders(@NonNull Pageable pageable) {
