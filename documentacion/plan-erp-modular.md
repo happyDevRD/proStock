@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-10-19
+- **Última actualización:** 2026-10-19 (noche)
 - **Fases completadas (migraciones hasta V43):**
   - ✅ Fase 1: Modularización y permisos granulares por usuario
   - ✅ Fase 2: Centro de Módulos (feature flags por instancia)
@@ -74,6 +74,14 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ Seguridad: la API exige permisos, no solo sesión (`ProductionRoleAccessFilter`, salarios ocultos sin `employees.view_salary`)
   - ✅ Portal de selección de fotos del cliente en `iridiscencia.com/seleccion/<token>` (V50): marca de agua, cupo y fotos extra, hardlinks a `3 Edicion`, aviso Telegram
   - Detalle completo en `carpetas-ordenes.md`. Desplegado: backend `6c44027`, frontend `116ffa3` (verificado 2026-10-19)
+- **(2026-10-19) Iridiscencia: reservas, agenda y equipo — en producción (backend 0406c70, frontend 9682171):**
+  - ✅ Solicitudes de reserva desde iridiscencia.com → bandeja "Solicitudes web" en Órdenes (V51; `solicitudes-web.md`)
+  - ✅ Calendario mensual de citas (Tablero/Calendario) con solicitudes pendientes; `GET /api/service-orders/calendar`
+  - ✅ Recordatorio de la cita por WhatsApp (detalle de la orden) y aviso "Mañana: N sesiones"
+  - ✅ Contraseña temporal: `users.must_change_password` (V54); pantalla obligatoria al entrar; "Cambiar contraseña" en el menú del usuario para todos los roles
+  - ✅ Panel: no ofrece atajos ni enlaces a pantallas que el usuario no puede abrir (e2e de permisos actualizado)
+  - ✅ Empleados reales cargados (Anyara editora, Jocsan fotógrafo+editor, Anahis secretaria) y vinculados a sus usuarios
+  - Siguiente propuesto: bloquear fechas en el calendario; Fase B WhatsApp Cloud API vía ConectorIA (iniciar verificación en Meta)
 - **Pendiente de acción inmediata:**
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
   - Validar TXT 606/607/608 con pre-validador oficial DGII (acción manual única)
