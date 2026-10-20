@@ -1072,6 +1072,25 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
 
 ## 7. Bitácora de sesiones
 
+### 2026-10-19 — Análisis de modelo de despliegue (comercialización)
+- **Documento completo:** [ProStock — Análisis de modelo de despliegue y
+  comercialización](https://claude.ai/code/artifact/2a735692-c9cd-46e4-bc8c-19665f3a60bd)
+  (Claude Docs): on-premise vs servidor propio vs nube, equipos, costos,
+  capacidad, planes/add-ons, escenarios 10/30/100 clientes, e-CF, legal y
+  hoja de ruta.
+- **Recomendación:** nube como modelo principal (VPS 16 GB con Caddy +
+  Postgres compartido, una base por cliente, ~20-25 clientes/VPS, US$3-5 por
+  cliente); "Plan Local" on-premise como premium (+RD$1,500/mes); servidor
+  propio solo para staging/demos.
+- **Hallazgos:** prostock es single-tenant (~560 MB RAM por instancia medido);
+  multi-tenant (schema por cliente) al pasar de ~25 clientes. Plazo e-CF para
+  micro/pequeños = **15-nov-2026** (Aviso 06-26) → integrar con un PSE
+  certificado es la prioridad #1; planes con e-CF propuestos RD$1,600 /
+  2,900 / 5,300.
+- Sin cambios de código. Decisiones pendientes: PSE, proveedor de nube
+  (Vultr Miami vs Hetzner Ashburn), precios finales, Iridiscencia local o nube,
+  dominio comercial.
+
 ### 2026-06-23
 - **Relanzamiento del roadmap (v2):** análisis completo de brechas orientado
   a los 4 verticales objetivo (fotografía/servicios creativos, retail,
