@@ -81,7 +81,10 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ Contraseña temporal: `users.must_change_password` (V54); pantalla obligatoria al entrar; "Cambiar contraseña" en el menú del usuario para todos los roles
   - ✅ Panel: no ofrece atajos ni enlaces a pantallas que el usuario no puede abrir (e2e de permisos actualizado)
   - ✅ Empleados reales cargados (Anyara editora, Jocsan fotógrafo+editor, Anahis secretaria) y vinculados a sus usuarios
-  - Siguiente propuesto: bloquear fechas en el calendario; Fase B WhatsApp Cloud API vía ConectorIA (iniciar verificación en Meta)
+  - **PRIORIDAD ALTA (pedido del usuario, 2026-10-19):**
+    - **Calendario según el usuario:** cada persona ve su propia agenda (fotógrafo/editor: sus sesiones; secretaria/admin: todo el estudio, con filtro por persona). Incluir el calendario en "Mis trabajos" del rol Producción.
+    - **Reservas con anticipación y duración:** cada reserva/cita tiene inicio y duración (30 min, 1 h, varias horas o día completo). Mostrar los bloques en el calendario, detectar choques del mismo fotógrafo y avisar de la disponibilidad al convertir una solicitud web. Va junto con el bloqueo de fechas.
+  - Después: Fase B WhatsApp Cloud API vía ConectorIA (iniciar verificación en Meta)
 - **Pendiente de acción inmediata:**
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
   - Validar TXT 606/607/608 con pre-validador oficial DGII (acción manual única)
