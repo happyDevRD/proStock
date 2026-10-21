@@ -186,10 +186,8 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     @Override
     public List<ServiceOrderDto> findScheduled(@NonNull LocalDate from, @NonNull LocalDate to,
                                                @Nullable ServiceOrderType type, @Nullable Long staffId) {
-        if (to.isBefore(from)) throw new IllegalArgumentException("La fecha final es anterior a la inicial.");
-        if (from.plusDays(62).isBefore(to)) throw new IllegalArgumentException("El rango máximo es de 62 días.");
-        return orderRepository.findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
-                        from.atStartOfDay(), to.plusDays(1).atStartOfDay(), ServiceOrderStatus.CANCELLED)
+        AppointmentScheduleService.checkRange(from, to);
+        return orderRepository.findAppointmentsOverlapping(from.atStartOfDay(), to.plusDays(1).atStartOfDay())
                 .stream()
                 .filter(o -> type == null || o.getOrderType() == type)
                 .filter(o -> staffId == null
@@ -242,7 +240,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         order.setTitle(req.title());
         order.setStatus(ServiceOrderStatus.OPEN);
         order.setCurrentStage(INITIAL_STAGE.getOrDefault(orderType, "RECEIVED"));
-        order.setAppointmentDate(req.appointmentDate());
+        applyAppointment(order, AppointmentWindow.of(req.appointmentDate(), req.appointmentEnd(), req.appointmentAllDay()));
         order.setEstimatedDelivery(req.estimatedDelivery());
         order.setEstimatedAmount(req.estimatedAmount());
         order.setDeviceBrand(req.deviceBrand());
@@ -288,7 +286,11 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         ServiceOrder order = getOrThrow(id);
 
         if (req.title() != null) order.setTitle(req.title());
-        order.setAppointmentDate(req.appointmentDate());
+        boolean keepWindow = req.appointmentEnd() == null && req.appointmentAllDay() == null
+                && Objects.equals(req.appointmentDate(), order.getAppointmentDate());
+        if (!keepWindow) {
+            applyAppointment(order, AppointmentWindow.of(req.appointmentDate(), req.appointmentEnd(), req.appointmentAllDay()));
+        }
         order.setEstimatedDelivery(req.estimatedDelivery());
         order.setEstimatedAmount(req.estimatedAmount());
         order.setDeviceBrand(req.deviceBrand());
@@ -852,6 +854,12 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         return saved;
     }
 
+    private static void applyAppointment(ServiceOrder order, @Nullable AppointmentWindow w) {
+        order.setAppointmentDate(w != null ? w.start() : null);
+        order.setAppointmentEnd(w != null ? w.end() : null);
+        order.setAppointmentAllDay(w != null && w.allDay());
+    }
+
     private Employee employeeOrNull(Long id) {
         if (id == null) return null;
         return employeeRepository.findById(id)
@@ -871,7 +879,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getCustomer() != null ? o.getCustomer().getId() : null,
                 customerName(o),
                 o.getOrderType(), o.getTitle(), o.getStatus(), o.getCurrentStage(),
-                o.getAppointmentDate(), o.getEstimatedDelivery(),
+                o.getAppointmentDate(), o.getAppointmentEnd(), o.isAppointmentAllDay(), o.getEstimatedDelivery(),
                 o.getEstimatedAmount(), o.isBudgetApproved(), o.getBudgetApprovedAt(),
                 o.getDepositAmount(),
                 o.getDeviceBrand(), o.getDeviceModel(), o.getDeviceSerial(),
@@ -897,7 +905,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 o.getCustomer() != null ? o.getCustomer().getId() : null,
                 customerName(o),
                 o.getOrderType(), o.getTitle(), o.getStatus(), o.getCurrentStage(),
-                o.getAppointmentDate(), o.getEstimatedDelivery(),
+                o.getAppointmentDate(), o.getAppointmentEnd(), o.isAppointmentAllDay(), o.getEstimatedDelivery(),
                 o.getEstimatedAmount(), o.isBudgetApproved(), o.getBudgetApprovedAt(),
                 o.getDepositAmount(),
                 o.getDeviceBrand(), o.getDeviceModel(), o.getDeviceSerial(),

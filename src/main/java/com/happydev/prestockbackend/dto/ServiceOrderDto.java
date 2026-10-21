@@ -18,6 +18,9 @@ public record ServiceOrderDto(
         ServiceOrderStatus status,
         String currentStage,
         LocalDateTime appointmentDate,
+        /** Fin de la cita (exclusivo) */
+        LocalDateTime appointmentEnd,
+        boolean appointmentAllDay,
         LocalDate estimatedDelivery,
         BigDecimal estimatedAmount,
         boolean budgetApproved,

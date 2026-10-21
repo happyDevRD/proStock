@@ -18,5 +18,8 @@ public record UpdateServiceOrderRequest(
         String problemDescription,
         String internalNotes,
         Long photographerId,
-        Long editorId
+        Long editorId,
+        // Fin de la cita (exclusivo) y día completo. Si ambos faltan y el inicio no cambió, se conserva la duración.
+        LocalDateTime appointmentEnd,
+        Boolean appointmentAllDay
 ) {}

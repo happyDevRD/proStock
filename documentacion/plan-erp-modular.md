@@ -27,7 +27,7 @@ República Dominicana, luego en la región. Objetivos concretos:
 
 ## 2. Estado actual / próximo paso
 
-- **Última actualización:** 2026-10-19 (noche)
+- **Última actualización:** 2026-10-21
 - **Fases completadas (migraciones hasta V43):**
   - ✅ Fase 1: Modularización y permisos granulares por usuario
   - ✅ Fase 2: Centro de Módulos (feature flags por instancia)
@@ -81,9 +81,11 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ Contraseña temporal: `users.must_change_password` (V54); pantalla obligatoria al entrar; "Cambiar contraseña" en el menú del usuario para todos los roles
   - ✅ Panel: no ofrece atajos ni enlaces a pantallas que el usuario no puede abrir (e2e de permisos actualizado)
   - ✅ Empleados reales cargados (Anyara editora, Jocsan fotógrafo+editor, Anahis secretaria) y vinculados a sus usuarios
-  - **PRIORIDAD ALTA (pedido del usuario, 2026-10-19):**
-    - **Calendario según el usuario:** cada persona ve su propia agenda (fotógrafo/editor: sus sesiones; secretaria/admin: todo el estudio, con filtro por persona). Incluir el calendario en "Mis trabajos" del rol Producción.
-    - **Reservas con anticipación y duración:** cada reserva/cita tiene inicio y duración (30 min, 1 h, varias horas o día completo). Mostrar los bloques en el calendario, detectar choques del mismo fotógrafo y avisar de la disponibilidad al convertir una solicitud web. Va junto con el bloqueo de fechas.
+- **(2026-10-21) Agenda de citas (V55; `agenda-citas.md`):**
+  - ✅ Citas con inicio y duración (30 min … día completo); citas viejas migradas (sin hora → día completo, con hora → 1 h)
+  - ✅ Disponibilidad: aviso si el fotógrafo ya tiene sesión o la fecha está bloqueada (solo avisa), en la orden y al convertir solicitudes web (que ahora piden duración y fotógrafo)
+  - ✅ Bloqueo de fechas para todo el estudio o una persona (`calendar_blocks`)
+  - ✅ Calendario Mes/Semana (bloques por hora) en Órdenes; "Mi agenda" en Mis trabajos para el rol Producción
   - Después: Fase B WhatsApp Cloud API vía ConectorIA (iniciar verificación en Meta)
 - **Pendiente de acción inmediata:**
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
@@ -1074,6 +1076,18 @@ del plan (más simple, pero riesgo de churn sin valor adicional visible).
   cumplimiento o calidad.
 
 ## 7. Bitácora de sesiones
+
+### 2026-10-21 — Agenda de citas con duración y bloqueos
+- V55: `service_orders.appointment_end` + `appointment_all_day`, tabla
+  `calendar_blocks`. `AppointmentWindow` (reglas de duración) y
+  `AppointmentScheduleService` (disponibilidad, bloqueos). Endpoints
+  `/availability`, `/blocks`, `/api/my-work/calendar`.
+- Frontend: `AppointmentCalendar` genérico (Mes/Semana, carriles, agenda en
+  móvil), campos de duración y aviso de disponibilidad en la orden y en la
+  conversión de solicitudes web, "Bloquear fechas", "Mi agenda".
+- Validado: 328 pruebas del backend contra Postgres, `npm run validate`, y
+  recorrido con Playwright (choques, bloqueos, Producción con 403 fuera de Mis
+  trabajos). Detalle en `agenda-citas.md`.
 
 ### 2026-10-19 — Análisis de modelo de despliegue (comercialización)
 - **Documento completo:** [ProStock — Análisis de modelo de despliegue y

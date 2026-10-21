@@ -17,9 +17,20 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, Long
 
     List<ServiceOrder> findAllByOrderByCreatedAtDesc();
 
-    /** Órdenes agendadas en un rango (solicitudes web: qué hay ese día). */
-    List<ServiceOrder> findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
-            LocalDateTime start, LocalDateTime end, ServiceOrderStatus status);
+    /**
+     * Citas no canceladas que se cruzan con [start, end). Una cita sin fin (anterior a V55)
+     * cuenta como el instante de inicio.
+     */
+    @Query("""
+            SELECT o FROM ServiceOrder o
+            WHERE o.status <> com.happydev.prestockbackend.entity.ServiceOrderStatus.CANCELLED
+              AND o.appointmentDate IS NOT NULL
+              AND o.appointmentDate < :end
+              AND COALESCE(o.appointmentEnd, o.appointmentDate) > :start
+            ORDER BY o.appointmentDate ASC, o.id ASC
+            """)
+    List<ServiceOrder> findAppointmentsOverlapping(@Param("start") LocalDateTime start,
+                                                   @Param("end") LocalDateTime end);
 
     List<ServiceOrder> findByStatusInOrderByCreatedAtDesc(List<ServiceOrderStatus> statuses);
 

@@ -28,7 +28,8 @@ public final class BookingRequestDtos {
     public record PublicBookingCreated(String code) {}
 
     public record SameDayOrder(Long id, String orderNumber, String title, String customerName,
-                               LocalDateTime appointmentDate) {}
+                               LocalDateTime appointmentDate, LocalDateTime appointmentEnd,
+                               boolean appointmentAllDay, String photographerName) {}
 
     public record MatchedCustomer(Long id, String name) {}
 
@@ -57,6 +58,14 @@ public final class BookingRequestDtos {
 
     public record ConvertBookingRequest(
             @NotBlank @Size(max = 255) String title,
-            LocalDateTime appointmentDate
-    ) {}
+            LocalDateTime appointmentDate,
+            /** Fin de la cita (exclusivo); sin fin dura 1 hora */
+            LocalDateTime appointmentEnd,
+            Boolean appointmentAllDay,
+            Long photographerId
+    ) {
+        public ConvertBookingRequest(String title, LocalDateTime appointmentDate) {
+            this(title, appointmentDate, null, null, null);
+        }
+    }
 }

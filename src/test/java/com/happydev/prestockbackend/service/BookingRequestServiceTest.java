@@ -54,7 +54,7 @@ class BookingRequestServiceTest {
         given(repository.findByPhoneAndCreatedAtAfterOrderByCreatedAtDesc(any(), any())).willReturn(List.of());
         given(customerRepository.findFirstByEmailIgnoreCase(any())).willReturn(Optional.empty());
         given(customerRepository.findFirstByPhoneDigits(any())).willReturn(Optional.empty());
-        given(orderRepository.findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(any(), any(), any()))
+        given(orderRepository.findAppointmentsOverlapping(any(), any()))
                 .willReturn(List.of());
     }
 

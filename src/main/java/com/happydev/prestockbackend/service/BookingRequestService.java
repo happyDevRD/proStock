@@ -162,7 +162,8 @@ public class BookingRequestService {
 
         ServiceOrderDto order = serviceOrderService.create(new CreateServiceOrderRequest(
                 customerId, null, req.title().trim(), req.appointmentDate(), null, null, null,
-                null, null, null, null, null, internalNotes(r), null, null), actor);
+                null, null, null, null, null, internalNotes(r), req.photographerId(), null,
+                req.appointmentEnd(), req.appointmentAllDay()), actor);
 
         r.setCustomer(customerRepository.getReferenceById(customerId));
         r.setServiceOrder(orderRepository.getReferenceById(order.id()));
@@ -252,11 +253,12 @@ public class BookingRequestService {
     }
 
     private List<SameDayOrder> sameDayOrders(LocalDate day) {
-        return orderRepository.findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
-                        day.atStartOfDay(), day.plusDays(1).atStartOfDay(), ServiceOrderStatus.CANCELLED)
+        return orderRepository.findAppointmentsOverlapping(day.atStartOfDay(), day.plusDays(1).atStartOfDay())
                 .stream()
                 .map(o -> new SameDayOrder(o.getId(), o.getOrderNumber(), o.getTitle(),
-                        o.getCustomer() != null ? fullName(o.getCustomer()) : null, o.getAppointmentDate()))
+                        o.getCustomer() != null ? fullName(o.getCustomer()) : null, o.getAppointmentDate(),
+                        o.getAppointmentEnd(), o.isAppointmentAllDay(),
+                        o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null))
                 .toList();
     }
 

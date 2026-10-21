@@ -26,5 +26,20 @@ public record CreateServiceOrderRequest(
         String internalNotes,
         // Fotografía: empleados asignados
         Long photographerId,
-        Long editorId
-) {}
+        Long editorId,
+        // Fin de la cita (exclusivo) y día completo; sin fin la cita dura 1 hora
+        LocalDateTime appointmentEnd,
+        Boolean appointmentAllDay
+) {
+    /** Sin duración: la cita (si hay) dura lo predeterminado. */
+    public CreateServiceOrderRequest(Long customerId, ServiceOrderType orderType, String title,
+                                     LocalDateTime appointmentDate, LocalDate estimatedDelivery,
+                                     BigDecimal estimatedAmount, BigDecimal depositAmount,
+                                     String deviceBrand, String deviceModel, String deviceSerial,
+                                     String deviceCondition, String problemDescription, String internalNotes,
+                                     Long photographerId, Long editorId) {
+        this(customerId, orderType, title, appointmentDate, estimatedDelivery, estimatedAmount, depositAmount,
+                deviceBrand, deviceModel, deviceSerial, deviceCondition, problemDescription, internalNotes,
+                photographerId, editorId, null, null);
+    }
+}

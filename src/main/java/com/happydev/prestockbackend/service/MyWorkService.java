@@ -2,6 +2,8 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.AddNoteRequest;
 import com.happydev.prestockbackend.dto.AdvanceStageRequest;
+import com.happydev.prestockbackend.dto.MyWorkDtos.MyCalendarItem;
+import com.happydev.prestockbackend.dto.MyWorkDtos.MyCalendarResponse;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkAction;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkNote;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkOrder;
@@ -18,6 +20,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +57,7 @@ public class MyWorkService {
     private final ServiceOrderNoteRepository noteRepository;
     private final ServiceOrderService serviceOrderService;
     private final WorkFolderService workFolderService;
+    private final AppointmentScheduleService scheduleService;
 
     public MyWorkService(UserRepository userRepository,
                          EmployeeRepository employeeRepository,
@@ -61,7 +65,8 @@ public class MyWorkService {
                          ServiceOrderItemRepository itemRepository,
                          ServiceOrderNoteRepository noteRepository,
                          ServiceOrderService serviceOrderService,
-                         WorkFolderService workFolderService) {
+                         WorkFolderService workFolderService,
+                         AppointmentScheduleService scheduleService) {
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
         this.orderRepository = orderRepository;
@@ -69,6 +74,7 @@ public class MyWorkService {
         this.noteRepository = noteRepository;
         this.serviceOrderService = serviceOrderService;
         this.workFolderService = workFolderService;
+        this.scheduleService = scheduleService;
     }
 
     @Transactional(readOnly = true)
@@ -82,6 +88,26 @@ public class MyWorkService {
                 .map(o -> toDto(o, e))
                 .toList();
         return new MyWorkResponse(true, e.getNombreCompleto(), orders);
+    }
+
+    /** Agenda del usuario entre {@code from} y {@code to} (inclusive), también de órdenes ya cerradas. */
+    @Transactional(readOnly = true)
+    public MyCalendarResponse calendar(String username, LocalDate from, LocalDate to) {
+        AppointmentScheduleService.checkRange(from, to);
+        Optional<Employee> employee = employeeOf(username);
+        if (employee.isEmpty()) {
+            return new MyCalendarResponse(false, List.of(), List.of());
+        }
+        Employee e = employee.get();
+        List<MyCalendarItem> items = orderRepository
+                .findAppointmentsOverlapping(from.atStartOfDay(), to.plusDays(1).atStartOfDay()).stream()
+                .filter(o -> !myRoles(o, e).isEmpty())
+                .map(o -> new MyCalendarItem(o.getId(), o.getOrderNumber(), o.getTitle(), customerName(o.getCustomer()),
+                        o.getAppointmentDate(),
+                        o.getAppointmentEnd() != null ? o.getAppointmentEnd() : o.getAppointmentDate(),
+                        o.isAppointmentAllDay(), o.getCurrentStage(), o.getStatus().name(), myRoles(o, e)))
+                .toList();
+        return new MyCalendarResponse(true, items, scheduleService.blocksFor(e.getId(), from, to));
     }
 
     /** Marca el siguiente paso que le corresponde al usuario; falla si no le toca. */
@@ -157,6 +183,11 @@ public class MyWorkService {
         return myRoles(o, e).contains(step.role()) ? step : null;
     }
 
+    @Nullable
+    private static String customerName(@Nullable Customer c) {
+        return c != null ? (c.getFirstName() + " " + (c.getLastName() != null ? c.getLastName() : "")).trim() : null;
+    }
+
     private MyWorkOrder toDto(ServiceOrder o, Employee e) {
         Customer c = o.getCustomer();
         Step step = allowedStep(o, e);
@@ -169,9 +200,10 @@ public class MyWorkService {
                 .toList();
         return new MyWorkOrder(
                 o.getId(), o.getOrderNumber(), o.getTitle(),
-                c != null ? (c.getFirstName() + " " + (c.getLastName() != null ? c.getLastName() : "")).trim() : null,
+                customerName(c),
                 c != null ? c.getPhoneNumber() : null,
-                o.getAppointmentDate(), o.getEstimatedDelivery(), o.getCurrentStage(),
+                o.getAppointmentDate(), o.getAppointmentEnd(), o.isAppointmentAllDay(),
+                o.getEstimatedDelivery(), o.getCurrentStage(),
                 myRoles(o, e),
                 o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
                 o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,

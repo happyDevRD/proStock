@@ -71,6 +71,9 @@ class ServiceOrderControllerTest {
     @MockitoBean
     private ServiceOrderAccessGuard accessGuard;
 
+    @MockitoBean
+    private com.happydev.prestockbackend.service.AppointmentScheduleService scheduleService;
+
     @Test
     void getStats_ReturnsAggregates() throws Exception {
         doNothing().when(accessGuard).requireEnabled();
@@ -166,6 +169,8 @@ class ServiceOrderControllerTest {
                 ServiceOrderStatus.OPEN,
                 "RECEIVED",
                 null,
+                null,
+                false,
                 null,
                 null,
                 false,

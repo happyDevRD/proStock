@@ -22,6 +22,9 @@ public final class MyWorkDtos {
             String customerName,
             String customerPhone,
             LocalDateTime appointmentDate,
+            /** Fin de la sesión (exclusivo) */
+            LocalDateTime appointmentEnd,
+            boolean appointmentAllDay,
             LocalDate estimatedDelivery,
             String currentStage,
             /** FOTOGRAFO y/o EDITOR: qué le toca a este usuario en la orden */
@@ -40,6 +43,23 @@ public final class MyWorkDtos {
     ) {}
 
     public record MyWorkNote(String content, String author, LocalDateTime createdAt) {}
+
+    /** Agenda personal: citas donde el usuario es fotógrafo o editor, y bloqueos que le afectan. */
+    public record MyCalendarResponse(boolean linked, List<MyCalendarItem> appointments,
+                                     List<com.happydev.prestockbackend.dto.ScheduleDtos.CalendarBlockDto> blocks) {}
+
+    public record MyCalendarItem(
+            Long id,
+            String orderNumber,
+            String title,
+            String customerName,
+            LocalDateTime start,
+            LocalDateTime end,
+            boolean allDay,
+            String currentStage,
+            String status,
+            List<String> myRoles
+    ) {}
 
     public record MyWorkAction(String stage, String label) {}
 

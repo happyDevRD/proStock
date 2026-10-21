@@ -2,6 +2,7 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.dto.AdvanceStageRequest;
 import com.happydev.prestockbackend.dto.CreateServiceOrderRequest;
+import com.happydev.prestockbackend.dto.UpdateServiceOrderRequest;
 import com.happydev.prestockbackend.dto.ServiceOrderReportDto;
 import com.happydev.prestockbackend.dto.ServiceOrderStatsDto;
 import com.happydev.prestockbackend.dto.UpdateServiceOrderItemRequest;
@@ -42,6 +43,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -599,8 +602,7 @@ class ServiceOrderServiceImplTest {
         repair.setId(4L);
         repair.setOrderType(ServiceOrderType.REPAIR);
         java.time.LocalDate from = java.time.LocalDate.of(2026, 11, 1);
-        when(orderRepository.findByAppointmentDateBetweenAndStatusNotOrderByAppointmentDateAsc(
-                from.atStartOfDay(), from.plusDays(30).atStartOfDay(), ServiceOrderStatus.CANCELLED))
+        when(orderRepository.findAppointmentsOverlapping(from.atStartOfDay(), from.plusDays(30).atStartOfDay()))
                 .thenReturn(java.util.List.of(photo, otherStaff, repair));
 
         assertEquals(2, service.findScheduled(from, from.plusDays(29), ServiceOrderType.PHOTOGRAPHY, null).size());
@@ -609,5 +611,36 @@ class ServiceOrderServiceImplTest {
         assertEquals(1L, mine.get(0).id());
         assertThrows(IllegalArgumentException.class,
                 () -> service.findScheduled(from, from.plusDays(90), null, null));
+    }
+
+    @Test
+    void update_keepsDurationWhenStartUnchangedAndAppliesNewOne() {
+        java.time.LocalDate day = java.time.LocalDate.of(2026, 11, 7);
+        ServiceOrder o = new ServiceOrder();
+        o.setId(8L);
+        o.setOrderNumber("OS-2026-00008");
+        o.setOrderType(ServiceOrderType.PHOTOGRAPHY);
+        o.setAppointmentDate(day.atStartOfDay());
+        o.setAppointmentEnd(day.plusDays(1).atStartOfDay());
+        o.setAppointmentAllDay(true);
+        when(orderRepository.findById(8L)).thenReturn(Optional.of(o));
+        when(orderRepository.save(any(ServiceOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Pantalla vieja: misma fecha, sin duración → se conserva el día completo
+        service.update(8L, new UpdateServiceOrderRequest(null, "Boda", day.atStartOfDay(), null, null, null,
+                null, null, null, null, null, null, null, null, null, null), "admin");
+        assertTrue(o.isAppointmentAllDay());
+        assertEquals(day.plusDays(1).atStartOfDay(), o.getAppointmentEnd());
+
+        // Nueva hora con duración de 30 minutos
+        service.update(8L, new UpdateServiceOrderRequest(null, "Boda", day.atTime(16, 0), null, null, null,
+                null, null, null, null, null, null, null, null, day.atTime(16, 30), false), "admin");
+        assertFalse(o.isAppointmentAllDay());
+        assertEquals(day.atTime(16, 30), o.getAppointmentEnd());
+
+        // Sin fecha: se borra la cita completa
+        service.update(8L, new UpdateServiceOrderRequest(null, "Boda", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null), "admin");
+        assertNull(o.getAppointmentEnd());
     }
 }

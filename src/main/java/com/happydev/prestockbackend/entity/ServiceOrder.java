@@ -43,6 +43,14 @@ public class ServiceOrder {
     @Column(name = "appointment_date")
     private LocalDateTime appointmentDate;
 
+    /** Fin de la cita (exclusivo). Lo calcula AppointmentWindow a partir del inicio y la duración. */
+    @Column(name = "appointment_end")
+    private LocalDateTime appointmentEnd;
+
+    /** La cita ocupa días completos: inicio a medianoche y fin a medianoche del día siguiente al último. */
+    @Column(name = "appointment_all_day", nullable = false)
+    private boolean appointmentAllDay = false;
+
     @Column(name = "estimated_delivery")
     private LocalDate estimatedDelivery;
 

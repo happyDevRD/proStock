@@ -13,12 +13,14 @@ import com.happydev.prestockbackend.dto.SelectionDtos;
 import com.happydev.prestockbackend.dto.*;
 import com.happydev.prestockbackend.entity.ServiceOrderStatus;
 import com.happydev.prestockbackend.entity.ServiceOrderType;
+import com.happydev.prestockbackend.service.AppointmentScheduleService;
 import com.happydev.prestockbackend.service.ServiceOrderAccessGuard;
 import com.happydev.prestockbackend.service.ServiceOrderService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -40,17 +43,20 @@ public class ServiceOrderController {
     private final WorkFolderService workFolderService;
     private final EmployeeRepository employeeRepository;
     private final SelectionService selectionService;
+    private final AppointmentScheduleService scheduleService;
 
     public ServiceOrderController(ServiceOrderService serviceOrderService,
                                   ServiceOrderAccessGuard accessGuard,
                                   WorkFolderService workFolderService,
                                   EmployeeRepository employeeRepository,
-                                  SelectionService selectionService) {
+                                  SelectionService selectionService,
+                                  AppointmentScheduleService scheduleService) {
         this.serviceOrderService = serviceOrderService;
         this.accessGuard = accessGuard;
         this.workFolderService = workFolderService;
         this.employeeRepository = employeeRepository;
         this.selectionService = selectionService;
+        this.scheduleService = scheduleService;
     }
 
     // ── Selección de fotos por el cliente (enlace público) ─────────────────
@@ -182,6 +188,41 @@ public class ServiceOrderController {
     ) {
         accessGuard.requireEnabled();
         return ResponseEntity.ok(serviceOrderService.findScheduled(from, to, type, staffId));
+    }
+
+    /** Choques de una cita con la agenda del fotógrafo y fechas bloqueadas. Solo informa; no impide agendar. */
+    @GetMapping("/availability")
+    public ResponseEntity<ScheduleDtos.AvailabilityResponse> availability(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(required = false) Boolean allDay,
+            @RequestParam(required = false) Long photographerId,
+            @RequestParam(required = false) Long excludeOrderId
+    ) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(scheduleService.availability(start, end, allDay, photographerId, excludeOrderId));
+    }
+
+    @GetMapping("/blocks")
+    public ResponseEntity<List<ScheduleDtos.CalendarBlockDto>> blocks(@RequestParam LocalDate from,
+                                                                      @RequestParam LocalDate to) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(scheduleService.blocks(from, to));
+    }
+
+    @PostMapping("/blocks")
+    public ResponseEntity<ScheduleDtos.CalendarBlockDto> createBlock(
+            @Valid @RequestBody ScheduleDtos.CreateCalendarBlockRequest request, Principal principal) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(scheduleService.createBlock(request, principal != null ? principal.getName() : null));
+    }
+
+    @DeleteMapping("/blocks/{blockId}")
+    public ResponseEntity<Void> deleteBlock(@PathVariable Long blockId, Principal principal) {
+        accessGuard.requireEnabled();
+        scheduleService.deleteBlock(blockId, principal != null ? principal.getName() : null);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/stats")

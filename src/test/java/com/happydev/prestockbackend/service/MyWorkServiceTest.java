@@ -39,11 +39,12 @@ class MyWorkServiceTest {
     private Employee juan;   // fotógrafo de la orden
     private Employee ana;    // editora de la orden
     private ServiceOrder order;
+    @Mock private AppointmentScheduleService scheduleService;
 
     @BeforeEach
     void setUp() {
         service = new MyWorkService(userRepository, employeeRepository, orderRepository, itemRepository,
-                noteRepository, serviceOrderService, workFolderService);
+                noteRepository, serviceOrderService, workFolderService, scheduleService);
 
         juan = employee(1L, "Juan", "juan");
         ana = employee(2L, "Ana", "ana");
@@ -175,5 +176,31 @@ class MyWorkServiceTest {
                 .willReturn(java.util.Map.of("1 Camara", 412, "4 Final", 0));
 
         assertThrows(IllegalStateException.class, () -> service.advance(10L, "READY", "ana"));
+    }
+
+    @Test
+    void calendar_onlyMyAppointmentsWithMyRoles() {
+        java.time.LocalDate day = java.time.LocalDate.of(2026, 11, 7);
+        order.setAppointmentDate(day.atTime(10, 0));
+        order.setAppointmentEnd(day.atTime(12, 0));
+        ServiceOrder other = new ServiceOrder();
+        other.setId(11L);
+        other.setOrderType(ServiceOrderType.PHOTOGRAPHY);
+        other.setStatus(ServiceOrderStatus.OPEN);
+        other.setCurrentStage("SCHEDULED");
+        other.setAppointmentDate(day.atTime(15, 0));
+        other.setAppointmentEnd(day.atTime(16, 0));
+        given(orderRepository.findAppointmentsOverlapping(day.atStartOfDay(), day.plusDays(1).atStartOfDay()))
+                .willReturn(List.of(order, other));
+        given(scheduleService.blocksFor(2L, day, day)).willReturn(List.of());
+
+        var res = service.calendar("ana", day, day);
+
+        assertTrue(res.linked());
+        assertEquals(1, res.appointments().size());
+        var item = res.appointments().get(0);
+        assertEquals(10L, item.id());
+        assertEquals(List.of("EDITOR"), item.myRoles());
+        assertEquals(day.atTime(12, 0), item.end());
     }
 }

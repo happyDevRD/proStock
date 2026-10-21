@@ -1,5 +1,6 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.MyWorkDtos.MyCalendarResponse;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkNoteRequest;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkResponse;
 import com.happydev.prestockbackend.service.MyWorkService;
@@ -10,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.time.LocalDate;
 
 /** "Mis trabajos" para fotógrafos y editores: solo sus órdenes y sus pasos. */
 @RestController
@@ -29,6 +31,14 @@ public class MyWorkController {
     public ResponseEntity<MyWorkResponse> list(Principal principal) {
         accessGuard.requireEnabled();
         return ResponseEntity.ok(myWorkService.list(principal.getName()));
+    }
+
+    @GetMapping("/calendar")
+    public ResponseEntity<MyCalendarResponse> calendar(@RequestParam LocalDate from,
+                                                       @RequestParam LocalDate to,
+                                                       Principal principal) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(myWorkService.calendar(principal.getName(), from, to));
     }
 
     /** {@code stage} = etapa destino que vio el usuario (protege de doble clic y pantallas viejas). */
