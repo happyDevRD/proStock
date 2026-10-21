@@ -33,6 +33,7 @@ class AppointmentScheduleServiceTest {
     @Mock private CalendarBlockRepository blockRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private AuditService auditService;
+    @Mock private com.happydev.prestockbackend.repository.BookingRequestRepository requestRepository;
 
     private AppointmentScheduleService service;
     private Employee jocsan;
@@ -40,7 +41,8 @@ class AppointmentScheduleServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AppointmentScheduleService(orderRepository, blockRepository, employeeRepository, auditService);
+        service = new AppointmentScheduleService(orderRepository, blockRepository, employeeRepository, auditService,
+                requestRepository);
         jocsan = employee(1L, "Jocsan");
         anyara = employee(2L, "Anyara");
     }
@@ -102,6 +104,32 @@ class AppointmentScheduleServiceTest {
                 .willReturn(List.of(block(1L, null, "Feriado"), block(2L, anyara, "Vacaciones"), block(3L, jocsan, "Cita médica")));
 
         assertEquals(List.of(1L, 3L), service.blocksFor(1L, DAY, DAY).stream().map(b -> b.id()).toList());
+    }
+
+    @Test
+    void publicBusy_uneTramosYOmiteBloqueosPersonales() {
+        LocalDateTime start = DAY.atStartOfDay();
+        LocalDateTime end = DAY.plusDays(1).atStartOfDay();
+        CalendarBlock personal = block(2L, anyara, "Vacaciones");
+        CalendarBlock tarde = block(3L, null, "Reunión");
+        tarde.setStartsAt(DAY.atTime(15, 0));
+        tarde.setEndsAt(DAY.atTime(16, 0));
+        tarde.setAllDay(false);
+        com.happydev.prestockbackend.entity.BookingRequest web = new com.happydev.prestockbackend.entity.BookingRequest();
+        web.setEventStart(DAY.atTime(11, 0));
+        web.setEventEnd(DAY.atTime(11, 30));
+        given(orderRepository.findAppointmentsOverlapping(start, end))
+                .willReturn(List.of(order(5L, jocsan, DAY.atTime(10, 0), DAY.atTime(11, 0))));
+        given(blockRepository.findOverlapping(start, end)).willReturn(List.of(personal, tarde));
+        given(requestRepository.findByStatusAndEventStartLessThanAndEventEndGreaterThan(any(), any(), any()))
+                .willReturn(List.of(web));
+
+        var busy = service.publicBusy(DAY, DAY);
+
+        assertEquals(2, busy.size());
+        assertEquals(DAY.atTime(10, 0), busy.get(0).start());
+        assertEquals(DAY.atTime(11, 30), busy.get(0).end());
+        assertEquals(DAY.atTime(15, 0), busy.get(1).start());
     }
 
     private static Employee employee(Long id, String name) {

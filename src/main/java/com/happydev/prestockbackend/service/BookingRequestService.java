@@ -43,6 +43,7 @@ public class BookingRequestService {
     private final ServiceOrderRepository orderRepository;
     private final ServiceOrderService serviceOrderService;
     private final StudioNotifier notifier;
+    private final AppointmentScheduleService scheduleService;
     private final Clock clock;
     private final Map<String, Deque<LocalDateTime>> recentByIp = new ConcurrentHashMap<>();
 
@@ -52,9 +53,10 @@ public class BookingRequestService {
                                  CustomerService customerService,
                                  ServiceOrderRepository orderRepository,
                                  ServiceOrderService serviceOrderService,
-                                 StudioNotifier notifier) {
+                                 StudioNotifier notifier,
+                                 AppointmentScheduleService scheduleService) {
         this(repository, customerRepository, customerService, orderRepository, serviceOrderService, notifier,
-                Clock.systemDefaultZone());
+                scheduleService, Clock.systemDefaultZone());
     }
 
     BookingRequestService(BookingRequestRepository repository,
@@ -63,6 +65,7 @@ public class BookingRequestService {
                           ServiceOrderRepository orderRepository,
                           ServiceOrderService serviceOrderService,
                           StudioNotifier notifier,
+                          AppointmentScheduleService scheduleService,
                           Clock clock) {
         this.repository = repository;
         this.customerRepository = customerRepository;
@@ -70,6 +73,7 @@ public class BookingRequestService {
         this.orderRepository = orderRepository;
         this.serviceOrderService = serviceOrderService;
         this.notifier = notifier;
+        this.scheduleService = scheduleService;
         this.clock = clock;
     }
 
@@ -92,16 +96,26 @@ public class BookingRequestService {
             throw new IllegalArgumentException("Escribe un teléfono válido.");
         }
 
+        AppointmentWindow slot = requestedSlot(req, now);
         for (BookingRequest prev : repository.findByPhoneAndCreatedAtAfterOrderByCreatedAtDesc(phone, now.minusHours(1))) {
             if (Objects.equals(prev.getEventType(), trimToNull(req.tipoEvento()))
-                    && Objects.equals(prev.getEventDate(), req.fecha())) {
+                    && Objects.equals(prev.getEventDate(), req.fecha())
+                    && Objects.equals(prev.getEventStart(), slot != null ? slot.start() : null)) {
                 return new PublicBookingCreated(prev.getCode());
             }
         }
 
         checkRateLimit(clientIp, now);
+        if (slot != null && scheduleService.isTaken(slot)) {
+            throw new SlotTakenException();
+        }
 
         BookingRequest r = new BookingRequest();
+        if (slot != null) {
+            r.setEventStart(slot.start());
+            r.setEventEnd(slot.end());
+            r.setEventAllDay(slot.allDay());
+        }
         r.setName(req.nombre().trim());
         r.setPhone(phone);
         r.setEmail(trimToNull(req.email()));
@@ -116,8 +130,30 @@ public class BookingRequestService {
         notifier.send("Nueva solicitud web " + saved.getCode() + ": " + saved.getName()
                 + (saved.getEventType() != null ? " · " + saved.getEventType() : "")
                 + (saved.getEventDate() != null ? " · " + DATE.format(saved.getEventDate()) : "")
+                + (saved.getEventStart() != null && !saved.isEventAllDay()
+                        ? " " + saved.getEventStart().toLocalTime() + "-" + saved.getEventEnd().toLocalTime() : "")
                 + " · " + saved.getPhone());
         return new PublicBookingCreated(saved.getCode());
+    }
+
+    /** Horario pedido (fecha + hora y duración, o día completo); null si solo dio la fecha o nada. */
+    @Nullable
+    private static AppointmentWindow requestedSlot(PublicBookingRequest req, LocalDateTime now) {
+        if (req.fecha() == null) return null;
+        AppointmentWindow w;
+        if (Boolean.TRUE.equals(req.diaCompleto())) {
+            w = AppointmentWindow.of(req.fecha().atStartOfDay(), null, true);
+        } else if (req.hora() != null && !req.hora().isBlank()) {
+            LocalDateTime start = req.fecha().atTime(java.time.LocalTime.parse(req.hora()));
+            int minutes = req.duracionMinutos() != null ? req.duracionMinutos() : 60;
+            w = AppointmentWindow.of(start, start.plusMinutes(minutes), false);
+        } else {
+            return null;
+        }
+        if (w != null && !w.start().isAfter(now)) {
+            throw new IllegalArgumentException("Elige una fecha y hora futuras.");
+        }
+        return w;
     }
 
     private void checkRateLimit(@Nullable String ip, LocalDateTime now) {
@@ -247,7 +283,8 @@ public class BookingRequestService {
         ServiceOrder order = r.getServiceOrder();
         return new BookingRequestView(
                 r.getId(), r.getCode(), r.getName(), r.getPhone(), r.getEmail(), r.getEventType(),
-                r.getEventDate(), r.getMessage(), r.getStatus().name(), r.getCreatedAt(), matched, sameDay,
+                r.getEventDate(), r.getEventStart(), r.getEventEnd(), r.isEventAllDay(),
+                r.getMessage(), r.getStatus().name(), r.getCreatedAt(), matched, sameDay,
                 order != null ? order.getId() : null, order != null ? order.getOrderNumber() : null,
                 r.getHandledBy(), r.getHandledAt());
     }
@@ -275,6 +312,13 @@ public class BookingRequestService {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /** La hora pedida ya está ocupada (otra cita, solicitud pendiente o fecha bloqueada): 409. */
+    public static class SlotTakenException extends RuntimeException {
+        public SlotTakenException() {
+            super("Esa hora ya no está disponible. Elige otra, por favor.");
+        }
     }
 
     /** Demasiadas solicitudes desde la misma IP o en el día: 429. */

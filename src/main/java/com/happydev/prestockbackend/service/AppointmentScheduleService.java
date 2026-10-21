@@ -1,14 +1,18 @@
 package com.happydev.prestockbackend.service;
 
+import com.happydev.prestockbackend.dto.BookingRequestDtos.BusySlot;
 import com.happydev.prestockbackend.dto.ScheduleDtos.AvailabilityResponse;
 import com.happydev.prestockbackend.dto.ScheduleDtos.CalendarBlockDto;
 import com.happydev.prestockbackend.dto.ScheduleDtos.CreateCalendarBlockRequest;
 import com.happydev.prestockbackend.dto.ScheduleDtos.ScheduleItem;
+import com.happydev.prestockbackend.entity.BookingRequest;
+import com.happydev.prestockbackend.entity.BookingRequestStatus;
 import com.happydev.prestockbackend.entity.CalendarBlock;
 import com.happydev.prestockbackend.entity.Customer;
 import com.happydev.prestockbackend.entity.Employee;
 import com.happydev.prestockbackend.entity.ServiceOrder;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
+import com.happydev.prestockbackend.repository.BookingRequestRepository;
 import com.happydev.prestockbackend.repository.CalendarBlockRepository;
 import com.happydev.prestockbackend.repository.EmployeeRepository;
 import com.happydev.prestockbackend.repository.ServiceOrderRepository;
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,15 +41,62 @@ public class AppointmentScheduleService {
     private final CalendarBlockRepository blockRepository;
     private final EmployeeRepository employeeRepository;
     private final AuditService auditService;
+    private final BookingRequestRepository requestRepository;
 
     public AppointmentScheduleService(ServiceOrderRepository orderRepository,
                                       CalendarBlockRepository blockRepository,
                                       EmployeeRepository employeeRepository,
-                                      AuditService auditService) {
+                                      AuditService auditService,
+                                      BookingRequestRepository requestRepository) {
         this.orderRepository = orderRepository;
         this.blockRepository = blockRepository;
         this.employeeRepository = employeeRepository;
         this.auditService = auditService;
+        this.requestRepository = requestRepository;
+    }
+
+    /**
+     * Horarios ocupados para la web, sin datos de nadie: citas no canceladas, bloqueos de
+     * todo el estudio y solicitudes web pendientes con hora. El estudio atiende una sesión
+     * a la vez; los bloqueos de una sola persona no cierran la agenda de la web.
+     */
+    @Transactional(readOnly = true)
+    public List<BusySlot> publicBusy(LocalDate from, LocalDate to) {
+        checkRange(from, to);
+        return busy(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    }
+
+    /** ¿Se cruza con algo de la agenda? Lo usa la web al recibir una solicitud con hora. */
+    @Transactional(readOnly = true)
+    public boolean isTaken(AppointmentWindow w) {
+        return !busy(w.start(), w.end()).isEmpty();
+    }
+
+    private List<BusySlot> busy(LocalDateTime start, LocalDateTime end) {
+        List<BusySlot> raw = new ArrayList<>();
+        for (ServiceOrder o : orderRepository.findAppointmentsOverlapping(start, end)) {
+            LocalDateTime e = o.getAppointmentEnd() != null ? o.getAppointmentEnd() : o.getAppointmentDate().plus(AppointmentWindow.DEFAULT_DURATION);
+            raw.add(new BusySlot(o.getAppointmentDate(), e));
+        }
+        for (CalendarBlock b : blockRepository.findOverlapping(start, end)) {
+            if (b.getEmployee() == null) raw.add(new BusySlot(b.getStartsAt(), b.getEndsAt()));
+        }
+        for (BookingRequest r : requestRepository.findByStatusAndEventStartLessThanAndEventEndGreaterThan(
+                BookingRequestStatus.NEW, end, start)) {
+            raw.add(new BusySlot(r.getEventStart(), r.getEventEnd()));
+        }
+        raw.sort(Comparator.comparing(BusySlot::start));
+        // Une los tramos que se tocan o solapan: la web no necesita más detalle
+        List<BusySlot> merged = new ArrayList<>();
+        for (BusySlot s : raw) {
+            BusySlot last = merged.isEmpty() ? null : merged.get(merged.size() - 1);
+            if (last != null && !s.start().isAfter(last.end())) {
+                if (s.end().isAfter(last.end())) merged.set(merged.size() - 1, new BusySlot(last.start(), s.end()));
+            } else {
+                merged.add(s);
+            }
+        }
+        return merged;
     }
 
     @Transactional(readOnly = true)

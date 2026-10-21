@@ -35,6 +35,16 @@ public class BookingRequest {
     @Column(name = "event_date")
     private LocalDate eventDate;
 
+    /** Hora pedida (inicio y fin exclusivo); null si solo dio la fecha. Ocupa la agenda mientras está pendiente. */
+    @Column(name = "event_start")
+    private LocalDateTime eventStart;
+
+    @Column(name = "event_end")
+    private LocalDateTime eventEnd;
+
+    @Column(name = "event_all_day", nullable = false)
+    private boolean eventAllDay = false;
+
     @Column(columnDefinition = "TEXT")
     private String message;
 

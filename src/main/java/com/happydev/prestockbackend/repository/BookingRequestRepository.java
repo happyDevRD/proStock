@@ -20,4 +20,8 @@ public interface BookingRequestRepository extends JpaRepository<BookingRequest, 
     List<BookingRequest> findByPhoneAndCreatedAtAfterOrderByCreatedAtDesc(String phone, LocalDateTime after);
 
     long countByCreatedAtAfter(LocalDateTime after);
+
+    /** Solicitudes con hora que se cruzan con [start, end), en un estado (pendientes ocupan la agenda). */
+    List<BookingRequest> findByStatusAndEventStartLessThanAndEventEndGreaterThan(
+            BookingRequestStatus status, LocalDateTime end, LocalDateTime start);
 }

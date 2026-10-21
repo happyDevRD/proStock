@@ -37,6 +37,7 @@ class BookingRequestServiceTest {
     @Mock private ServiceOrderRepository orderRepository;
     @Mock private ServiceOrderService serviceOrderService;
     @Mock private StudioNotifier notifier;
+    @Mock private AppointmentScheduleService scheduleService;
 
     private BookingRequestService service;
     private final LocalDate fecha = LocalDate.of(2026, 10, 22);
@@ -45,7 +46,7 @@ class BookingRequestServiceTest {
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-10-19T15:00:00Z"), ZoneId.of("America/Santo_Domingo"));
         service = new BookingRequestService(repository, customerRepository, customerService, orderRepository,
-                serviceOrderService, notifier, clock);
+                serviceOrderService, notifier, scheduleService, clock);
         given(repository.save(any())).willAnswer(inv -> {
             BookingRequest r = inv.getArgument(0);
             if (r.getId() == null) r.setId(12L);
@@ -199,5 +200,52 @@ class BookingRequestServiceTest {
         service.reopen(12L);
         assertEquals(BookingRequestStatus.NEW, r.getStatus());
         assertNull(r.getHandledBy());
+    }
+
+    private PublicBookingRequest conHora(String hora, Integer minutos, Boolean diaCompleto) {
+        return new PublicBookingRequest("Laura", "8095554444", null, "Retratos", fecha, null, null,
+                hora, minutos, diaCompleto);
+    }
+
+    @Test
+    void conHora_apartaElHorario() {
+        given(scheduleService.isTaken(any())).willReturn(false);
+
+        service.submit(conHora("10:30", 30, null), "1.2.3.4");
+
+        ArgumentCaptor<BookingRequest> saved = ArgumentCaptor.forClass(BookingRequest.class);
+        verify(repository).save(saved.capture());
+        assertEquals(fecha.atTime(10, 30), saved.getValue().getEventStart());
+        assertEquals(fecha.atTime(11, 0), saved.getValue().getEventEnd());
+        assertFalse(saved.getValue().isEventAllDay());
+    }
+
+    @Test
+    void horaOcupada_esConflicto() {
+        given(scheduleService.isTaken(any())).willReturn(true);
+
+        assertThrows(BookingRequestService.SlotTakenException.class,
+                () -> service.submit(conHora("10:00", 60, null), "1.2.3.4"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void diaCompleto_ocupaElDia() {
+        given(scheduleService.isTaken(any())).willReturn(false);
+
+        service.submit(conHora(null, null, true), "1.2.3.4");
+
+        ArgumentCaptor<BookingRequest> saved = ArgumentCaptor.forClass(BookingRequest.class);
+        verify(repository).save(saved.capture());
+        assertEquals(fecha.atStartOfDay(), saved.getValue().getEventStart());
+        assertEquals(fecha.plusDays(1).atStartOfDay(), saved.getValue().getEventEnd());
+        assertTrue(saved.getValue().isEventAllDay());
+    }
+
+    @Test
+    void horaPasada_seRechaza() {
+        PublicBookingRequest ayer = new PublicBookingRequest("Laura", "8095554444", null, "Retratos",
+                LocalDate.of(2026, 10, 18), null, null, "10:00", 60, null);
+        assertThrows(IllegalArgumentException.class, () -> service.submit(ayer, "1.2.3.4"));
     }
 }

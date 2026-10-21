@@ -84,6 +84,7 @@ public class SecurityConfig {
                         // Portal de selección de fotos: público, el acceso es el token del enlace
                         .requestMatchers("/api/public/selection/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/public/booking-requests").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/booking-requests/availability").permitAll()
                         .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_GESTOR", "users.manage")
                         .requestMatchers("/api/audit-logs/**").hasAnyAuthority("ROLE_GESTOR", "audit.view")
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "GESTOR")

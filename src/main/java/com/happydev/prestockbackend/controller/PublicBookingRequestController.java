@@ -1,14 +1,19 @@
 package com.happydev.prestockbackend.controller;
 
+import com.happydev.prestockbackend.dto.BookingRequestDtos.PublicAvailability;
 import com.happydev.prestockbackend.dto.BookingRequestDtos.PublicBookingCreated;
 import com.happydev.prestockbackend.dto.BookingRequestDtos.PublicBookingRequest;
+import com.happydev.prestockbackend.service.AppointmentScheduleService;
 import com.happydev.prestockbackend.service.BookingRequestService;
 import com.happydev.prestockbackend.service.ServiceOrderAccessGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 /**
  * Formulario de reservas de la web (público, sin sesión). Llega por el nginx de
@@ -21,10 +26,22 @@ public class PublicBookingRequestController {
 
     private final BookingRequestService service;
     private final ServiceOrderAccessGuard accessGuard;
+    private final AppointmentScheduleService scheduleService;
 
-    public PublicBookingRequestController(BookingRequestService service, ServiceOrderAccessGuard accessGuard) {
+    public PublicBookingRequestController(BookingRequestService service, ServiceOrderAccessGuard accessGuard,
+                                          AppointmentScheduleService scheduleService) {
         this.service = service;
         this.accessGuard = accessGuard;
+        this.scheduleService = scheduleService;
+    }
+
+    /** Horarios ocupados entre {@code from} y {@code to} (máx. 62 días), sin datos de nadie. */
+    @GetMapping("/availability")
+    public ResponseEntity<PublicAvailability> availability(@RequestParam LocalDate from, @RequestParam LocalDate to) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(new PublicAvailability(scheduleService.publicBusy(from, to)));
     }
 
     @PostMapping

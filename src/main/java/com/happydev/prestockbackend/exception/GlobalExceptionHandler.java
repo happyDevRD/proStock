@@ -190,6 +190,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
+    // 409 - Solicitud web en una hora ya ocupada
+    @ExceptionHandler(com.happydev.prestockbackend.service.BookingRequestService.SlotTakenException.class)
+    public ResponseEntity<ErrorDetails> handleSlotTaken(RuntimeException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "SLOT_TAKEN",
+                ex.getMessage(),
+                request.getDescription(false)
+        );
+        return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
+    }
+
     // 429 - Solicitudes web en exceso
     @ExceptionHandler(com.happydev.prestockbackend.service.BookingRequestService.TooManyBookingRequestsException.class)
     public ResponseEntity<ErrorDetails> handleTooManyBookingRequests(RuntimeException ex, WebRequest request) {

@@ -49,3 +49,20 @@ editor no está en la sesión.
 - Componentes: `components/calendar/AppointmentCalendar.tsx` (genérico),
   `useCalendarRange.ts`, `service-orders/AppointmentFields.tsx`,
   `CalendarBlockModal.tsx`; utilidades en `lib/appointments.ts`.
+
+## Reservas desde la web (V56)
+
+- El formulario de iridiscencia.com pide la hora según el paquete
+  (`paquetes.json`: `duracionMinutos`, `diaCompleto`; horario y anticipación en
+  `site.json` → `agenda`, todo editable en el CMS). Sesiones de 30 min (o que no
+  son horas completas) se ofrecen cada media hora; las demás, cada hora.
+- `GET /api/public/booking-requests/availability?from&to` (sin sesión; en la web,
+  `/api/disponibilidad`, solo GET) devuelve **solo tramos ocupados**, ya unidos y
+  sin datos de nadie: citas no canceladas, bloqueos de todo el estudio y
+  solicitudes web pendientes con hora. El estudio atiende **una sesión a la vez**;
+  los bloqueos de una sola persona no cierran la agenda de la web.
+- `booking_requests.event_start/event_end/event_all_day`: la solicitud aparta su
+  horario mientras está pendiente. Al recibirla, si el horario ya se ocupó,
+  responde **409** (`SLOT_TAKEN`) y la web pide elegir otra hora. Horas pasadas → 400.
+- En ProStock la solicitud aparece en el calendario a su hora y, al convertirla,
+  el formulario trae fecha, hora y duración ya puestas.
