@@ -81,11 +81,12 @@ República Dominicana, luego en la región. Objetivos concretos:
   - ✅ Contraseña temporal: `users.must_change_password` (V54); pantalla obligatoria al entrar; "Cambiar contraseña" en el menú del usuario para todos los roles
   - ✅ Panel: no ofrece atajos ni enlaces a pantallas que el usuario no puede abrir (e2e de permisos actualizado)
   - ✅ Empleados reales cargados (Anyara editora, Jocsan fotógrafo+editor, Anahis secretaria) y vinculados a sus usuarios
-- **(2026-10-21) Agenda de citas (V55; `agenda-citas.md`):**
+- **(2026-10-21) Agenda de citas (V55/V56; `agenda-citas.md`) — en producción (backend 9643068, frontend 4b05eda, web f4c1910):**
   - ✅ Citas con inicio y duración (30 min … día completo); citas viejas migradas (sin hora → día completo, con hora → 1 h)
   - ✅ Disponibilidad: aviso si el fotógrafo ya tiene sesión o la fecha está bloqueada (solo avisa), en la orden y al convertir solicitudes web (que ahora piden duración y fotógrafo)
   - ✅ Bloqueo de fechas para todo el estudio o una persona (`calendar_blocks`)
   - ✅ Calendario Mes/Semana (bloques por hora) en Órdenes; "Mi agenda" en Mis trabajos para el rol Producción
+  - ✅ iridiscencia.com solo ofrece horas libres (cada 30 min o 1 h según el paquete); la solicitud aparta su hora (409 si ya se ocupó)
   - Después: Fase B WhatsApp Cloud API vía ConectorIA (iniciar verificación en Meta)
 - **Pendiente de acción inmediata:**
   - Configurar API key de Gemini en Irisdicencia: Ajustes → Integraciones → provider "gemini" / key "api_key"
