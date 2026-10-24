@@ -65,7 +65,10 @@ public class WhatsAppWebhookService {
         if (!"whatsapp_business_account".equals(root.path("object").asText())) return;
         for (JsonNode entry : root.path("entry")) {
             for (JsonNode change : entry.path("changes")) {
-                if (!"messages".equals(change.path("field").asText())) continue;
+                // Los estados de entrega llegan dentro de "messages" o, si la app lo tiene
+                // suscrito, en su propio evento "message_statuses"; el formato es el mismo.
+                String field = change.path("field").asText();
+                if (!"messages".equals(field) && !"message_statuses".equals(field)) continue;
                 JsonNode value = change.path("value");
                 String toNumberId = value.path("metadata").path("phone_number_id").asText("");
                 if (!props.getPhoneNumberId().isBlank() && !props.getPhoneNumberId().equals(toNumberId)) {

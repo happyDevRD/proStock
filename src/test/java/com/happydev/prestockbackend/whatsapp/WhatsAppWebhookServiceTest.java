@@ -52,10 +52,14 @@ class WhatsAppWebhookServiceTest {
     }
 
     private static byte[] payload(String numberId, String valueBody) {
+        return payload("messages", numberId, valueBody);
+    }
+
+    private static byte[] payload(String field, String numberId, String valueBody) {
         return ("""
-                {"object":"whatsapp_business_account","entry":[{"id":"1859146558594612","changes":[{"field":"messages",
+                {"object":"whatsapp_business_account","entry":[{"id":"1859146558594612","changes":[{"field":"%s",
                  "value":{"messaging_product":"whatsapp","metadata":{"display_phone_number":"18295468012","phone_number_id":"%s"},
-                 %s}}]}]}""").formatted(numberId, valueBody).getBytes(StandardCharsets.UTF_8);
+                 %s}}]}]}""").formatted(field, numberId, valueBody).getBytes(StandardCharsets.UTF_8);
     }
 
     private static final String TEXT_MESSAGE = """
@@ -150,6 +154,17 @@ class WhatsAppWebhookServiceTest {
         assertEquals(WhatsAppMessageStatus.FAILED, sent.getStatus());
         assertEquals("131026: No es usuario de WhatsApp", sent.getStatusDetail());
         verify(messageRepository, times(3)).save(sent);
+    }
+
+    @Test
+    void leeEstadosDelEventoMessageStatuses() {
+        WhatsAppMessage sent = new WhatsAppMessage();
+        sent.setStatus(WhatsAppMessageStatus.SENT);
+        given(messageRepository.findByWamid("wamid.OUT")).willReturn(Optional.of(sent));
+
+        service.process(payload("message_statuses", "1357718120763107", """
+                "statuses":[{"id":"wamid.OUT","status":"delivered","timestamp":"1761264000","recipient_id":"18497639736"}]"""));
+        assertEquals(Instant.ofEpochSecond(1761264000), sent.getDeliveredAt());
     }
 
     @Test
