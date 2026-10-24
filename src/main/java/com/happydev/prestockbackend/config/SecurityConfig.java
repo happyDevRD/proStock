@@ -85,6 +85,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/selection/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/public/booking-requests").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/booking-requests/availability").permitAll()
+                        // Webhook de WhatsApp: lo protege la firma de Meta (ver WhatsAppWebhookController)
+                        .requestMatchers("/api/public/whatsapp/webhook").permitAll()
                         .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_GESTOR", "users.manage")
                         .requestMatchers("/api/audit-logs/**").hasAnyAuthority("ROLE_GESTOR", "audit.view")
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "GESTOR")

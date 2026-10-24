@@ -7,6 +7,7 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -51,5 +52,15 @@ public class Customer {
 
     @Column(name = "portal_last_login")
     private LocalDateTime portalLastLogin;
-}
 
+    /** Acepta avisos por WhatsApp; null = no se le ha preguntado (no se le envía nada). */
+    @Column(name = "whatsapp_opt_in")
+    private Boolean whatsappOptIn;
+
+    @Column(name = "whatsapp_opt_in_at")
+    private Instant whatsappOptInAt;
+
+    /** "web" (formulario de la web) o "staff" (lo marcó el estudio) */
+    @Column(name = "whatsapp_opt_in_source", length = 20)
+    private String whatsappOptInSource;
+}

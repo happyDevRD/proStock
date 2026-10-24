@@ -1,8 +1,8 @@
 # WhatsApp Cloud API — plantillas de Iridiscencia (Fase A)
 
-> Aprobadas por el usuario el 2026-10-22. **Aún no enviadas a Meta**: la cuenta de WhatsApp donde vive el +1 849-631-8221 es una cuenta de la app WhatsApp Business (no de Cloud API) y Meta no permite crear plantillas en ella por la API (`SMB_ACCOUNT_NOT_ON_COEX`). Se crearán en la cuenta nueva que se genere al dar de alta el número nuevo solo para la API.
+> Aprobadas por el usuario el 2026-10-22. **Enviadas a revisión de Meta el 2026-10-23** en la cuenta de WhatsApp del número de la API, +1 829-546-8012 (phone_number_id 1357718120763107). El +1 849-631-8221 sigue en la app WhatsApp Business del estudio, que no admite plantillas por API (`SMB_ACCOUNT_NOT_ON_COEX`).
 
-Comunes a todas: categoría **UTILITY**, idioma `es`, pie «Iridiscencia Film», botón URL **«Escribir al estudio»** → `https://wa.me/18496318221`. Parámetros posicionales; los ejemplos son inventados (solo para la revisión de Meta).
+Comunes a todas: categoría **UTILITY**, idioma `es`, pie «Iridiscencia Film», botón URL **«Escribir al estudio»** → `https://iridiscencia.com/whatsapp` (302 a `wa.me/18496318221`; Meta no admite enlaces `wa.me` en botones, error 2388081). Parámetros posicionales; los ejemplos son inventados (solo para la revisión de Meta).
 
 | Plantilla | Disparador en ProStock | Cuerpo | Variables (ejemplo) |
 |---|---|---|---|

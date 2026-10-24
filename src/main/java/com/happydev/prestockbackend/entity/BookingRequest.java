@@ -60,6 +60,10 @@ public class BookingRequest {
     @JoinColumn(name = "service_order_id")
     private ServiceOrder serviceOrder;
 
+    /** Marcó en la web que acepta avisos de su reserva por WhatsApp. */
+    @Column(name = "whatsapp_opt_in", nullable = false)
+    private boolean whatsappOptIn = false;
+
     @Column(name = "client_ip", length = 64)
     private String clientIp;
 
