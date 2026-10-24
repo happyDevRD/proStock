@@ -570,6 +570,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         refreshDepositTotal(order);
         auditService.record(actor, "SERVICE_ORDER_DEPOSIT_REGISTERED", "ServiceOrder", id,
                 "Anticipo RD$ " + money(amount) + " en OS " + order.getOrderNumber() + " (NCF " + sale.getNcf() + ")");
+        eventPublisher.publishEvent(new ServiceOrderPaymentEvent(id, sale.getId(), amount));
         return sale;
     }
 
@@ -614,6 +615,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         auditService.record(actor, "SERVICE_ORDER_BALANCE_BILLED", "ServiceOrder", id,
                 "Saldo RD$ " + money(billing.balance()) + " facturado en OS " + order.getOrderNumber()
                         + " (NCF " + sale.getNcf() + ")");
+        eventPublisher.publishEvent(new ServiceOrderPaymentEvent(id, sale.getId(), billing.balance()));
         return sale;
     }
 

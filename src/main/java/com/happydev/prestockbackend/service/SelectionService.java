@@ -17,7 +17,9 @@ import com.happydev.prestockbackend.repository.ServiceOrderRepository;
 import com.happydev.prestockbackend.repository.ServiceOrderSelectionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +75,14 @@ public class SelectionService {
     private final String extraSku;
     private final String watermark;
     private final StudioNotifier notifier;
+
+    /** Por setter para no tocar los constructores que usan las pruebas; sin Spring no publica nada. */
+    private ApplicationEventPublisher events = event -> { };
+
+    @Autowired
+    void setEvents(ApplicationEventPublisher events) {
+        this.events = events;
+    }
 
     public SelectionService(ServiceOrderSelectionRepository selectionRepository,
                             ServiceOrderRepository orderRepository,
@@ -152,7 +162,9 @@ public class SelectionService {
         sel.setExpiresAt(LocalDateTime.now().plusDays(expiresInDays));
         sel.setExtraProduct(extraProduct().orElse(null));
         sel.setCreatedBy(actor);
-        return toAdmin(selectionRepository.save(sel));
+        ServiceOrderSelection saved = selectionRepository.save(sel);
+        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken()));
+        return toAdmin(saved);
     }
 
     @Transactional

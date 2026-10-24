@@ -90,6 +90,10 @@ public class CustomerServiceImpl implements CustomerService {
             throw new IllegalArgumentException("Email already exists: " + customerDto.getEmail()); // Otra excepción personalizada
         }
         Customer customer = customerMapper.toEntity(customerDto);
+        customer.setWhatsappOptIn(null);
+        customer.setWhatsappOptInAt(null);
+        customer.setWhatsappOptInSource(null);
+        applyWhatsappConsent(customer, customerDto.getWhatsappOptIn());
         if (normalizedKey != null) {
             customer.setIdempotencyKey(normalizedKey);
         }
@@ -148,6 +152,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setAddress(customerDto.getAddress());
         customer.setRncCedula(customerDto.getRncCedula());
         customer.setTipoIdentificacion(customerDto.getTipoIdentificacion());
+        applyWhatsappConsent(customer, customerDto.getWhatsappOptIn());
 
         Customer updatedCustomer = customerRepository.save(customer);
         CustomerDto dto = customerMapper.toDto(updatedCustomer);
@@ -159,6 +164,14 @@ public class CustomerServiceImpl implements CustomerService {
                 Map.of("email", dto.getEmail())
         );
         return dto;
+    }
+
+    /** El estudio marca o quita el consentimiento; null (pantallas viejas) no cambia nada. */
+    private static void applyWhatsappConsent(Customer customer, @Nullable Boolean optIn) {
+        if (optIn == null || optIn.equals(customer.getWhatsappOptIn())) return;
+        customer.setWhatsappOptIn(optIn);
+        customer.setWhatsappOptInAt(java.time.Instant.now());
+        customer.setWhatsappOptInSource("staff");
     }
 
     @Override

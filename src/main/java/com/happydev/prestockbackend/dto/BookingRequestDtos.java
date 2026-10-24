@@ -29,11 +29,19 @@ public final class BookingRequestDtos {
             /** "HH:mm"; con fecha y hora la solicitud aparta ese horario */
             @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "Hora inválida") String hora,
             @Min(15) @Max(720) Integer duracionMinutos,
-            Boolean diaCompleto
+            Boolean diaCompleto,
+            /** Marcó «Acepto recibir avisos de mi reserva por WhatsApp» */
+            Boolean avisosWhatsapp
     ) {
         public PublicBookingRequest(String nombre, String telefono, String email, String tipoEvento,
                                     LocalDate fecha, String mensaje, String website) {
-            this(nombre, telefono, email, tipoEvento, fecha, mensaje, website, null, null, null);
+            this(nombre, telefono, email, tipoEvento, fecha, mensaje, website, null, null, null, null);
+        }
+
+        public PublicBookingRequest(String nombre, String telefono, String email, String tipoEvento,
+                                    LocalDate fecha, String mensaje, String website, String hora,
+                                    Integer duracionMinutos, Boolean diaCompleto) {
+            this(nombre, telefono, email, tipoEvento, fecha, mensaje, website, hora, duracionMinutos, diaCompleto, null);
         }
     }
 

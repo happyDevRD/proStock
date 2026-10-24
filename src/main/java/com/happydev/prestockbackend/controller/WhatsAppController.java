@@ -1,0 +1,90 @@
+package com.happydev.prestockbackend.controller;
+
+import com.happydev.prestockbackend.entity.WhatsAppInboundMessage;
+import com.happydev.prestockbackend.entity.WhatsAppMessage;
+import com.happydev.prestockbackend.repository.WhatsAppInboundMessageRepository;
+import com.happydev.prestockbackend.repository.WhatsAppMessageRepository;
+import com.happydev.prestockbackend.whatsapp.WhatsAppTriggers;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
+import java.time.Instant;
+import java.util.List;
+
+/** Avisos por WhatsApp para las pantallas del estudio: historial por orden, recordatorio de saldo y bandeja. */
+@RestController
+@PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'ROLE_ADMIN', 'view.service_orders')")
+public class WhatsAppController {
+
+    public record MessageView(Long id, String kind, String kindLabel, String templateName, String recipientPhone,
+                              String recipientName, String status, String statusDetail, Instant createdAt,
+                              Instant sentAt, Instant deliveredAt, Instant readAt, String createdBy) {
+        static MessageView of(WhatsAppMessage m) {
+            return new MessageView(m.getId(), m.getKind().name(), m.getKind().label(), m.getTemplateName(),
+                    m.getRecipientPhone(), m.getRecipientName(), m.getStatus().name(), m.getStatusDetail(),
+                    m.getCreatedAt(), m.getSentAt(), m.getDeliveredAt(), m.getReadAt(), m.getCreatedBy());
+        }
+    }
+
+    public record InboundView(Long id, String fromPhone, String profileName, Long customerId, String customerName,
+                              String type, String body, boolean hasMedia, Instant sentAt, boolean autoReplied,
+                              Instant seenAt) {
+        static InboundView of(WhatsAppInboundMessage m) {
+            var c = m.getCustomer();
+            return new InboundView(m.getId(), m.getFromPhone(), m.getProfileName(), c == null ? null : c.getId(),
+                    c == null ? null : (c.getFirstName() + " " + c.getLastName()).replace(" -", "").trim(),
+                    m.getType(), m.getBody(), m.getMediaId() != null, m.getSentAt(), m.isAutoReplied(), m.getSeenAt());
+        }
+    }
+
+    public record InboxView(long unseen, List<InboundView> messages) {}
+
+    private final WhatsAppMessageRepository messageRepository;
+    private final WhatsAppInboundMessageRepository inboundRepository;
+    private final WhatsAppTriggers triggers;
+
+    public WhatsAppController(WhatsAppMessageRepository messageRepository,
+                              WhatsAppInboundMessageRepository inboundRepository, WhatsAppTriggers triggers) {
+        this.messageRepository = messageRepository;
+        this.inboundRepository = inboundRepository;
+        this.triggers = triggers;
+    }
+
+    @GetMapping("/api/service-orders/{id}/whatsapp")
+    @Transactional(readOnly = true)
+    public List<MessageView> orderMessages(@PathVariable Long id) {
+        return messageRepository.findByServiceOrderIdOrderByCreatedAtDesc(id).stream().map(MessageView::of).toList();
+    }
+
+    @PostMapping("/api/service-orders/{id}/whatsapp/balance-reminder")
+    public MessageView balanceReminder(@PathVariable Long id, Principal principal) {
+        return MessageView.of(triggers.balanceReminder(id, principal == null ? null : principal.getName()));
+    }
+
+    @GetMapping("/api/customers/{id}/whatsapp")
+    @Transactional(readOnly = true)
+    public List<MessageView> customerMessages(@PathVariable Long id) {
+        return messageRepository.findByCustomerIdOrderByCreatedAtDesc(id, PageRequest.of(0, 50)).stream()
+                .map(MessageView::of).toList();
+    }
+
+    /** Lo que los clientes escribieron al número de avisos, lo más nuevo primero. */
+    @GetMapping("/api/whatsapp/inbox")
+    @Transactional(readOnly = true)
+    public InboxView inbox() {
+        return new InboxView(inboundRepository.countBySeenAtIsNull(),
+                inboundRepository.findAllByOrderBySentAtDesc(PageRequest.of(0, 100)).stream()
+                        .map(InboundView::of).toList());
+    }
+
+    @PostMapping("/api/whatsapp/inbox/seen")
+    @Transactional
+    public ResponseEntity<Void> markAllSeen() {
+        inboundRepository.markAllSeen(Instant.now());
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -12,6 +12,7 @@ import com.happydev.prestockbackend.repository.ServiceOrderRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +48,14 @@ public class BookingRequestService {
     private final AppointmentScheduleService scheduleService;
     private final Clock clock;
     private final Map<String, Deque<LocalDateTime>> recentByIp = new ConcurrentHashMap<>();
+
+    /** Por setter para no tocar los constructores que usan las pruebas; sin Spring no publica nada. */
+    private ApplicationEventPublisher events = event -> { };
+
+    @Autowired
+    void setEvents(ApplicationEventPublisher events) {
+        this.events = events;
+    }
 
     @Autowired
     public BookingRequestService(BookingRequestRepository repository,
@@ -123,6 +133,7 @@ public class BookingRequestService {
         r.setEventDate(req.fecha());
         r.setMessage(trimToNull(req.mensaje()));
         r.setClientIp(clientIp);
+        r.setWhatsappOptIn(Boolean.TRUE.equals(req.avisosWhatsapp()));
         r.setCreatedAt(now);
         r.setUpdatedAt(now);
         BookingRequest saved = repository.save(r);
@@ -133,6 +144,7 @@ public class BookingRequestService {
                 + (saved.getEventStart() != null && !saved.isEventAllDay()
                         ? " " + saved.getEventStart().toLocalTime() + "-" + saved.getEventEnd().toLocalTime() : "")
                 + " · " + saved.getPhone());
+        events.publishEvent(new BookingRequestCreatedEvent(saved.getId()));
         return new PublicBookingCreated(saved.getCode());
     }
 
@@ -201,6 +213,16 @@ public class BookingRequestService {
                 null, null, null, null, null, internalNotes(r), req.photographerId(), null,
                 req.appointmentEnd(), req.appointmentAllDay()), actor);
 
+        if (r.isWhatsappOptIn()) {
+            customerRepository.findById(customerId).ifPresent(c -> {
+                if (c.getWhatsappOptIn() == null) {
+                    c.setWhatsappOptIn(true);
+                    c.setWhatsappOptInAt(r.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
+                    c.setWhatsappOptInSource("web");
+                    customerRepository.save(c);
+                }
+            });
+        }
         r.setCustomer(customerRepository.getReferenceById(customerId));
         r.setServiceOrder(orderRepository.getReferenceById(order.id()));
         markHandled(r, BookingRequestStatus.CONVERTED, actor);

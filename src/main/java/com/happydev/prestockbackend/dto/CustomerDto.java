@@ -37,4 +37,11 @@ public class CustomerDto {
     private TipoIdentificacion tipoIdentificacion;
 
     private boolean portalEnabled;
+
+    /** Acepta avisos por WhatsApp; null = no se le ha preguntado (no se le envía nada). */
+    private Boolean whatsappOptIn;
+
+    /** Solo lectura: cuándo y cómo dio (o retiró) el consentimiento. */
+    private java.time.Instant whatsappOptInAt;
+    private String whatsappOptInSource;
 }
