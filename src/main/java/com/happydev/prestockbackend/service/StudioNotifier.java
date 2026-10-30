@@ -12,6 +12,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Avisos al estudio (p. ej. "el cliente confirmó su selección"). Si hay bot de Telegram
@@ -22,6 +24,9 @@ import java.time.Duration;
 public class StudioNotifier {
 
     private static final Logger log = LoggerFactory.getLogger(StudioNotifier.class);
+    /** La red del estudio corta ~1 de cada 2 conexiones TLS a Telegram: se reintenta con espera. */
+    private static final int MAX_ATTEMPTS = 5;
+    private static final long RETRY_DELAY_SECONDS = 3;
 
     private final String token;
     private final String chatId;
@@ -47,12 +52,21 @@ public class StudioNotifier {
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
+        attempt(req, 1);
+    }
+
+    private void attempt(HttpRequest req, int n) {
         http.sendAsync(req, HttpResponse.BodyHandlers.discarding())
                 .thenAccept(r -> {
                     if (r.statusCode() >= 300) log.warn("Telegram respondió {}", r.statusCode());
                 })
                 .exceptionally(e -> {
-                    log.warn("No se pudo enviar el aviso por Telegram: {}", e.getMessage());
+                    if (n < MAX_ATTEMPTS) {
+                        CompletableFuture.delayedExecutor(RETRY_DELAY_SECONDS, TimeUnit.SECONDS)
+                                .execute(() -> attempt(req, n + 1));
+                    } else {
+                        log.warn("No se pudo enviar el aviso por Telegram tras {} intentos: {}", n, e.getMessage());
+                    }
                     return null;
                 });
     }
