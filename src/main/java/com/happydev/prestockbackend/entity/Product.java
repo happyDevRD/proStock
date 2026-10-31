@@ -89,9 +89,10 @@ public class Product {
     @Column(name = "promo_end_date")
     private LocalDate promoEndDate;
 
+    // Sin @PositiveOrZero: una venta offline ya entregada puede dejarlo negativo (allowNegativeStock).
+    // El límite para altas y ajustes lo ponen ProductDto y StockMovementService.
     @Column(nullable = false)
     @NotNull
-    @PositiveOrZero
     private Integer stock;
 
     @Column(nullable = false)
