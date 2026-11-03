@@ -2,10 +2,10 @@ package com.happydev.prestockbackend.service;
 
 import com.happydev.prestockbackend.entity.SaleStatus;
 import com.happydev.prestockbackend.repository.SaleRepository;
+import com.happydev.prestockbackend.util.MoneyFormatUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -22,7 +22,7 @@ public class AiAssistantService {
             Tienes acceso al contexto de datos del negocio que se te proporcionará.
             Si la pregunta no está relacionada con los datos del negocio, responde que solo puedes
             ayudar con información sobre ventas, inventario y reportes del negocio.
-            Formatea los números con dos decimales y usa "RD$" para montos monetarios.
+            Formatea los montos como en República Dominicana: "RD$" con coma de miles y punto decimal (RD$124,903.00).
             No inventes datos que no estén en el contexto.
             """;
 
@@ -63,20 +63,19 @@ public class AiAssistantService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Fecha actual: ").append(now.format(dateFmt)).append("\n");
-        sb.append("Ventas completadas este mes: ").append(salesThisMonth).append(" | Ingresos: RD$")
-                .append(revenueThisMonth.setScale(2, RoundingMode.HALF_UP)).append("\n");
-        sb.append("Ventas completadas últimos 7 días: ").append(sales7Days).append(" | Ingresos: RD$")
-                .append(revenue7Days.setScale(2, RoundingMode.HALF_UP)).append("\n");
-        sb.append("Ingresos últimos 30 días: RD$").append(revenue30Days.setScale(2, RoundingMode.HALF_UP)).append("\n");
+        sb.append("Ventas completadas este mes: ").append(salesThisMonth).append(" | Ingresos: ")
+                .append(MoneyFormatUtils.rd(revenueThisMonth)).append("\n");
+        sb.append("Ventas completadas últimos 7 días: ").append(sales7Days).append(" | Ingresos: ")
+                .append(MoneyFormatUtils.rd(revenue7Days)).append("\n");
+        sb.append("Ingresos últimos 30 días: ").append(MoneyFormatUtils.rd(revenue30Days)).append("\n");
         sb.append("Facturas pendientes de cobro: ").append(partiallyPaid)
-                .append(" | Balance pendiente: RD$").append(pendingBalance.setScale(2, RoundingMode.HALF_UP)).append("\n");
+                .append(" | Balance pendiente: ").append(MoneyFormatUtils.rd(pendingBalance)).append("\n");
 
         if (!topProducts.isEmpty()) {
             sb.append("Top clientes por ingresos (últimos 30 días):\n");
             for (Object[] row : topProducts) {
-                sb.append("  - ").append(row[1]).append(": RD$")
-                        .append(((Number) row[2]).doubleValue() == 0 ? "0.00"
-                                : String.format("%.2f", ((Number) row[2]).doubleValue()))
+                sb.append("  - ").append(row[1]).append(": ")
+                        .append(MoneyFormatUtils.rd(new BigDecimal(row[2].toString())))
                         .append("\n");
             }
         }
