@@ -6,10 +6,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public interface CreditNoteRepository extends JpaRepository<CreditNote, Long> {
     List<CreditNote> findBySale_IdOrderByCreatedAtDesc(Long saleId);
+
+    /** Todas las notas de crédito de esas ventas (sin importar la fecha): para reconstruir lo facturado. */
+    List<CreditNote> findBySale_IdIn(Collection<Long> saleIds);
 
     @Query("""
             SELECT cn FROM CreditNote cn

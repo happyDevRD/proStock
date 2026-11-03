@@ -40,6 +40,11 @@ public class SaleDto {
     private BigDecimal montoExento;
     private BigDecimal totalItbis;
     private BigDecimal montoTotal;
+    /**
+     * Solo lectura. Total revertido por notas de crédito; montoTotal ya lo descuenta, así que lo
+     * facturado originalmente (lo que muestra la factura impresa y el 607) es montoTotal + creditedAmount.
+     */
+    private BigDecimal creditedAmount;
     private TipoIngresos tipoIngresos;
     private LocalDateTime fechaFirma;
     private String codigoSeguridad;

@@ -264,13 +264,23 @@ public class DgiiReportServiceImpl implements DgiiReportService {
                 : salePaymentRepository.findBySaleIdIn(sales.stream().map(Sale::getId).toList())
                         .stream()
                         .collect(Collectors.groupingBy(p -> p.getSale().getId()));
+        // Las notas de crédito restan de los montos vivos de la venta (saldo, ingresos netos), pero en el
+        // 607 la factura va con lo que se emitió: se le suma lo revertido por sus notas de crédito.
+        Map<Long, List<CreditNote>> creditNotesBySale = sales.isEmpty()
+                ? Map.of()
+                : creditNoteRepository.findBySale_IdIn(sales.stream().map(Sale::getId).toList())
+                        .stream()
+                        .filter(cn -> cn.getSale() != null && cn.getSale().getId() != null)
+                        .collect(Collectors.groupingBy(cn -> cn.getSale().getId()));
 
         Dgii607ReportDto report = new Dgii607ReportDto();
         report.setRnc(companyRnc());
         report.setPeriodo(period.format(PERIODO_DGII));
 
         for (Sale sale : sales) {
-            report.getRows().add(toRow(sale, paymentsBySale.getOrDefault(sale.getId(), List.of())));
+            report.getRows().add(toRow(sale,
+                    paymentsBySale.getOrDefault(sale.getId(), List.of()),
+                    creditNotesBySale.getOrDefault(sale.getId(), List.of())));
         }
         for (CreditNote creditNote : creditNotes) {
             report.getRows().add(toRow(creditNote));
@@ -362,7 +372,7 @@ public class DgiiReportServiceImpl implements DgiiReportService {
         return txt.toString();
     }
 
-    private Dgii607RowDto toRow(Sale sale, List<SalePayment> payments) {
+    private Dgii607RowDto toRow(Sale sale, List<SalePayment> payments, List<CreditNote> creditNotes) {
         Dgii607RowDto row = baseRow(sale.getCustomer());
         row.setNcf(sale.getNcf());
         row.setNcfModificado("");
@@ -370,8 +380,16 @@ public class DgiiReportServiceImpl implements DgiiReportService {
                 ? sale.getTipoIngresos().getCode()
                 : TipoIngresos.OPERACIONES.getCode());
         row.setFechaComprobante(sale.getSaleDate().format(FECHA_DGII));
-        row.setMontoFacturado(nz(sale.getMontoGravadoTotal()).add(nz(sale.getMontoExento())));
-        row.setItbisFacturado(nz(sale.getTotalItbis()));
+        BigDecimal montoFacturado = nz(sale.getMontoGravadoTotal()).add(nz(sale.getMontoExento()));
+        BigDecimal itbisFacturado = nz(sale.getTotalItbis());
+        BigDecimal totalFacturado = nz(sale.getMontoTotal());
+        for (CreditNote cn : creditNotes) {
+            montoFacturado = montoFacturado.add(nz(cn.getMontoGravadoTotal())).add(nz(cn.getMontoExento()));
+            itbisFacturado = itbisFacturado.add(nz(cn.getTotalItbis()));
+            totalFacturado = totalFacturado.add(nz(cn.getMontoTotal()));
+        }
+        row.setMontoFacturado(montoFacturado);
+        row.setItbisFacturado(itbisFacturado);
 
         Map<PaymentMethod, BigDecimal> byMethod = new EnumMap<>(PaymentMethod.class);
         BigDecimal totalPaid = BigDecimal.ZERO;
@@ -387,7 +405,7 @@ public class DgiiReportServiceImpl implements DgiiReportService {
                 .add(byMethod.getOrDefault(PaymentMethod.TRANSFER, BigDecimal.ZERO)));
         row.setTarjeta(byMethod.getOrDefault(PaymentMethod.CARD, BigDecimal.ZERO));
         row.setOtrasFormas(byMethod.getOrDefault(PaymentMethod.OTHER, BigDecimal.ZERO));
-        BigDecimal credito = nz(sale.getMontoTotal()).subtract(totalPaid);
+        BigDecimal credito = totalFacturado.subtract(totalPaid);
         row.setVentaCredito(credito.compareTo(BigDecimal.ZERO) > 0 ? credito : BigDecimal.ZERO);
         return row;
     }

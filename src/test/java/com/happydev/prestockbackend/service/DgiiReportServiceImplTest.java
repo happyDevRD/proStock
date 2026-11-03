@@ -151,6 +151,47 @@ class DgiiReportServiceImplTest {
     }
 
     @Test
+    void build607KeepsOriginalInvoiceAmountsAfterFullCreditNote() {
+        // Tras la nota por el total, los montos vigentes de la venta quedan en 0
+        sale.setMontoGravadoTotal(new BigDecimal("0.00"));
+        sale.setMontoExento(new BigDecimal("0.00"));
+        sale.setTotalItbis(new BigDecimal("0.00"));
+        sale.setMontoTotal(new BigDecimal("0.00"));
+
+        CreditNote creditNote = new CreditNote();
+        creditNote.setNcf("B0400000002");
+        creditNote.setNcfModificado("B0100000001");
+        creditNote.setSale(sale);
+        creditNote.setCreatedAt(LocalDateTime.of(2026, 6, 20, 9, 0));
+        creditNote.setMontoGravadoTotal(new BigDecimal("1000.00"));
+        creditNote.setMontoExento(new BigDecimal("200.00"));
+        creditNote.setTotalItbis(new BigDecimal("180.00"));
+        creditNote.setMontoTotal(new BigDecimal("1380.00"));
+
+        when(saleRepository.findWithNcfByStatusInRange(eq(SaleStatus.COMPLETED), any(), any()))
+                .thenReturn(List.of(sale));
+        when(creditNoteRepository.findInRangeWithSale(any(), any())).thenReturn(List.of(creditNote));
+        when(creditNoteRepository.findBySale_IdIn(anyList())).thenReturn(List.of(creditNote));
+        when(salePaymentRepository.findBySaleIdIn(anyList()))
+                .thenReturn(List.of(payment(PaymentMethod.CASH, "1380.00")));
+
+        Dgii607ReportDto report = service.build607(period);
+
+        Dgii607RowDto saleRow = report.getRows().get(0);
+        assertEquals("B0100000001", saleRow.getNcf());
+        assertEquals(new BigDecimal("1200.00"), saleRow.getMontoFacturado());
+        assertEquals(new BigDecimal("180.00"), saleRow.getItbisFacturado());
+        assertEquals(new BigDecimal("1380.00"), saleRow.getEfectivo());
+        assertEquals(BigDecimal.ZERO, saleRow.getVentaCredito());
+
+        Dgii607RowDto cnRow = report.getRows().get(1);
+        assertEquals("B0400000002", cnRow.getNcf());
+        assertEquals("B0100000001", cnRow.getNcfModificado());
+        assertEquals(new BigDecimal("1200.00"), cnRow.getMontoFacturado());
+        assertEquals(new BigDecimal("180.00"), cnRow.getItbisFacturado());
+    }
+
+    @Test
     void render607TxtUsesDgiiPipeLayout() {
         when(saleRepository.findWithNcfByStatusInRange(eq(SaleStatus.COMPLETED), any(), any()))
                 .thenReturn(List.of(sale));

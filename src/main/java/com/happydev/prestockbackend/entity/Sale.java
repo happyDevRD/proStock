@@ -59,6 +59,16 @@ public class Sale {
     @Column(name = "monto_total", nullable = false, precision = 18, scale = 2)
     private BigDecimal montoTotal = BigDecimal.ZERO;
 
+    /**
+     * Total (con ITBIS) revertido por notas de crédito. Los montos de arriba son los vigentes
+     * (ya restado lo acreditado); lo facturado originalmente es montoTotal + creditedAmount.
+     * Solo lectura: se calcula de credit_notes al cargar la venta.
+     */
+    @org.hibernate.annotations.Formula(
+            "(SELECT COALESCE(SUM(cn.monto_total), 0) FROM credit_notes cn WHERE cn.sale_id = id)")
+    @Setter(lombok.AccessLevel.NONE)
+    private BigDecimal creditedAmount;
+
     @Convert(converter = TipoIngresosConverter.class)
     @Column(name = "tipo_ingresos", nullable = false, length = 2)
     private TipoIngresos tipoIngresos = TipoIngresos.OPERACIONES;
