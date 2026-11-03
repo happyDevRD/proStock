@@ -123,6 +123,22 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
             """, nativeQuery = true)
     List<Object[]> findCompletedDailyTrend(@Param("trendStart") LocalDateTime trendStart);
 
+    /** Igual que findCompletedDailyTrend pero acotado al período [trendStart, trendEnd]. */
+    @Query(value = """
+            SELECT CAST(s.sale_date AS date) AS day,
+                   COUNT(*) AS sale_count,
+                   COALESCE(SUM(s.monto_total), 0) AS revenue,
+                   COALESCE(SUM(s.total_itbis), 0) AS tax
+            FROM sales s
+            WHERE s.status = 'COMPLETED'
+              AND s.sale_date >= :trendStart
+              AND s.sale_date <= :trendEnd
+            GROUP BY CAST(s.sale_date AS date)
+            ORDER BY day ASC
+            """, nativeQuery = true)
+    List<Object[]> findCompletedDailyTrendInRange(@Param("trendStart") LocalDateTime trendStart,
+                                                  @Param("trendEnd") LocalDateTime trendEnd);
+
     @Query("SELECT COUNT(s) FROM Sale s WHERE s.status = com.happydev.prestockbackend.entity.SaleStatus.PARTIALLY_PAID")
     long countPartiallyPaid();
 

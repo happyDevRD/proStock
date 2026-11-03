@@ -835,9 +835,18 @@ public class SaleServiceImpl implements SaleService {
                 .map(this::mapSummaryDayRow)
                 .collect(Collectors.toList());
 
-        LocalDateTime trendStart = LocalDate.now().minusDays(7).atStartOfDay();
+        // La tendencia sigue el período pedido (antes siempre eran los últimos 7 días).
+        // Sin fechas se mantienen los 7 días; el tramo se limita a 366 días.
+        LocalDateTime trendEnd = endDate != null ? endDate : LocalDate.now().atTime(LocalTime.MAX);
+        LocalDateTime trendStart = startDate != null
+                ? startDate
+                : trendEnd.toLocalDate().minusDays(7).atStartOfDay();
+        LocalDateTime trendFloor = trendEnd.toLocalDate().minusDays(366).atStartOfDay();
+        if (trendStart.isBefore(trendFloor)) {
+            trendStart = trendFloor;
+        }
         List<SaleSummaryDayDto> revenueTrend = saleRepository
-                .findCompletedDailyTrend(trendStart)
+                .findCompletedDailyTrendInRange(trendStart, trendEnd)
                 .stream()
                 .map(this::mapSummaryDayRow)
                 .collect(Collectors.toList());
