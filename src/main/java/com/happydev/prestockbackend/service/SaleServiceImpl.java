@@ -432,8 +432,48 @@ public class SaleServiceImpl implements SaleService {
         // Recalculate fresh totals (in case items changed since draft creation)
         recalculateTaxTotals(sale);
 
+        // Completar = cobrada por completo: lo que no esté registrado como abono se registra ahora.
+        registerOutstandingPaymentOnComplete(sale, actorUsername);
+
         Sale updatedSale = finalizeSaleAsCompleted(sale, actorUsername);
         return saleMapper.toDto(updatedSale);
+    }
+
+    static final String OFFLINE_COMPLETION_PAYMENT_NOTE = "Pago registrado al completar (venta sin conexión)";
+    static final String COMPLETION_PAYMENT_NOTE = "Pago registrado al completar la venta";
+
+    /**
+     * Una venta completada está cobrada: si sus abonos no cubren el total (p. ej. la venta del POS
+     * sin conexión, que se sincroniza con /complete sin pasar por /payments), se registra el resto
+     * con el método de la venta y la fecha de la venta (la hora real del cobro en la tienda). Sin
+     * esto, el 607 la reportaba entera como venta a crédito.
+     */
+    private void registerOutstandingPaymentOnComplete(Sale sale, @Nullable String actorUsername) {
+        BigDecimal alreadyPaid = sale.getId() != null
+                ? salePaymentRepository.sumAmountBySaleId(sale.getId())
+                : null;
+        BigDecimal outstanding = DgiiTaxUtils.roundMoney(
+                sale.getMontoTotal().subtract(alreadyPaid != null ? alreadyPaid : BigDecimal.ZERO));
+        if (outstanding.signum() <= 0) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        SalePayment payment = new SalePayment();
+        payment.setSale(sale);
+        payment.setPaymentDate(sale.getSaleDate() != null ? sale.getSaleDate() : now);
+        payment.setAmount(outstanding);
+        payment.setPaymentMethod(sale.getPaymentMethod() != null ? sale.getPaymentMethod() : PaymentMethod.CASH);
+        payment.setNotes(isOfflineSale(sale.getIdempotencyKey())
+                ? OFFLINE_COMPLETION_PAYMENT_NOTE
+                : COMPLETION_PAYMENT_NOTE);
+        payment.setCreatedBy(actorUsername);
+        payment.setCreatedAt(now);
+        salePaymentRepository.save(payment);
+
+        auditService.record(actorUsername, "SALE_PAYMENT_ADDED", "Sale", sale.getId(),
+                Map.of("amount", outstanding.toPlainString(),
+                        "method", payment.getPaymentMethod().name(),
+                        "source", "complete"));
     }
 
     @Override
