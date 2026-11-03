@@ -32,16 +32,18 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
             """)
     List<Expense> findWithNcfInRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    // Paginado sin JOIN FETCH (lo resuelve @EntityGraph sin traer todo en memoria)
+    // Paginado sin JOIN FETCH (lo resuelve @EntityGraph sin traer todo en memoria).
+    // CAST(:description AS string): con el parámetro nulo PostgreSQL lo tipa como bytea y
+    // LOWER(bytea) no existe; el cast fija el tipo aunque llegue null.
     @EntityGraph(attributePaths = "supplier")
     @Query(value = """
             SELECT e FROM Expense e
-            WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', :description, '%')))
+            WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', CAST(:description AS string), '%')))
               AND (:category IS NULL OR e.category = :category)
             """,
            countQuery = """
             SELECT COUNT(e) FROM Expense e
-            WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', :description, '%')))
+            WHERE (:description IS NULL OR LOWER(e.description) LIKE LOWER(CONCAT('%', CAST(:description AS string), '%')))
               AND (:category IS NULL OR e.category = :category)
             """)
     Page<Expense> findFiltered(
