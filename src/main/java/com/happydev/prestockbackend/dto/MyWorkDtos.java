@@ -1,11 +1,13 @@
 package com.happydev.prestockbackend.dto;
 
+import com.happydev.prestockbackend.entity.ServiceOrderType;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * "Mis trabajos": lo que ve un fotógrafo o editor de las órdenes que tiene asignadas.
+ * "Mis trabajos": lo que ve el personal de producción (técnico, fotógrafo, editor) de las órdenes que tiene asignadas.
  * Sin montos, cobros ni facturas.
  */
 public final class MyWorkDtos {
@@ -27,6 +29,8 @@ public final class MyWorkDtos {
             boolean appointmentAllDay,
             LocalDate estimatedDelivery,
             String currentStage,
+            /** Tipo de orden: nombra roles y etapas en pantalla (en un taller FOTOGRAFO = técnico) */
+            ServiceOrderType orderType,
             /** FOTOGRAFO y/o EDITOR: qué le toca a este usuario en la orden */
             List<String> myRoles,
             String photographerName,
@@ -57,11 +61,20 @@ public final class MyWorkDtos {
             LocalDateTime end,
             boolean allDay,
             String currentStage,
+            ServiceOrderType orderType,
             String status,
             List<String> myRoles
     ) {}
 
-    public record MyWorkAction(String stage, String label) {}
+    /**
+     * Paso que el usuario puede marcar. {@code noteLabel}: si no es null, el paso pide una nota
+     * con ese título (p. ej. «Diagnóstico») que se envía al avanzar.
+     */
+    public record MyWorkAction(String stage, String label, String noteLabel) {}
+
+    /** Cuerpo opcional de «avanzar»: la nota que piden algunos pasos. */
+    public record MyWorkAdvanceRequest(
+            @jakarta.validation.constraints.Size(max = 2000) String note) {}
 
     public record MyWorkNoteRequest(@jakarta.validation.constraints.NotBlank String content) {}
 }

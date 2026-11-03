@@ -203,4 +203,152 @@ class MyWorkServiceTest {
         assertEquals(List.of("EDITOR"), item.myRoles());
         assertEquals(day.atTime(12, 0), item.end());
     }
+
+    // --- Reparación: el «fotógrafo» es el técnico y el «editor» su apoyo ---
+
+    private void repair(String stage) {
+        order.setOrderType(ServiceOrderType.REPAIR);
+        order.setCurrentStage(stage);
+        order.setStatus(ServiceOrderStageCatalog.findStage(ServiceOrderType.REPAIR, stage).orElseThrow().status());
+    }
+
+    private AdvanceStageRequest advancedTo() {
+        ArgumentCaptor<AdvanceStageRequest> req = ArgumentCaptor.forClass(AdvanceStageRequest.class);
+        verify(serviceOrderService).advanceStage(eq(10L), req.capture(), anyString());
+        return req.getValue();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "RECEIVED, DIAGNOSIS, IN_PROGRESS",
+            "APPROVED, IN_REPAIR, IN_PROGRESS",
+            "QUALITY_CHECK, READY, READY"
+    })
+    void technicianAdvancesTechnicalStages(String from, String to, ServiceOrderStatus status) {
+        repair(from);
+        service.advance(10L, to, "juan");
+        assertEquals(to, advancedTo().stage());
+        assertEquals(status, advancedTo().status());
+        verify(serviceOrderService, never()).addNote(anyLong(), any(), any());
+    }
+
+    @Test
+    void supportTechnicianCanAlsoAdvance() {
+        repair("APPROVED");
+        service.advance(10L, "IN_REPAIR", "ana");
+        assertEquals("IN_REPAIR", advancedTo().stage());
+    }
+
+    @Test
+    void diagnosisNeedsTheDiagnosisAndSavesItAsInternalNote() {
+        repair("DIAGNOSIS");
+        var e = assertThrows(IllegalArgumentException.class, () -> service.advance(10L, "BUDGET_SENT", "  ", "juan"));
+        assertTrue(e.getMessage().contains("diagnóstico"));
+        verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
+
+        service.advance(10L, "BUDGET_SENT", " Pantalla rota, cambiar display ", "juan");
+        assertEquals("BUDGET_SENT", advancedTo().stage());
+        assertEquals(ServiceOrderStatus.WAITING_CLIENT, advancedTo().status());
+        ArgumentCaptor<com.happydev.prestockbackend.dto.AddNoteRequest> note =
+                ArgumentCaptor.forClass(com.happydev.prestockbackend.dto.AddNoteRequest.class);
+        verify(serviceOrderService).addNote(eq(10L), note.capture(), eq("juan"));
+        assertEquals("Diagnóstico: Pantalla rota, cambiar display", note.getValue().content());
+        assertTrue(note.getValue().internal());
+    }
+
+    @Test
+    void finishingTheRepairNeedsWhatWasDone() {
+        repair("IN_REPAIR");
+        assertThrows(IllegalArgumentException.class, () -> service.advance(10L, "QUALITY_CHECK", "juan"));
+        service.advance(10L, "QUALITY_CHECK", "Display cambiado", "juan");
+        assertEquals("QUALITY_CHECK", advancedTo().stage());
+    }
+
+    @Test
+    void tooLongNoteIsRejected() {
+        repair("IN_REPAIR");
+        String longNote = "x".repeat(MyWorkService.MAX_NOTE + 1);
+        assertThrows(IllegalArgumentException.class, () -> service.advance(10L, "QUALITY_CHECK", longNote, "juan"));
+        verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
+    }
+
+    @Test
+    void technicianCannotApproveTheBudgetForTheClient() {
+        repair("BUDGET_SENT");
+        assertThrows(IllegalStateException.class, () -> service.advance(10L, "APPROVED", "juan"));
+        verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
+    }
+
+    @Test
+    void onceTheCounterApprovedTheBudgetTheTechnicianContinues() {
+        repair("BUDGET_SENT");
+        order.setBudgetApproved(true);
+        service.advance(10L, "APPROVED", "juan");
+        assertEquals("APPROVED", advancedTo().stage());
+    }
+
+    @Test
+    void technicianNeverDelivers() {
+        repair("READY");
+        assertThrows(IllegalStateException.class, () -> service.advance(10L, "DELIVERED", "juan"));
+        assertThrows(IllegalStateException.class, () -> service.advance(10L, null, "ana"));
+        verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
+        verify(serviceOrderService, never()).complete(anyLong(), any());
+    }
+
+    @Test
+    void technicianCannotSkipStages() {
+        repair("RECEIVED");
+        // Pide saltar a «En reparación»: el único paso permitido es Diagnóstico
+        assertThrows(IllegalStateException.class, () -> service.advance(10L, "IN_REPAIR", "juan"));
+        verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
+    }
+
+    @Test
+    void repairOrderOfAnotherTechnicianLooksLikeItDoesNotExist() {
+        repair("RECEIVED");
+        employee(3L, "Pedro", "pedro");
+        assertThrows(ResourceNotFoundException.class, () -> service.advance(10L, "DIAGNOSIS", "pedro"));
+    }
+
+    @Test
+    void closedRepairCannotBeAdvanced() {
+        repair("QUALITY_CHECK");
+        order.setStatus(ServiceOrderStatus.CANCELLED);
+        assertThrows(ResourceNotFoundException.class, () -> service.advance(10L, "READY", "juan"));
+    }
+
+    @Test
+    void readyRepairDoesNotAskForTheFinalFolder() {
+        repair("QUALITY_CHECK");
+        order.setWorkFolder("carpeta");
+        given(workFolderService.fileCounts("carpeta")).willReturn(java.util.Map.of("4 Final", 0));
+        service.advance(10L, "READY", "juan");
+        assertEquals("READY", advancedTo().stage());
+    }
+
+    @Test
+    void listOffersRepairStepsWithTypeAndNoteLabel() {
+        repair("DIAGNOSIS");
+        given(orderRepository.findAssignedTo(eq(1L), anyList())).willReturn(List.of(order));
+        var dto = service.list("juan").orders().get(0);
+        assertEquals(ServiceOrderType.REPAIR, dto.orderType());
+        assertEquals("BUDGET_SENT", dto.nextAction().stage());
+        assertEquals("Diagnóstico", dto.nextAction().noteLabel());
+
+        repair("BUDGET_SENT");
+        assertNull(service.list("juan").orders().get(0).nextAction());
+        repair("READY");
+        assertNull(service.list("juan").orders().get(0).nextAction());
+    }
+
+    @Test
+    void generalOrderResponsibleAdvancesToReady() {
+        order.setOrderType(ServiceOrderType.GENERAL);
+        order.setCurrentStage("IN_PROGRESS");
+        order.setStatus(ServiceOrderStatus.IN_PROGRESS);
+        service.advance(10L, "READY", "juan");
+        assertEquals("READY", advancedTo().stage());
+        assertEquals(ServiceOrderStatus.READY, advancedTo().status());
+    }
 }
