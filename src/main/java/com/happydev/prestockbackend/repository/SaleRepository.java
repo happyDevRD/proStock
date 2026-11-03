@@ -36,6 +36,26 @@ public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificat
             @Param("end") LocalDateTime end
     );
 
+    /**
+     * Comprobantes emitidos en el rango (con NCF) en cualquier estado salvo el excluido: el 607
+     * lleva las facturas COMPLETED y también las abonadas/a crédito (PARTIALLY_PAID, PENDING) que
+     * ya tienen NCF; las CANCELED van al 608.
+     */
+    @Query("""
+            SELECT s FROM Sale s
+            LEFT JOIN FETCH s.customer
+            WHERE s.status <> :excluded
+              AND s.ncf IS NOT NULL
+              AND s.saleDate >= :start
+              AND s.saleDate <= :end
+            ORDER BY s.ncf
+            """)
+    List<Sale> findWithNcfExcludingStatusInRange(
+            @Param("excluded") SaleStatus excluded,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
     @Query("""
             SELECT COUNT(s) FROM Sale s
             WHERE s.status = :status

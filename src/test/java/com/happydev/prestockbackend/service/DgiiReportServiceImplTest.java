@@ -113,7 +113,7 @@ class DgiiReportServiceImplTest {
         creditNote.setTotalItbis(new BigDecimal("18.00"));
         creditNote.setMontoTotal(new BigDecimal("118.00"));
 
-        when(saleRepository.findWithNcfByStatusInRange(eq(SaleStatus.COMPLETED), any(), any()))
+        when(saleRepository.findWithNcfExcludingStatusInRange(eq(SaleStatus.CANCELED), any(), any()))
                 .thenReturn(List.of(sale));
         when(creditNoteRepository.findInRangeWithSale(any(), any()))
                 .thenReturn(List.of(creditNote));
@@ -168,7 +168,7 @@ class DgiiReportServiceImplTest {
         creditNote.setTotalItbis(new BigDecimal("180.00"));
         creditNote.setMontoTotal(new BigDecimal("1380.00"));
 
-        when(saleRepository.findWithNcfByStatusInRange(eq(SaleStatus.COMPLETED), any(), any()))
+        when(saleRepository.findWithNcfExcludingStatusInRange(eq(SaleStatus.CANCELED), any(), any()))
                 .thenReturn(List.of(sale));
         when(creditNoteRepository.findInRangeWithSale(any(), any())).thenReturn(List.of(creditNote));
         when(creditNoteRepository.findBySale_IdIn(anyList())).thenReturn(List.of(creditNote));
@@ -193,7 +193,7 @@ class DgiiReportServiceImplTest {
 
     @Test
     void render607TxtUsesDgiiPipeLayout() {
-        when(saleRepository.findWithNcfByStatusInRange(eq(SaleStatus.COMPLETED), any(), any()))
+        when(saleRepository.findWithNcfExcludingStatusInRange(eq(SaleStatus.CANCELED), any(), any()))
                 .thenReturn(List.of(sale));
         when(creditNoteRepository.findInRangeWithSale(any(), any())).thenReturn(List.of());
         when(salePaymentRepository.findBySaleIdIn(anyList()))
@@ -297,7 +297,7 @@ class DgiiReportServiceImplTest {
     @Test
     void build607HandlesConsumerWithoutDocument() {
         sale.setCustomer(null);
-        when(saleRepository.findWithNcfByStatusInRange(eq(SaleStatus.COMPLETED), any(), any()))
+        when(saleRepository.findWithNcfExcludingStatusInRange(eq(SaleStatus.CANCELED), any(), any()))
                 .thenReturn(List.of(sale));
         when(creditNoteRepository.findInRangeWithSale(any(), any())).thenReturn(List.of());
         when(salePaymentRepository.findBySaleIdIn(anyList())).thenReturn(List.of());
