@@ -98,7 +98,7 @@ class ProductControllerTest {
     void getAllProducts_ReturnsListOfProducts() throws Exception {
         // Configura el mock del servicio para devolver una Page<ProductDto>
         Page<ProductDto> productDtoPage = new PageImpl<>(Arrays.asList(productDto));
-        given(productService.findAllProducts(any(Pageable.class))).willReturn(productDtoPage);
+        given(productService.findAllProducts(any(Pageable.class), eq(false))).willReturn(productDtoPage);
 
         ResultActions response = mockMvc.perform(get("/api/products")
                 .contentType(MediaType.APPLICATION_JSON));

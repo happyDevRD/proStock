@@ -78,8 +78,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> findAllProducts(@NonNull Pageable pageable) {
-        Page<Product> products = productRepository.findAll(pageable);
+    public Page<ProductDto> findAllProducts(@NonNull Pageable pageable, boolean includeSystemItems) {
+        Page<Product> products = includeSystemItems
+                ? productRepository.findAll(pageable)
+                : productRepository.findBySystemItemFalse(pageable);
         return products.map(productMapper::toDto); // Convierte Page<Product> a Page<ProductDto>
     }
 
@@ -359,12 +361,12 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductDto> searchProducts(@NonNull String query, @NonNull Pageable pageable) {
+    public Page<ProductDto> searchProducts(@NonNull String query, @NonNull Pageable pageable, boolean includeSystemItems) {
         String normalizedQuery = query.trim();
         if (normalizedQuery.isEmpty()) {
-            return findAllProducts(pageable);
+            return findAllProducts(pageable, includeSystemItems);
         }
-        return productRepository.searchByQuery(normalizedQuery, pageable).map(productMapper::toDto);
+        return productRepository.searchByQuery(normalizedQuery, includeSystemItems, pageable).map(productMapper::toDto);
     }
 
     @Override

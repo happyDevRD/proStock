@@ -106,6 +106,13 @@ public class Product {
     @NotNull
     private Boolean forSale = false;
 
+    /**
+     * Producto interno del sistema (p. ej. "Anticipo de orden de servicio"): lo usa el backend
+     * para facturar y no se lista en el POS ni en el inventario. No se puede cambiar por la API.
+     */
+    @Column(name = "system_item", nullable = false)
+    private boolean systemItem = false;
+
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images;
 

@@ -19,7 +19,8 @@ import java.util.Optional;
 
 public interface ProductService {
 
-    Page<ProductDto> findAllProducts(@NonNull Pageable pageable); // CON Pageable
+    /** Listado paginado; sin productos internos del sistema salvo includeSystemItems. */
+    Page<ProductDto> findAllProducts(@NonNull Pageable pageable, boolean includeSystemItems);
 
     List<ProductDto> findAllProducts();       //También el que no recibe parámetro.
 
@@ -34,7 +35,7 @@ public interface ProductService {
     // Nuevo método para alertas de stock bajo
     List<ProductDto> findProductsBelowMinStock();
     Page<ProductDto> findProductsBelowMinStock(@NonNull Pageable pageable);
-    Page<ProductDto> searchProducts(@NonNull String query, @NonNull Pageable pageable);
+    Page<ProductDto> searchProducts(@NonNull String query, @NonNull Pageable pageable, boolean includeSystemItems);
     List<ProductDto> importProductsFromCsv(@NonNull MultipartFile file);
 
     ProductWorkbookImportResult importProductsFromWorkbookRows(@NonNull List<Map<String, String>> rows);

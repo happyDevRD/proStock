@@ -70,6 +70,9 @@ public class ProductDto {
 
     private Boolean forSale;
 
+    /** Solo lectura: producto interno del sistema (anticipos/saldos de órdenes). Oculto en POS/inventario. */
+    private Boolean systemItem;
+
     @Valid
     private List<ProductImageDto> images;
 

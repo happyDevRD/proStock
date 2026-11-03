@@ -46,8 +46,11 @@ public class ProductController {
     })
     @PreAuthorize(Authz.PRODUCT_READ)
     @GetMapping
-    public ResponseEntity<Page<ProductDto>> getAllProducts(@NonNull Pageable pageable) { //Recibe Pageable
-        Page<ProductDto> products = productService.findAllProducts(pageable);
+    public ResponseEntity<Page<ProductDto>> getAllProducts(
+            @NonNull Pageable pageable,
+            // Los productos internos (anticipo/saldo de órdenes) se ocultan salvo includeSystem=true
+            @RequestParam(name = "includeSystem", defaultValue = "false") boolean includeSystem) {
+        Page<ProductDto> products = productService.findAllProducts(pageable, includeSystem);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
@@ -115,8 +118,11 @@ public class ProductController {
 
     @PreAuthorize(Authz.PRODUCT_READ)
     @GetMapping("/search")
-    public ResponseEntity<Page<ProductDto>> searchProducts(@RequestParam("q") @NonNull String query, @NonNull Pageable pageable) {
-        Page<ProductDto> products = productService.searchProducts(query, pageable);
+    public ResponseEntity<Page<ProductDto>> searchProducts(
+            @RequestParam("q") @NonNull String query,
+            @NonNull Pageable pageable,
+            @RequestParam(name = "includeSystem", defaultValue = "false") boolean includeSystem) {
+        Page<ProductDto> products = productService.searchProducts(query, pageable, includeSystem);
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 

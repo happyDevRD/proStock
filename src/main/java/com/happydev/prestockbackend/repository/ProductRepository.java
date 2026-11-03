@@ -31,12 +31,19 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     boolean existsByBarcodeIgnoreCaseAndIdNot(String barcode, Long id);
 
+    /** Listado para POS/inventario: sin los productos internos del sistema. */
+    Page<Product> findBySystemItemFalse(Pageable pageable);
+
+    // CAST: si alguna vez llega null, PostgreSQL no lo tipa como bytea dentro de lower().
     @Query("""
             SELECT p FROM Product p
-            WHERE lower(p.name) LIKE lower(concat('%', :query, '%'))
-               OR lower(p.sku) LIKE lower(concat('%', :query, '%'))
-               OR lower(coalesce(p.barcode, '')) LIKE lower(concat('%', :query, '%'))
+            WHERE (lower(p.name) LIKE lower(concat('%', CAST(:query AS string), '%'))
+               OR lower(p.sku) LIKE lower(concat('%', CAST(:query AS string), '%'))
+               OR lower(coalesce(p.barcode, '')) LIKE lower(concat('%', CAST(:query AS string), '%')))
+              AND (:includeSystem = true OR p.systemItem = false)
             """)
-    Page<Product> searchByQuery(String query, Pageable pageable);
+    Page<Product> searchByQuery(@Param("query") String query,
+                                @Param("includeSystem") boolean includeSystem,
+                                Pageable pageable);
 
 }

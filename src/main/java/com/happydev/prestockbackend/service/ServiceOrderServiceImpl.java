@@ -687,7 +687,13 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
 
     /** Producto de servicio interno (no se vende en el POS) usado como línea de anticipos y saldos. */
     private Product systemProduct(String sku, String name) {
-        return productRepository.findBySku(sku).orElseGet(() -> {
+        return productRepository.findBySku(sku).map(existing -> {
+            if (!existing.isSystemItem()) {
+                existing.setSystemItem(true);
+                return productRepository.save(existing);
+            }
+            return existing;
+        }).orElseGet(() -> {
             Category category = categoryRepository.findByNameIgnoreCase(BILLING_CATEGORY).orElseGet(() -> {
                 Category c = new Category();
                 c.setName(BILLING_CATEGORY);
@@ -709,6 +715,7 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
             p.setStock(0);
             p.setMinStock(0);
             p.setForSale(false);
+            p.setSystemItem(true);
             p.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
             p.setTipoBienServicio(TipoBienServicio.SERVICIO);
             p.setUnidadMedida(58);

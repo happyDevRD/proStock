@@ -128,14 +128,14 @@ class ProductServiceImplTest {
     void findAllProducts_WithPagination_ReturnsPageOfProducts() {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Product> productPage = new PageImpl<>(Arrays.asList(product), pageable, 1);
-        when(productRepository.findAll(pageable)).thenReturn(productPage);
+        when(productRepository.findBySystemItemFalse(pageable)).thenReturn(productPage);
         when(productMapper.toDto(product)).thenReturn(productDto);
 
-        Page<ProductDto> resultPage = productService.findAllProducts(pageable);
+        Page<ProductDto> resultPage = productService.findAllProducts(pageable, false);
 
         assertFalse(resultPage.isEmpty());
         assertEquals(1, resultPage.getTotalElements());
-        verify(productRepository).findAll(pageable);
+        verify(productRepository).findBySystemItemFalse(pageable);
     }
     @Test
     void findProductById_ExistingProduct_ReturnsProduct() {

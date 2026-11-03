@@ -22,6 +22,7 @@ public interface ProductMapper {
     @Mapping(source = "categoryId", target = "category.id")
     @Mapping(source = "supplierId", target = "supplier.id")
     @Mapping(source = "forSale", target = "forSale")
+    @Mapping(target = "systemItem", ignore = true) // lo decide el backend, no el cliente
     Product toEntity(ProductDto productDto);
 
     @Mapping(target = "effectiveSellingPrice", ignore = true)
@@ -46,6 +47,7 @@ public interface ProductMapper {
     @Mapping(target = "id", ignore = true) //Ignorar ID en la actualización
     @Mapping(target = "category", ignore = true) //Ignorar Category y Supplier
     @Mapping(target = "supplier", ignore = true) //El mapeo se hace por ID
+    @Mapping(target = "systemItem", ignore = true)
     void updateProductFromDto(ProductDto productDto, @MappingTarget Product product);
 
     @AfterMapping
