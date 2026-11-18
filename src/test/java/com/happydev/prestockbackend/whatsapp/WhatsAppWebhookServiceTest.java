@@ -72,6 +72,7 @@ class WhatsAppWebhookServiceTest {
         ana.setFirstName("Ana");
         ana.setLastName("Pérez");
         given(customerRepository.findFirstByPhoneDigits("8497639736")).willReturn(Optional.of(ana));
+        props.setNotifyInbound(true);
 
         service.process(payload("1357718120763107", TEXT_MESSAGE));
 
@@ -86,6 +87,14 @@ class WhatsAppWebhookServiceTest {
         assertEquals(Instant.ofEpochSecond(1761264000), message.getSentAt());
         assertSame(ana, message.getCustomer());
         verify(notifier).send(contains("Ana Pérez (+18497639736): Hola"));
+    }
+
+    @Test
+    void porDefectoNoReenviaLosMensajesAlEstudio() {
+        service.process(payload("1357718120763107", TEXT_MESSAGE));
+        verify(inboundRepository, atLeastOnce()).save(any());
+        verify(notifier, never()).send(any());
+        verify(client).sendText(eq("18497639736"), contains("849-631-8221"));
     }
 
     @Test

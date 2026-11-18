@@ -48,6 +48,13 @@ public class WhatsAppProperties {
             + " no podemos atenderte. Escríbenos al WhatsApp del estudio: +1 849-631-8221"
             + " (https://wa.me/18496318221).";
 
+    /**
+     * Reenviar al grupo de Telegram del estudio cada mensaje que entra al número de la API.
+     * Apagado por defecto: el estudio solo quiere avisos del sistema, no las conversaciones
+     * (los mensajes siguen guardándose en la bandeja de ProStock). WHATSAPP_NOTIFY_INBOUND=true lo enciende.
+     */
+    private boolean notifyInbound = false;
+
     private String graphUrl = "https://graph.facebook.com";
 
     private String apiVersion = "v23.0";

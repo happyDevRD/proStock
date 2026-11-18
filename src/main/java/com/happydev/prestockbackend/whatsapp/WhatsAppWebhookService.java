@@ -115,7 +115,7 @@ public class WhatsAppWebhookService {
             return;
         }
 
-        notifyStudio(message);
+        if (props.isNotifyInbound()) notifyStudio(message);
         autoReply(message);
     }
 
