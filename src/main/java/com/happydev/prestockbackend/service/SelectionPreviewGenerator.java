@@ -57,6 +57,11 @@ public class SelectionPreviewGenerator {
         return progress.get(orderId);
     }
 
+    /** Marca la generación como en curso al encolarla: así la pantalla ya ve «running» antes de que arranque el hilo. */
+    public void markQueued(Long orderId) {
+        progress.put(orderId, new Progress(true, 0, 0, 0, 0, null, LocalDateTime.now(), null));
+    }
+
     public boolean isRunning(Long orderId) {
         Progress p = progress.get(orderId);
         return p != null && p.running();
@@ -68,11 +73,7 @@ public class SelectionPreviewGenerator {
      */
     public int generate(Long orderId) throws IOException {
         LocalDateTime started = LocalDateTime.now();
-        if (progress.putIfAbsent(orderId, new Progress(true, 0, 0, 0, 0, null, started, null)) != null) {
-            Progress current = progress.get(orderId);
-            if (current != null && current.running()) throw new IllegalStateException("Ya se están generando las previas.");
-            progress.put(orderId, new Progress(true, 0, 0, 0, 0, null, started, null));
-        }
+        progress.put(orderId, new Progress(true, 0, 0, 0, 0, null, started, null));
         int created = 0;
         int failed = 0;
         int total = 0;

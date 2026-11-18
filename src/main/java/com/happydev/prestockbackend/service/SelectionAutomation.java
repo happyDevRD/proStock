@@ -85,6 +85,7 @@ public class SelectionAutomation {
     /** Genera las previas en segundo plano; con {@code createAccess}, después el acceso del cliente. */
     public void start(Long orderId, boolean createAccess) {
         if (generator.isRunning(orderId)) throw new IllegalStateException("Ya se están generando las previas.");
+        generator.markQueued(orderId);
         executor.submit(() -> run(orderId, createAccess));
     }
 
