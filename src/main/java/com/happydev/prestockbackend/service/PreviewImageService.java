@@ -101,6 +101,15 @@ public class PreviewImageService {
     /** Decodifica saltando píxeles para quedar cerca del tamaño pedido sin cargar la imagen completa. */
     @Nullable
     static BufferedImage readSubsampled(Path file, int maxSide) throws IOException {
+        return readSubsampled(file, maxSide, 2);
+    }
+
+    /**
+     * @param headroom cuánto más grande que {@code maxSide} se decodifica antes de escalar
+     *                 (2 = mejor calidad; 1 = menos memoria, para fotos de cámara de 24+ MP)
+     */
+    @Nullable
+    static BufferedImage readSubsampled(Path file, int maxSide, int headroom) throws IOException {
         try (ImageInputStream in = ImageIO.createImageInputStream(file.toFile())) {
             if (in == null) return null;
             Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
@@ -110,7 +119,7 @@ public class PreviewImageService {
                 reader.setInput(in, true, true);
                 int w = reader.getWidth(0);
                 int h = reader.getHeight(0);
-                int step = Math.max(1, Math.max(w, h) / (maxSide * 2));
+                int step = Math.max(1, Math.max(w, h) / (maxSide * headroom));
                 ImageReadParam param = reader.getDefaultReadParam();
                 param.setSourceSubsampling(step, step, 0, 0);
                 return reader.read(0, param);

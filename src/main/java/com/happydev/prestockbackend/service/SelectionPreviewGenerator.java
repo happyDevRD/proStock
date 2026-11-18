@@ -173,7 +173,8 @@ public class SelectionPreviewGenerator {
             return false;
         }
         try {
-            BufferedImage img = PreviewImageService.readSubsampled(jpeg, MAX_SIDE);
+            // headroom 1: una JPG de cámara de 6000 px se decodifica a ~3000 px (24 MB), no entera (96 MB)
+            BufferedImage img = PreviewImageService.readSubsampled(jpeg, MAX_SIDE, 1);
             if (img == null) return false;
             BufferedImage out = PreviewImageService.orient(PreviewImageService.scale(img, MAX_SIDE), orientation);
             Path tmp = work.resolve(UUID.randomUUID() + ".jpg");
