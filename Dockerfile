@@ -11,6 +11,10 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 # Fuentes para dibujar texto con Java (marca de agua de las previas del portal de selección)
 RUN apk add --no-cache fontconfig ttf-dejavu
+# Zona del negocio también para el sistema (logs, `date`). La JVM la fija en main() con APP_TIMEZONE.
+RUN apk add --no-cache tzdata
+ENV TZ=America/Santo_Domingo \
+    APP_TIMEZONE=America/Santo_Domingo
 RUN addgroup -S spring && adduser -S spring -G spring
 COPY --from=builder /workspace/build/libs/*.jar /app/app.jar
 RUN chown spring:spring /app/app.jar
