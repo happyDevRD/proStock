@@ -4,6 +4,7 @@ import com.happydev.prestockbackend.dto.CustomerDto;
 import com.happydev.prestockbackend.dto.CustomerStatsDto;
 import com.happydev.prestockbackend.dto.QuickCustomerRequest;
 import com.happydev.prestockbackend.entity.Customer;
+import com.happydev.prestockbackend.entity.TipoIdentificacion;
 import com.happydev.prestockbackend.exception.ResourceNotFoundException;
 import com.happydev.prestockbackend.mapper.CustomerMapper;
 import com.happydev.prestockbackend.repository.CustomerRepository;
@@ -85,11 +86,12 @@ public class CustomerServiceImpl implements CustomerService {
             }
         }
 
-        //Validar que no exista ese email
-        if(customerRepository.existsByEmail(customerDto.getEmail())){
+        //Validar que no exista ese email (el correo es opcional)
+        if(customerDto.getEmail() != null && customerRepository.existsByEmail(customerDto.getEmail())){
             throw new IllegalArgumentException("Email already exists: " + customerDto.getEmail()); // Otra excepción personalizada
         }
         Customer customer = customerMapper.toEntity(customerDto);
+        customer.setTipoIdentificacion(resolveTipo(customerDto.getRncCedula(), customerDto.getTipoIdentificacion()));
         customer.setWhatsappOptIn(null);
         customer.setWhatsappOptInAt(null);
         customer.setWhatsappOptInSource(null);
@@ -115,7 +117,7 @@ public class CustomerServiceImpl implements CustomerService {
                 "CUSTOMER_CREATED",
                 "Customer",
                 dto.getId(),
-                Map.of("email", dto.getEmail(), "name", dto.getFirstName() + " " + dto.getLastName())
+                Map.of("email", String.valueOf(dto.getEmail()), "name", dto.getFirstName() + " " + dto.getLastName())
         );
         return dto;
     }
@@ -151,7 +153,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setPhoneNumber(customerDto.getPhoneNumber());
         customer.setAddress(customerDto.getAddress());
         customer.setRncCedula(customerDto.getRncCedula());
-        customer.setTipoIdentificacion(customerDto.getTipoIdentificacion());
+        customer.setTipoIdentificacion(resolveTipo(customerDto.getRncCedula(), customerDto.getTipoIdentificacion()));
         applyWhatsappConsent(customer, customerDto.getWhatsappOptIn());
 
         Customer updatedCustomer = customerRepository.save(customer);
@@ -161,9 +163,17 @@ public class CustomerServiceImpl implements CustomerService {
                 "CUSTOMER_UPDATED",
                 "Customer",
                 id,
-                Map.of("email", dto.getEmail())
+                Map.of("email", String.valueOf(dto.getEmail()))
         );
         return dto;
+    }
+
+    /** Se respeta el tipo elegido (persona/empresa) aunque no haya número; si falta, se deduce: 11 dígitos = cédula, 9 = RNC. */
+    @Nullable
+    static TipoIdentificacion resolveTipo(@Nullable String rncCedula, @Nullable TipoIdentificacion tipo) {
+        if (tipo != null) return tipo;
+        if (rncCedula == null || rncCedula.isBlank()) return null;
+        return rncCedula.length() == 11 ? TipoIdentificacion.CEDULA : TipoIdentificacion.RNC;
     }
 
     /** El estudio marca o quita el consentimiento; null (pantallas viejas) no cambia nada. */
