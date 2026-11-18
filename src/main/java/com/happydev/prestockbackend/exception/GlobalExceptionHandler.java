@@ -322,6 +322,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     }
 
     // 500 Internal Server Error - Catch-all
+    /** Errores con código HTTP explícito (p. ej. 401/429 del portal de selección, 409 de asientos). */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ErrorDetails> handleResponseStatusException(
+            org.springframework.web.server.ResponseStatusException ex, WebRequest request) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                status != null ? status.name() : String.valueOf(ex.getStatusCode().value()),
+                ex.getReason() != null ? ex.getReason() : ex.getMessage(),
+                request.getDescription(false)
+        );
+        return new ResponseEntity<>(errorDetails, ex.getStatusCode());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDetails> globalExceptionHandler(Exception ex, WebRequest request) {
         Object errors = null;

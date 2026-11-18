@@ -55,6 +55,8 @@ class SelectionServiceTest {
         service = new SelectionService(selectionRepository, orderRepository, itemRepository, productRepository,
                 companyConfigRepository, serviceOrderService, folders, new ObjectMapper(),
                 "https://iridiscencia.com/seleccion/", "ADI-FOTO-DIG", "", notifier);
+        service.setAccess(new SelectionAccessService(selectionRepository,
+                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4), "secreto", java.time.Clock.systemUTC()));
 
         folder = Files.createDirectories(root.resolve("3 En seleccion").resolve("OS-2026-00009 Ana"));
         Path previews = Files.createDirectories(folder.resolve("2 Seleccion"));
@@ -136,17 +138,25 @@ class SelectionServiceTest {
     }
 
     @Test
-    void submitLinksOriginalsAddsExtrasAndMovesToEditing() throws Exception {
-        service.submit("tok", List.of("IMG_0001.jpg", "IMG_0003.jpg", "IMG_0002.jpg"), true);
+    void submitSendsIncludedToEditingAndLeavesExtrasPending() throws Exception {
+        // Marcó en este orden: las 2 primeras son del paquete (cupo 2), la tercera es adicional
+        var view = service.submit("tok", List.of("IMG_0001.jpg", "IMG_0003.jpg", "IMG_0002.jpg"), true);
 
-        // Originales de cámara enlazados en "3 Edicion" (mismo contenido, sin copiar)
+        // Solo los originales de las incluidas pasan a "3 Edicion" (enlazados, sin copiar)
         Path editing = folder.resolve("3 Edicion");
         assertEquals("raw-IMG_0003", Files.readString(editing.resolve("IMG_0003.CR3")));
         assertTrue(Files.isSameFile(editing.resolve("IMG_0001.CR3"), folder.resolve("1 Camara/CAMARA UNO/IMG_0001.CR3")));
+        assertFalse(Files.exists(editing.resolve("IMG_0002.CR3")), "la adicional espera autorización");
+        assertFalse(Files.exists(editing.resolve("Adicionales")));
         String summary = Files.readString(editing.resolve("SELECCION.txt"), StandardCharsets.UTF_8);
-        assertTrue(summary.contains("Fotos elegidas: 3 (incluidas: 2, extra: 1)"));
+        assertTrue(summary.contains("Fotos del paquete: 2 de 2"));
+        assertTrue(summary.contains("Fotos adicionales: 1 (PENDIENTES"));
 
-        // 1 foto extra a precio base (sin ITBIS): 300 / 1.18
+        assertEquals(SelectionService.EXTRA_PENDING, sel.getExtraStatus());
+        assertEquals(List.of("IMG_0002.jpg"), view.extraFiles());
+        assertEquals("PENDING", view.extraStatus());
+
+        // 1 foto adicional cobrada en la orden a precio base (sin ITBIS): 300 / 1.18
         ArgumentCaptor<AddServiceOrderItemRequest> item = ArgumentCaptor.forClass(AddServiceOrderItemRequest.class);
         verify(serviceOrderService).addItem(eq(9L), item.capture());
         assertEquals(1, item.getValue().quantity());
@@ -156,8 +166,64 @@ class SelectionServiceTest {
         verify(serviceOrderService).advanceStage(eq(9L), adv.capture(), eq(SelectionService.CLIENT_ACTOR));
         assertEquals("EDITING", adv.getValue().stage());
         assertNotNull(sel.getSubmittedAt());
-        verify(notifier).send(contains("eligió 3 foto(s), 1 extra"));
+        verify(notifier).send(contains("eligió 2 foto(s) del paquete y 1 adicional(es)"));
         assertThrows(IllegalStateException.class, () -> service.saveDraft("tok", List.of()), "ya confirmada");
+    }
+
+    private void owes(String balance) {
+        com.happydev.prestockbackend.dto.ServiceOrderDto dto = org.mockito.Mockito.mock(com.happydev.prestockbackend.dto.ServiceOrderDto.class);
+        given(dto.balance()).willReturn(new BigDecimal(balance));
+        given(serviceOrderService.findById(9L)).willReturn(dto);
+    }
+
+    private void submittedWithOneExtra() {
+        given(selectionRepository.findByServiceOrderId(9L)).willReturn(Optional.of(sel));
+        service.submit("tok", List.of("IMG_0001.jpg", "IMG_0003.jpg", "IMG_0002.jpg"), true);
+    }
+
+    @Test
+    void extrasCannotBeApprovedWhileTheOrderOwes() {
+        submittedWithOneExtra();
+        owes("254.24");
+        var e = assertThrows(IllegalStateException.class, () -> service.approveExtras(9L, false, "secretaria"));
+        assertTrue(e.getMessage().contains("RD$254.24"));
+        assertEquals(SelectionService.EXTRA_PENDING, sel.getExtraStatus());
+        assertFalse(Files.exists(folder.resolve("3 Edicion/Adicionales/IMG_0002.CR3")));
+    }
+
+    @Test
+    void approvedExtrasGoToTheirOwnEditingFolder() throws Exception {
+        submittedWithOneExtra();
+        owes("0.00");
+        var admin = service.approveExtras(9L, false, "secretaria");
+        assertEquals(SelectionService.EXTRA_APPROVED, admin.extraStatus());
+        assertTrue(Files.isSameFile(folder.resolve("3 Edicion/Adicionales/IMG_0002.CR3"),
+                folder.resolve("1 Camara/CAMARA UNO/IMG_0002.CR3")));
+        assertTrue(Files.readString(folder.resolve("3 Edicion/SELECCION.txt"), StandardCharsets.UTF_8).contains("AUTORIZADAS"));
+        assertEquals("secretaria", sel.getExtraDecidedBy());
+        verify(notifier).send(contains("Adicionales autorizadas"));
+        assertThrows(IllegalStateException.class, () -> service.approveExtras(9L, false, "secretaria"), "ya no están pendientes");
+    }
+
+    @Test
+    void adminCanForceApprovalWithBalanceAndItIsRecorded() {
+        submittedWithOneExtra();
+        owes("254.24");
+        service.approveExtras(9L, true, "admin");
+        assertEquals(SelectionService.EXTRA_APPROVED, sel.getExtraStatus());
+        assertTrue(sel.getExtraNotes().contains("saldo pendiente de RD$254.24"));
+    }
+
+    @Test
+    void rejectingExtrasRemovesTheirCharge() {
+        com.happydev.prestockbackend.dto.ServiceOrderItemDto added = org.mockito.Mockito.mock(com.happydev.prestockbackend.dto.ServiceOrderItemDto.class);
+        given(added.id()).willReturn(77L);
+        given(serviceOrderService.addItem(eq(9L), any())).willReturn(added);
+        submittedWithOneExtra();
+        service.rejectExtras(9L, "No las va a pagar", "secretaria");
+        verify(serviceOrderService).removeItem(9L, 77L);
+        assertEquals(SelectionService.EXTRA_REJECTED, sel.getExtraStatus());
+        assertFalse(Files.exists(folder.resolve("3 Edicion/Adicionales/IMG_0002.CR3")));
     }
 
     @Test
@@ -175,7 +241,13 @@ class SelectionServiceTest {
 
         order.setCurrentStage("SELECTION");
         var created = service.create(9L, 25, 15, "admin");
-        assertTrue(created.url().startsWith("https://iridiscencia.com/seleccion/"));
+        assertEquals("ana9", created.username(), "primer nombre sin tildes + número de la orden");
+        assertEquals("https://iridiscencia.com/seleccion/ana9", created.url());
+        assertTrue(created.password().matches("\\d{6}"), "contraseña de 6 dígitos, visible solo al generarla");
+        ArgumentCaptor<ServiceOrderSelection> saved = ArgumentCaptor.forClass(ServiceOrderSelection.class);
+        verify(selectionRepository).save(saved.capture());
+        assertTrue(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
+                .matches(created.password(), saved.getValue().getPasswordHash()), "se guarda solo el hash");
         assertEquals(3, created.previewCount());
     }
 

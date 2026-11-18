@@ -55,6 +55,14 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     private final WorkFolderService workFolderService;
     private final ApplicationEventPublisher eventPublisher;
 
+    /** Por setter: no tocar el constructor que usan las pruebas. */
+    private com.happydev.prestockbackend.repository.ServiceOrderSelectionRepository selectionRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSelectionRepository(com.happydev.prestockbackend.repository.ServiceOrderSelectionRepository selectionRepository) {
+        this.selectionRepository = selectionRepository;
+    }
+
     public ServiceOrderServiceImpl(ServiceOrderRepository orderRepository,
                                    ServiceOrderStageRepository stageRepository,
                                    ServiceOrderNoteRepository noteRepository,
@@ -332,6 +340,14 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
         if (req.status() == ServiceOrderStatus.COMPLETED) {
             // La etapa final pasa por complete(): valida el saldo y descuenta stock.
             return complete(id, actor);
+        }
+        if ("READY".equals(req.stage()) && selectionRepository != null) {
+            selectionRepository.findByServiceOrderId(id)
+                    .filter(sel -> SelectionService.EXTRA_PENDING.equals(sel.getExtraStatus()))
+                    .ifPresent(sel -> {
+                        throw new IllegalStateException("El cliente eligió " + sel.getExtraCount()
+                                + " foto(s) adicional(es) que aún no se autorizan. Autorízalas (con el pago) o recházalas antes de marcar la orden como lista.");
+                    });
         }
 
         order.setCurrentStage(req.stage());

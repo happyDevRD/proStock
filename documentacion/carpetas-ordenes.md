@@ -102,3 +102,17 @@ Técnico:
 - **Previas reemplazadas**: si el fotógrafo reexporta una previa, su miniatura se regenera.
 - **Seguimiento en la orden**: fecha del enlace, última actividad del cliente, lista de fotos marcadas/elegidas y botón "Recordar por WhatsApp" (a partir de 2 días sin confirmar).
 - **Aviso al estudio** al confirmar: nota en la orden y, si están `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` (el mismo bot del monitor), mensaje por Telegram.
+
+## Fase 3.1: previas automáticas, usuario y contraseña, adicionales con autorización (2026-11-18)
+
+Flujo completo:
+
+1. El fotógrafo descarga la tarjeta en `1 Camara` (RAW Sony ARW / Canon CR3, con o sin JPG) y pasa la orden a **Selección**.
+2. **Automático** (`SelectionAutomation`, `SELECTION_AUTO=true`): `SelectionPreviewGenerator` arma `2 Seleccion` — por cada nombre base usa la JPG de cámara o, si solo hay RAW, la vista previa incrustada (exiftool, `CameraPreviewExtractor`; ~1600 px), derecha según la orientación EXIF y a 2048 px como máximo. Respeta las previas exportadas a mano. Después genera el **acceso** con el cupo del paquete (15 días) → el cliente recibe el WhatsApp `fotos_listas_seleccion` con el botón a `iridiscencia.com/seleccion/{usuario}`, y el grupo de Telegram del estudio recibe usuario y contraseña para pasársela. Si no hay fotos o el paquete no dice «N fotos», avisa al grupo para hacerlo a mano («Generar previas» / «Generar acceso» en la orden).
+3. **Acceso** (`SelectionAccessService`): usuario = primer nombre sin tildes + número de orden (`nathalie13`); contraseña de 6 dígitos (BCrypt; en claro solo al generarla o restablecerla). 5 intentos fallidos → bloqueo 15 min. `POST /api/seleccion/login` devuelve una sesión firmada (HMAC con `JWT_SECRET` + hash de la contraseña, 12 h) que va en la ruta de las demás llamadas.
+4. El cliente marca sus fotos. **El orden de marcado cuenta**: las primeras hasta el cupo son del paquete; las demás, **adicionales** (`ADI-FOTO-DIG`).
+5. Al confirmar: las del paquete se enlazan en `3 Edicion` (el editor empieza ya) y la orden pasa a Edición; las adicionales se cobran en la orden y quedan **PENDIENTES** (no se enlazan). `SELECCION.txt` lista ambas con su estado.
+6. La secretaria las **autoriza** cuando el saldo de la orden está cubierto (administración puede forzar, queda anotado) → se enlazan en `3 Edicion/Adicionales` y se avisa al grupo. O las **rechaza** → se quita su cobro.
+7. La orden no puede pasar a **Lista** con adicionales pendientes. Después sigue igual: `4 Final` → Lista (WhatsApp «trabajo listo») → Entregada en el estudio.
+
+Técnico: migración `V62__selection_login_and_extras.sql`; exiftool en la imagen (`apk add exiftool`); endpoints admin `POST /{id}/selection/previews|password|extras/approve|extras/reject`, `GET /selection/pending-extras`. Variables: `SELECTION_AUTO`, `SELECTION_EXIFTOOL`.

@@ -43,6 +43,8 @@ public class ServiceOrderController {
     private final WorkFolderService workFolderService;
     private final EmployeeRepository employeeRepository;
     private final SelectionService selectionService;
+    private final com.happydev.prestockbackend.service.SelectionPreviewGenerator previewGenerator;
+    private final com.happydev.prestockbackend.service.SelectionAutomation selectionAutomation;
     private final AppointmentScheduleService scheduleService;
 
     public ServiceOrderController(ServiceOrderService serviceOrderService,
@@ -50,7 +52,11 @@ public class ServiceOrderController {
                                   WorkFolderService workFolderService,
                                   EmployeeRepository employeeRepository,
                                   SelectionService selectionService,
-                                  AppointmentScheduleService scheduleService) {
+                                  AppointmentScheduleService scheduleService,
+                                  com.happydev.prestockbackend.service.SelectionPreviewGenerator previewGenerator,
+                                  com.happydev.prestockbackend.service.SelectionAutomation selectionAutomation) {
+        this.previewGenerator = previewGenerator;
+        this.selectionAutomation = selectionAutomation;
         this.serviceOrderService = serviceOrderService;
         this.accessGuard = accessGuard;
         this.workFolderService = workFolderService;
@@ -68,7 +74,61 @@ public class ServiceOrderController {
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("selection", selectionService.get(id));
         body.put("suggestion", selectionService.suggest(id));
+        var p = previewGenerator.progress(id);
+        body.put("previews", p == null ? null : new SelectionDtos.PreviewProgress(p.running(), p.total(), p.done(),
+                p.created(), p.failed(), p.error(), p.startedAt(), p.finishedAt()));
         return ResponseEntity.ok(body);
+    }
+
+    /** Arma (en segundo plano) las previas de "2 Seleccion" desde las fotos de "1 Camara". */
+    @PostMapping("/{id}/selection/previews")
+    public ResponseEntity<Void> generatePreviews(@PathVariable Long id) {
+        accessGuard.requireEnabled();
+        selectionAutomation.start(id, false);
+        return ResponseEntity.accepted().build();
+    }
+
+    /** Nueva contraseña del cliente (se muestra una sola vez). */
+    @PostMapping("/{id}/selection/password")
+    public ResponseEntity<SelectionDtos.AdminSelection> resetSelectionPassword(@PathVariable Long id) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(selectionService.resetPassword(id));
+    }
+
+    /** Órdenes con fotos adicionales esperando pago y autorización. */
+    @GetMapping("/selection/pending-extras")
+    public ResponseEntity<List<SelectionDtos.AdminSelection>> pendingExtras() {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(selectionService.pendingExtras());
+    }
+
+    /**
+     * Autoriza las fotos adicionales (pasan a "3 Edicion/Adicionales"). Exige el saldo cubierto;
+     * {@code force} (autorizar con saldo pendiente) solo para administración.
+     */
+    @PostMapping("/{id}/selection/extras/approve")
+    public ResponseEntity<SelectionDtos.AdminSelection> approveExtras(
+            @PathVariable Long id,
+            @RequestBody(required = false) SelectionDtos.ApproveExtrasRequest request,
+            org.springframework.security.core.Authentication auth) {
+        accessGuard.requireEnabled();
+        boolean force = request != null && request.force();
+        if (force && (auth == null || auth.getAuthorities().stream().map(a -> a.getAuthority())
+                .noneMatch(a -> a.equals("ROLE_ADMIN") || a.equals("ROLE_GESTOR")))) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Solo administración puede autorizar fotos adicionales con saldo pendiente.");
+        }
+        return ResponseEntity.ok(selectionService.approveExtras(id, force, auth != null ? auth.getName() : null));
+    }
+
+    @PostMapping("/{id}/selection/extras/reject")
+    public ResponseEntity<SelectionDtos.AdminSelection> rejectExtras(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) SelectionDtos.RejectExtrasRequest request,
+            Principal principal) {
+        accessGuard.requireEnabled();
+        return ResponseEntity.ok(selectionService.rejectExtras(id, request != null ? request.reason() : null,
+                principal != null ? principal.getName() : null));
     }
 
     @PostMapping("/{id}/selection")

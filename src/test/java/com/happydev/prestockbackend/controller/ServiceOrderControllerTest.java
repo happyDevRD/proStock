@@ -74,6 +74,12 @@ class ServiceOrderControllerTest {
     @MockitoBean
     private com.happydev.prestockbackend.service.AppointmentScheduleService scheduleService;
 
+    @MockitoBean
+    private com.happydev.prestockbackend.service.SelectionPreviewGenerator previewGenerator;
+
+    @MockitoBean
+    private com.happydev.prestockbackend.service.SelectionAutomation selectionAutomation;
+
     @Test
     void getStats_ReturnsAggregates() throws Exception {
         doNothing().when(accessGuard).requireEnabled();

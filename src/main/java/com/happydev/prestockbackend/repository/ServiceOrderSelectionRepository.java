@@ -10,4 +10,12 @@ public interface ServiceOrderSelectionRepository extends JpaRepository<ServiceOr
     Optional<ServiceOrderSelection> findByToken(String token);
 
     Optional<ServiceOrderSelection> findByServiceOrderId(Long serviceOrderId);
+
+    Optional<ServiceOrderSelection> findByUsernameIgnoreCase(String username);
+
+    boolean existsByUsernameIgnoreCase(String username);
+
+    long countByExtraStatus(String extraStatus);
+
+    java.util.List<ServiceOrderSelection> findByExtraStatusOrderBySubmittedAtAsc(String extraStatus);
 }

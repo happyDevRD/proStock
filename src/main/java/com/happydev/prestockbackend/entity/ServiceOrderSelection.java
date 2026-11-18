@@ -46,6 +46,44 @@ public class ServiceOrderSelection {
     @Column(name = "extra_count", nullable = false)
     private int extraCount;
 
+    /** Usuario con que el cliente entra al portal (p. ej. "nathalie13"). */
+    @Column(length = 60)
+    private String username;
+
+    /** BCrypt de la contraseña de 6 dígitos; la contraseña en claro solo se muestra al generarla. */
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
+
+    @Column(name = "failed_attempts", nullable = false)
+    private int failedAttempts;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    /** NONE · PENDING (esperan autorización del estudio) · APPROVED · REJECTED */
+    @Column(name = "extra_status", nullable = false, length = 20)
+    private String extraStatus = "NONE";
+
+    /** JSON: previas adicionales (las que pasan del cupo), en el orden en que el cliente las marcó. */
+    @Column(name = "extra_files", nullable = false, columnDefinition = "TEXT")
+    private String extraFiles = "[]";
+
+    /** Línea de la orden con el cobro de las adicionales. */
+    @Column(name = "extra_item_id")
+    private Long extraItemId;
+
+    @Column(name = "extra_decided_at")
+    private LocalDateTime extraDecidedAt;
+
+    @Column(name = "extra_decided_by", length = 100)
+    private String extraDecidedBy;
+
+    @Column(name = "extra_notes", length = 500)
+    private String extraNotes;
+
     @Column(name = "created_by", length = 100)
     private String createdBy;
 

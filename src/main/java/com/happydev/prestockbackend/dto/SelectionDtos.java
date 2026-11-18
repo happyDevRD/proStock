@@ -28,8 +28,43 @@ public final class SelectionDtos {
             List<String> selectedFiles,
             /** Cuándo se generó el enlace actual y la última vez que el cliente marcó algo */
             LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            LocalDateTime updatedAt,
+            /** Usuario del cliente en el portal */
+            String username,
+            /** Contraseña en claro: SOLO al generar el acceso o restablecerla; si no, null */
+            String password,
+            LocalDateTime lastLoginAt,
+            /** Bloqueado por intentos fallidos */
+            boolean locked,
+            /** NONE · PENDING · APPROVED · REJECTED */
+            String extraStatus,
+            /** Previas adicionales (las que pasan del cupo) */
+            List<String> extraFiles,
+            LocalDateTime extraDecidedAt,
+            String extraDecidedBy,
+            String extraNotes,
+            /** Saldo de la orden (solo con adicionales pendientes) */
+            BigDecimal balance,
+            /** Con adicionales pendientes: true si el saldo está cubierto y se pueden autorizar */
+            boolean extrasPayable,
+            Long orderId,
+            String orderNumber,
+            String customerName
     ) {}
+
+    /** Avance de la generación automática de previas desde "1 Camara". */
+    public record PreviewProgress(boolean running, int total, int done, int created, int failed,
+                                  String error, LocalDateTime startedAt, LocalDateTime finishedAt) {}
+
+    public record ApproveExtrasRequest(boolean force) {}
+
+    public record RejectExtrasRequest(@jakarta.validation.constraints.Size(max = 500) String reason) {}
+
+    public record LoginRequest(@NotNull @jakarta.validation.constraints.Size(max = 80) String username,
+                               @NotNull @jakarta.validation.constraints.Size(max = 20) String password) {}
+
+    /** Sesión firmada: va en la ruta de las demás llamadas ({@code /api/seleccion/{session}/...}). */
+    public record LoginResponse(String session) {}
 
     /** Valores sugeridos antes de generar el enlace (cupo según los combos de la orden). */
     public record SelectionSuggestion(int suggestedQuota, int previewCount, BigDecimal extraUnitPrice) {}
@@ -50,7 +85,11 @@ public final class SelectionDtos {
             List<String> photos,
             List<String> selected,
             boolean submitted,
-            LocalDateTime expiresAt
+            LocalDateTime expiresAt,
+            /** Tras confirmar: las fotos adicionales (pasan del cupo) */
+            List<String> extraFiles,
+            /** NONE · PENDING (esperan pago y autorización) · APPROVED · REJECTED */
+            String extraStatus
     ) {}
 
     public record SelectionUpdate(@NotNull List<String> selected) {}

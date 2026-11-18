@@ -143,12 +143,13 @@ class WhatsAppTriggersTest {
     }
 
     @Test
-    void enlaceDeSeleccionVaEnElBoton() {
-        triggers.onSelectionLink(new SelectionLinkCreatedEvent(42L, "k3f9x2ab"));
+    void usuarioDelPortalVaEnElBoton() {
+        triggers.onSelectionLink(new SelectionLinkCreatedEvent(42L, "k3f9x2ab", "ana42"));
         WhatsAppOutbox.Notice n = captured();
         assertEquals(WhatsAppMessageKind.SELECTION_READY, n.kind());
         assertEquals(List.of("Ana", "Sesión de embarazo"), n.params());
-        assertEquals("k3f9x2ab", n.buttonParam());
+        assertEquals("ana42", n.buttonParam());
+        assertEquals("selection:k3f9x2ab", n.dedupeKey());
     }
 
     @Test

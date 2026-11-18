@@ -56,7 +56,14 @@ public class SelectionService {
     static final String PREVIEWS = "2 Seleccion";
     static final String CAMERA = "1 Camara";
     static final String EDITING = "3 Edicion";
+    static final String EXTRAS_DIR = "Adicionales";
     static final String CLIENT_ACTOR = "cliente (web)";
+    public static final String EXTRA_NONE = "NONE";
+    public static final String EXTRA_PENDING = "PENDING";
+    public static final String EXTRA_APPROVED = "APPROVED";
+    public static final String EXTRA_REJECTED = "REJECTED";
+    /** Saldo por debajo del cual la orden se considera pagada (redondeos). */
+    private static final BigDecimal PAID_TOLERANCE = new BigDecimal("1.00");
     private static final Set<String> IMAGE_EXT = Set.of("jpg", "jpeg", "png", "webp");
     /** "25 fotos digitales", "8 fotos impresas y digitales" → 25, 8 */
     private static final Pattern INCLUDED_PHOTOS = Pattern.compile("(\\d+)\\s+fotos?\\b", Pattern.CASE_INSENSITIVE);
@@ -82,6 +89,13 @@ public class SelectionService {
     @Autowired
     void setEvents(ApplicationEventPublisher events) {
         this.events = events;
+    }
+
+    private SelectionAccessService access;
+
+    @Autowired
+    void setAccess(SelectionAccessService access) {
+        this.access = access;
     }
 
     public SelectionService(ServiceOrderSelectionRepository selectionRepository,
@@ -162,9 +176,100 @@ public class SelectionService {
         sel.setExpiresAt(LocalDateTime.now().plusDays(expiresInDays));
         sel.setExtraProduct(extraProduct().orElse(null));
         sel.setCreatedBy(actor);
+        SelectionAccessService.Credentials credentials = access.assign(sel);
         ServiceOrderSelection saved = selectionRepository.save(sel);
-        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken()));
-        return toAdmin(saved);
+        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken(), saved.getUsername()));
+        return toAdmin(saved, credentials.password());
+    }
+
+    /** Contraseña nueva (la anterior y sus sesiones dejan de servir). Devuelve la contraseña en claro una sola vez. */
+    @Transactional
+    public AdminSelection resetPassword(Long orderId) {
+        ServiceOrderSelection sel = selectionRepository.findByServiceOrderId(orderId)
+                .orElseThrow(() -> new IllegalStateException("La orden no tiene acceso de selección."));
+        SelectionAccessService.Credentials credentials = access.assign(sel);
+        return toAdmin(selectionRepository.save(sel), credentials.password());
+    }
+
+    /** Órdenes con fotos adicionales esperando autorización (bandeja de la secretaria). */
+    @Transactional(readOnly = true)
+    public List<AdminSelection> pendingExtras() {
+        return selectionRepository.findByExtraStatusOrderBySubmittedAtAsc(EXTRA_PENDING).stream()
+                .map(this::toAdmin).toList();
+    }
+
+    /**
+     * Autoriza las fotos adicionales: sus originales pasan a "3 Edicion/Adicionales" para el
+     * editor. Exige el saldo de la orden cubierto, salvo {@code force} (administración).
+     */
+    @Transactional
+    public AdminSelection approveExtras(Long orderId, boolean force, @Nullable String actor) {
+        ServiceOrderSelection sel = pendingSelection(orderId);
+        BigDecimal balance = balance(orderId);
+        if (!force && balance.compareTo(PAID_TOLERANCE) > 0) {
+            throw new IllegalStateException("La orden todavía debe " + money(balance)
+                    + ". Registra el pago de las fotos adicionales antes de autorizarlas.");
+        }
+        List<String> extras = list(sel.getExtraFiles());
+        Path folder = folderOf(sel);
+        List<String> missing = linkOriginals(folder, folder.resolve(EDITING).resolve(EXTRAS_DIR), extras, sel);
+        sel.setExtraStatus(EXTRA_APPROVED);
+        sel.setExtraDecidedAt(LocalDateTime.now());
+        sel.setExtraDecidedBy(actor);
+        sel.setExtraNotes(force && balance.compareTo(PAID_TOLERANCE) > 0 ? "Autorizadas con saldo pendiente de " + money(balance) : null);
+        selectionRepository.save(sel);
+        writeSummary(folder.resolve(EDITING), list(sel.getSelectedFiles()), sel, missing);
+        ServiceOrder order = sel.getServiceOrder();
+        serviceOrderService.addNote(orderId, new com.happydev.prestockbackend.dto.AddNoteRequest(
+                extras.size() + " foto(s) adicional(es) autorizada(s)" + (sel.getExtraNotes() != null ? " — " + sel.getExtraNotes() : "")
+                        + ". Están en «" + EDITING + "/" + EXTRAS_DIR + "».", true), actor);
+        notifier.send("Adicionales autorizadas: " + order.getOrderNumber() + customerSuffix(order) + " — "
+                + extras.size() + " foto(s) listas para edición en «" + EDITING + "/" + EXTRAS_DIR + "».");
+        return toAdmin(sel);
+    }
+
+    /** Rechaza las adicionales (el cliente no las pagó o desistió): se quita su cobro de la orden. */
+    @Transactional
+    public AdminSelection rejectExtras(Long orderId, @Nullable String reason, @Nullable String actor) {
+        ServiceOrderSelection sel = pendingSelection(orderId);
+        if (sel.getExtraItemId() != null) {
+            serviceOrderService.removeItem(orderId, sel.getExtraItemId());
+            sel.setExtraItemId(null);
+        }
+        sel.setExtraStatus(EXTRA_REJECTED);
+        sel.setExtraDecidedAt(LocalDateTime.now());
+        sel.setExtraDecidedBy(actor);
+        sel.setExtraNotes(reason == null || reason.isBlank() ? null : reason.trim());
+        selectionRepository.save(sel);
+        Path folder = workFolderService.resolve(sel.getServiceOrder().getWorkFolder());
+        if (folder != null) writeSummary(folder.resolve(EDITING), list(sel.getSelectedFiles()), sel, List.of());
+        serviceOrderService.addNote(orderId, new com.happydev.prestockbackend.dto.AddNoteRequest(
+                "Fotos adicionales no autorizadas" + (sel.getExtraNotes() != null ? ": " + sel.getExtraNotes() : "")
+                        + ". Se quitó su cobro de la orden.", true), actor);
+        return toAdmin(sel);
+    }
+
+    private ServiceOrderSelection pendingSelection(Long orderId) {
+        ServiceOrderSelection sel = selectionRepository.findByServiceOrderId(orderId)
+                .orElseThrow(() -> new IllegalStateException("La orden no tiene selección del cliente."));
+        if (!EXTRA_PENDING.equals(sel.getExtraStatus())) {
+            throw new IllegalStateException("La orden no tiene fotos adicionales pendientes de autorizar.");
+        }
+        return sel;
+    }
+
+    private BigDecimal balance(Long orderId) {
+        BigDecimal b = serviceOrderService.findById(orderId).balance();
+        return b == null ? BigDecimal.ZERO : b;
+    }
+
+    private static String money(BigDecimal amount) {
+        return "RD$" + String.format(Locale.US, "%,.2f", amount);
+    }
+
+    private static String customerSuffix(ServiceOrder order) {
+        Customer c = order.getCustomer();
+        return c == null ? "" : " (" + (c.getFirstName() + " " + Optional.ofNullable(c.getLastName()).orElse("")).trim() + ")";
     }
 
     @Transactional
@@ -194,7 +299,9 @@ public class SelectionService {
                 previews(folder),
                 selected(sel),
                 sel.getSubmittedAt() != null,
-                sel.getExpiresAt());
+                sel.getExpiresAt(),
+                list(sel.getExtraFiles()),
+                sel.getExtraStatus());
     }
 
     /** Archivo de previa para mostrar; valida que el nombre sea uno de la carpeta (sin rutas). */
@@ -235,24 +342,30 @@ public class SelectionService {
             throw new IllegalStateException("Elegiste " + extra + " foto(s) extra. Confirma que aceptas el costo adicional.");
         }
         ServiceOrder order = sel.getServiceOrder();
+        // El orden de la lista es el orden en que el cliente marcó: las primeras hasta el cupo son las incluidas.
+        List<String> included = chosen.subList(0, Math.min(chosen.size(), sel.getQuota()));
+        List<String> extras = chosen.subList(included.size(), chosen.size());
         sel.setSelectedFiles(json(chosen));
         sel.setSubmittedAt(LocalDateTime.now());
         sel.setExtraCount(extra);
-        selectionRepository.save(sel);
+        sel.setExtraFiles(json(extras));
+        sel.setExtraStatus(extra > 0 ? EXTRA_PENDING : EXTRA_NONE);
 
         if (extra > 0) {
             Product p = sel.getExtraProduct();
-            serviceOrderService.addItem(order.getId(), new AddServiceOrderItemRequest(
-                    p.getId(), extra, basePrice(p), "Fotos extra elegidas por el cliente en la web"));
+            var item = serviceOrderService.addItem(order.getId(), new AddServiceOrderItemRequest(
+                    p.getId(), extra, basePrice(p), "Fotos adicionales elegidas por el cliente en la web"));
+            sel.setExtraItemId(item != null ? item.id() : null);
         }
-        prepareEditingFolder(folderOf(sel), chosen, sel, extra);
-        Customer customer = order.getCustomer();
-        notifier.send("Selección confirmada: " + order.getOrderNumber()
-                + (customer != null ? " (" + (customer.getFirstName() + " " + Optional.ofNullable(customer.getLastName()).orElse("")).trim() + ")" : "")
-                + " eligió " + chosen.size() + " foto(s)" + (extra > 0 ? ", " + extra + " extra" : "")
-                + ". Ya está en «4 En edicion».");
+        selectionRepository.save(sel);
+        prepareEditingFolder(folderOf(sel), included, sel);
+        notifier.send("Selección confirmada: " + order.getOrderNumber() + customerSuffix(order)
+                + " eligió " + included.size() + " foto(s) del paquete"
+                + (extra > 0 ? " y " + extra + " adicional(es) — pendientes de pago y autorización en ProStock" : "")
+                + ". Las del paquete ya están en «4 En edicion».");
         serviceOrderService.advanceStage(order.getId(), new AdvanceStageRequest("EDITING", ServiceOrderStatus.IN_PROGRESS,
-                "Selección confirmada por el cliente: " + chosen.size() + " foto(s)" + (extra > 0 ? ", " + extra + " extra" : "")),
+                "Selección confirmada por el cliente: " + included.size() + " foto(s) del paquete"
+                        + (extra > 0 ? ", " + extra + " adicional(es) pendientes de autorizar" : "")),
                 CLIENT_ACTOR);
         return view(token);
     }
@@ -261,16 +374,21 @@ public class SelectionService {
 
     /**
      * Enlaza en "3 Edicion" los originales de cámara con el mismo nombre que cada previa
-     * elegida (IMG_0001.jpg → IMG_0001.CR3 y IMG_0001.JPG); si no hay original, la previa.
+     * incluida (IMG_0001.jpg → IMG_0001.CR3 y IMG_0001.JPG); si no hay original, la previa.
      * Errores de disco no deshacen la confirmación: quedan en el log y en SELECCION.txt.
      */
-    void prepareEditingFolder(Path folder, List<String> chosen, ServiceOrderSelection sel, int extra) {
-        Path editing = folder.resolve(EDITING);
+    void prepareEditingFolder(Path folder, List<String> included, ServiceOrderSelection sel) {
+        List<String> missing = linkOriginals(folder, folder.resolve(EDITING), included, sel);
+        writeSummary(folder.resolve(EDITING), list(sel.getSelectedFiles()), sel, missing);
+    }
+
+    /** Enlaza los originales de {@code names} en {@code target}; devuelve las que no tenían original. */
+    private List<String> linkOriginals(Path folder, Path target, List<String> names, ServiceOrderSelection sel) {
         List<String> missing = new ArrayList<>();
         try {
-            Files.createDirectories(editing);
+            Files.createDirectories(target);
             Map<String, List<Path>> originals = indexByBaseName(folder.resolve(CAMERA));
-            for (String name : chosen) {
+            for (String name : names) {
                 List<Path> sources = originals.getOrDefault(baseName(name), List.of());
                 if (sources.isEmpty()) {
                     missing.add(name);
@@ -278,14 +396,14 @@ public class SelectionService {
                 }
                 boolean ambiguous = sources.stream().map(Path::getFileName).distinct().count() < sources.size();
                 for (Path src : sources) {
-                    String target = ambiguous ? src.getParent().getFileName() + " - " + src.getFileName() : src.getFileName().toString();
-                    link(src, editing.resolve(target));
+                    String file = ambiguous ? src.getParent().getFileName() + " - " + src.getFileName() : src.getFileName().toString();
+                    link(src, target.resolve(file));
                 }
             }
         } catch (IOException e) {
-            log.warn("No se pudo preparar {} para {}: {}", editing, sel.getServiceOrder().getOrderNumber(), e.getMessage());
+            log.warn("No se pudo preparar {} para {}: {}", target, sel.getServiceOrder().getOrderNumber(), e.getMessage());
         }
-        writeSummary(editing, chosen, sel, extra, missing);
+        return missing;
     }
 
     private static Map<String, List<Path>> indexByBaseName(Path camera) throws IOException {
@@ -306,18 +424,29 @@ public class SelectionService {
         }
     }
 
-    private void writeSummary(Path editing, List<String> chosen, ServiceOrderSelection sel, int extra, List<String> missing) {
-        StringBuilder sb = new StringBuilder("﻿");
+    private void writeSummary(Path editing, List<String> chosen, ServiceOrderSelection sel, List<String> missing) {
+        List<String> extras = list(sel.getExtraFiles());
+        List<String> included = chosen.stream().filter(n -> !extras.contains(n)).toList();
+        StringBuilder sb = new StringBuilder("\uFEFF");
         sb.append("Selección del cliente — ").append(sel.getServiceOrder().getOrderNumber()).append("\r\n");
         sb.append("Confirmada: ").append(sel.getSubmittedAt().format(DATE_TIME)).append("\r\n");
-        sb.append("Fotos elegidas: ").append(chosen.size()).append(" (incluidas: ").append(sel.getQuota())
-                .append(extra > 0 ? ", extra: " + extra : "").append(")\r\n\r\n");
-        chosen.forEach(n -> sb.append("  ").append(n).append("\r\n"));
+        sb.append("Fotos del paquete: ").append(included.size()).append(" de ").append(sel.getQuota()).append("\r\n\r\n");
+        included.forEach(n -> sb.append("  ").append(n).append("\r\n"));
+        if (!extras.isEmpty()) {
+            String state = switch (sel.getExtraStatus()) {
+                case EXTRA_APPROVED -> "AUTORIZADAS — en la carpeta «" + EXTRAS_DIR + "»";
+                case EXTRA_REJECTED -> "NO AUTORIZADAS — no editar";
+                default -> "PENDIENTES de pago y autorización — todavía no editar";
+            };
+            sb.append("\r\nFotos adicionales: ").append(extras.size()).append(" (").append(state).append(")\r\n");
+            extras.forEach(n -> sb.append("  ").append(n).append("\r\n"));
+        }
         if (!missing.isEmpty()) {
             sb.append("\r\nSin original en «").append(CAMERA).append("» (se copió la previa):\r\n");
             missing.forEach(n -> sb.append("  ").append(n).append("\r\n"));
         }
         try {
+            Files.createDirectories(editing);
             Files.writeString(editing.resolve("SELECCION.txt"), sb.toString(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.warn("No se pudo escribir SELECCION.txt en {}: {}", editing, e.getMessage());
@@ -377,8 +506,12 @@ public class SelectionService {
     }
 
     private List<String> selected(ServiceOrderSelection sel) {
+        return list(sel.getSelectedFiles());
+    }
+
+    private List<String> list(String json) {
         try {
-            return objectMapper.readValue(sel.getSelectedFiles(), new TypeReference<List<String>>() {});
+            return json == null ? List.of() : objectMapper.readValue(json, new TypeReference<List<String>>() {});
         } catch (JsonProcessingException e) {
             return List.of();
         }
@@ -424,9 +557,17 @@ public class SelectionService {
     }
 
     private AdminSelection toAdmin(ServiceOrderSelection sel) {
+        return toAdmin(sel, null);
+    }
+
+    private AdminSelection toAdmin(ServiceOrderSelection sel, @Nullable String password) {
         Path folder = workFolderService.resolve(sel.getServiceOrder().getWorkFolder());
+        ServiceOrder order = sel.getServiceOrder();
+        boolean pending = EXTRA_PENDING.equals(sel.getExtraStatus());
+        BigDecimal balance = pending ? balance(order.getId()) : null;
+        String user = sel.getUsername();
         return new AdminSelection(
-                publicUrl.isEmpty() ? sel.getToken() : publicUrl + "/" + sel.getToken(),
+                publicUrl.isEmpty() ? (user != null ? user : "") : publicUrl + (user != null ? "/" + user : ""),
                 sel.getQuota(),
                 sel.getExpiresAt(),
                 sel.getExpiresAt().isBefore(LocalDateTime.now()),
@@ -437,7 +578,23 @@ public class SelectionService {
                 sel.getExtraProduct() != null ? inclusivePrice(sel.getExtraProduct()) : null,
                 selected(sel),
                 sel.getCreatedAt(),
-                sel.getUpdatedAt());
+                sel.getUpdatedAt(),
+                user,
+                password,
+                sel.getLastLoginAt(),
+                sel.getLockedUntil() != null && sel.getLockedUntil().isAfter(LocalDateTime.now()),
+                sel.getExtraStatus(),
+                list(sel.getExtraFiles()),
+                sel.getExtraDecidedAt(),
+                sel.getExtraDecidedBy(),
+                sel.getExtraNotes(),
+                balance,
+                pending && balance.compareTo(PAID_TOLERANCE) <= 0,
+                order.getId(),
+                order.getOrderNumber(),
+                order.getCustomer() != null
+                        ? (order.getCustomer().getFirstName() + " " + Optional.ofNullable(order.getCustomer().getLastName()).orElse("")).trim()
+                        : null);
     }
 
     private ServiceOrder order(Long id) {

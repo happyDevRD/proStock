@@ -40,7 +40,8 @@ import java.util.concurrent.Semaphore;
 public class PreviewImageService {
 
     private static final Logger log = LoggerFactory.getLogger(PreviewImageService.class);
-    private static final Semaphore ONE_AT_A_TIME = new Semaphore(1);
+    /** Una imagen a la vez en todo el backend (también la generación de previas): poca memoria. */
+    static final Semaphore ONE_AT_A_TIME = new Semaphore(1);
 
     public enum Size {
         THUMB(480, ".miniaturas"),
@@ -99,7 +100,7 @@ public class PreviewImageService {
 
     /** Decodifica saltando píxeles para quedar cerca del tamaño pedido sin cargar la imagen completa. */
     @Nullable
-    private static BufferedImage readSubsampled(Path file, int maxSide) throws IOException {
+    static BufferedImage readSubsampled(Path file, int maxSide) throws IOException {
         try (ImageInputStream in = ImageIO.createImageInputStream(file.toFile())) {
             if (in == null) return null;
             Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
@@ -119,7 +120,7 @@ public class PreviewImageService {
         }
     }
 
-    private static BufferedImage scale(BufferedImage src, int maxSide) {
+    static BufferedImage scale(BufferedImage src, int maxSide) {
         int w = src.getWidth();
         int h = src.getHeight();
         double f = Math.min(1.0, (double) maxSide / Math.max(w, h));
@@ -176,7 +177,7 @@ public class PreviewImageService {
         }
     }
 
-    private static void writeJpeg(BufferedImage img, Path target, float quality) throws IOException {
+    static void writeJpeg(BufferedImage img, Path target, float quality) throws IOException {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpg").next();
         try (ImageOutputStream out = ImageIO.createImageOutputStream(target.toFile())) {
             writer.setOutput(out);
@@ -187,5 +188,32 @@ public class PreviewImageService {
         } finally {
             writer.dispose();
         }
+    }
+
+    /** Aplica la orientación EXIF (3 = 180°, 6 = 90° a la derecha, 8 = 90° a la izquierda; espejos 2/4/5/7). */
+    static BufferedImage orient(BufferedImage src, int orientation) {
+        if (orientation <= 1 || orientation > 8) return src;
+        int w = src.getWidth();
+        int h = src.getHeight();
+        boolean swap = orientation >= 5;
+        BufferedImage out = new BufferedImage(swap ? h : w, swap ? w : h, BufferedImage.TYPE_INT_RGB);
+        AffineTransform t = new AffineTransform();
+        switch (orientation) {
+            case 2 -> { t.translate(w, 0); t.scale(-1, 1); }
+            case 3 -> { t.translate(w, h); t.rotate(Math.PI); }
+            case 4 -> { t.translate(0, h); t.scale(1, -1); }
+            case 5 -> { t.rotate(Math.PI / 2); t.scale(1, -1); }
+            case 6 -> { t.translate(h, 0); t.rotate(Math.PI / 2); }
+            case 7 -> { t.scale(-1, 1); t.translate(-h, 0); t.translate(0, w); t.rotate(-Math.PI / 2); }
+            case 8 -> { t.translate(0, w); t.rotate(-Math.PI / 2); }
+            default -> { }
+        }
+        Graphics2D g = out.createGraphics();
+        try {
+            g.drawImage(src, t, null);
+        } finally {
+            g.dispose();
+        }
+        return out;
     }
 }
