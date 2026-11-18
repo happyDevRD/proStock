@@ -82,6 +82,10 @@ public final class FeatureCatalog {
                     Set.of("module.whatsapp")),
             new FeatureDefinition("whatsapp.payment_received", "WHATSAPP", "Pago recibido",
                     "Confirma cada anticipo o pago con el saldo restante", true, Set.of("module.whatsapp")),
+            new FeatureDefinition("whatsapp.customer_data", "WHATSAPP", "Formulario de datos del cliente",
+                    "Botón en la orden para enviar al cliente un formulario dentro de WhatsApp que completa su ficha "
+                            + "(requiere el formulario publicado y la plantilla datos_cliente aprobada en Meta)",
+                    false, Set.of("module.whatsapp")),
 
             new FeatureDefinition("module.ai", "AI", "IA aplicada",
                     "Análisis inteligente: asistente en lenguaje natural y detección de anomalías", false, Set.of()),

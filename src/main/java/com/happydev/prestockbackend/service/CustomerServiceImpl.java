@@ -170,7 +170,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     /** Se respeta el tipo elegido (persona/empresa) aunque no haya número; si falta, se deduce: 11 dígitos = cédula, 9 = RNC. */
     @Nullable
-    static TipoIdentificacion resolveTipo(@Nullable String rncCedula, @Nullable TipoIdentificacion tipo) {
+    public static TipoIdentificacion resolveTipo(@Nullable String rncCedula, @Nullable TipoIdentificacion tipo) {
         if (tipo != null) return tipo;
         if (rncCedula == null || rncCedula.isBlank()) return null;
         return rncCedula.length() == 11 ? TipoIdentificacion.CEDULA : TipoIdentificacion.RNC;

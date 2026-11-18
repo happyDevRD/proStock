@@ -11,13 +11,16 @@ import com.happydev.prestockbackend.repository.WhatsAppMessageRepository;
 import com.happydev.prestockbackend.service.StudioNotifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Procesa los avisos del webhook de WhatsApp: guarda lo que escriben los clientes (una sola vez
@@ -38,6 +41,14 @@ public class WhatsAppWebhookService {
     private final CustomerRepository customerRepository;
     private final StudioNotifier notifier;
     private final ObjectMapper mapper;
+    /** Respuestas del formulario de datos (WhatsApp Flows). */
+    @Nullable
+    private CustomerDataRequestService dataRequests;
+
+    @Autowired(required = false)
+    void setDataRequests(@Nullable CustomerDataRequestService dataRequests) {
+        this.dataRequests = dataRequests;
+    }
 
     public WhatsAppWebhookService(WhatsAppProperties props, WhatsAppClient client,
                                   WhatsAppInboundMessageRepository inboundRepository,
@@ -115,8 +126,25 @@ public class WhatsAppWebhookService {
             return;
         }
 
+        JsonNode flowReply = node.path("interactive").path("nfm_reply");
+        if ("interactive".equals(type) && !flowReply.isMissingNode()) {
+            flowReply(message, flowReply);
+            return;
+        }
         if (props.isNotifyInbound()) notifyStudio(message);
         autoReply(message);
+    }
+
+    /**
+     * El cliente envió el formulario de datos: se completa su ficha y se le agradece (la ventana de
+     * 24 h está abierta porque acaba de escribir). No lleva la respuesta automática general.
+     */
+    private void flowReply(WhatsAppInboundMessage message, JsonNode reply) {
+        if (dataRequests == null) return;
+        Optional<String> name = dataRequests.complete(reply.path("response_json").asText("{}"), message.getFromPhone());
+        if (name.isEmpty()) return;
+        String first = WhatsAppText.firstName(name.get());
+        client.sendText(message.getFromPhone(), "¡Gracias, " + first + "! Recibimos tus datos. Nos vemos pronto en Iridiscencia.");
     }
 
     private void fillContent(WhatsAppInboundMessage message, JsonNode node, String type) {
@@ -132,6 +160,10 @@ public class WhatsAppWebhookService {
             case "button" -> message.setBody(node.path("button").path("text").asText(null));
             case "interactive" -> {
                 JsonNode interactive = node.path("interactive");
+                if (interactive.has("nfm_reply")) {
+                    message.setBody("[Formulario de datos enviado]");
+                    break;
+                }
                 JsonNode reply = interactive.has("button_reply") ? interactive.path("button_reply") : interactive.path("list_reply");
                 message.setBody(reply.path("title").asText(null));
             }

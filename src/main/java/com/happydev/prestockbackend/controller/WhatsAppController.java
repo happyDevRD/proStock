@@ -4,6 +4,7 @@ import com.happydev.prestockbackend.entity.WhatsAppInboundMessage;
 import com.happydev.prestockbackend.entity.WhatsAppMessage;
 import com.happydev.prestockbackend.repository.WhatsAppInboundMessageRepository;
 import com.happydev.prestockbackend.repository.WhatsAppMessageRepository;
+import com.happydev.prestockbackend.whatsapp.CustomerDataRequestService;
 import com.happydev.prestockbackend.whatsapp.WhatsAppTriggers;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -46,12 +47,27 @@ public class WhatsAppController {
     private final WhatsAppMessageRepository messageRepository;
     private final WhatsAppInboundMessageRepository inboundRepository;
     private final WhatsAppTriggers triggers;
+    private final CustomerDataRequestService dataRequests;
 
     public WhatsAppController(WhatsAppMessageRepository messageRepository,
-                              WhatsAppInboundMessageRepository inboundRepository, WhatsAppTriggers triggers) {
+                              WhatsAppInboundMessageRepository inboundRepository, WhatsAppTriggers triggers,
+                              CustomerDataRequestService dataRequests) {
         this.messageRepository = messageRepository;
         this.inboundRepository = inboundRepository;
         this.triggers = triggers;
+        this.dataRequests = dataRequests;
+    }
+
+    /** Formularios de datos enviados al cliente de la orden (lo más nuevo primero). */
+    @GetMapping("/api/service-orders/{id}/whatsapp/data-requests")
+    public List<CustomerDataRequestService.RequestView> dataRequests(@PathVariable Long id) {
+        return dataRequests.forOrder(id);
+    }
+
+    /** Envía al cliente el formulario para completar sus datos dentro de WhatsApp. */
+    @PostMapping("/api/service-orders/{id}/whatsapp/data-requests")
+    public CustomerDataRequestService.RequestView requestData(@PathVariable Long id, Principal principal) {
+        return dataRequests.request(id, principal == null ? null : principal.getName());
     }
 
     @GetMapping("/api/service-orders/{id}/whatsapp")

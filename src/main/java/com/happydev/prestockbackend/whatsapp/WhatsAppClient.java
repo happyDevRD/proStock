@@ -110,6 +110,40 @@ public class WhatsAppClient {
         return post(body);
     }
 
+    /**
+     * Plantilla con botón de formulario (WhatsApp Flows). {@code flowToken} vuelve en la respuesta
+     * del cliente; {@code prefill} precarga los campos de la primera pantalla (flow_action_data).
+     */
+    public SendResult sendFlowTemplate(String to, String template, String language, List<String> bodyParams,
+                                       String flowToken, java.util.Map<String, String> prefill) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("messaging_product", "whatsapp");
+        body.put("recipient_type", "individual");
+        body.put("to", to);
+        body.put("type", "template");
+        ObjectNode tpl = body.putObject("template");
+        tpl.put("name", template);
+        tpl.putObject("language").put("code", language);
+        ArrayNode components = tpl.putArray("components");
+        if (!bodyParams.isEmpty()) {
+            ArrayNode params = components.addObject().put("type", "body").putArray("parameters");
+            for (String value : bodyParams) {
+                params.addObject().put("type", "text").put("text", value);
+            }
+        }
+        ObjectNode button = components.addObject();
+        button.put("type", "button");
+        button.put("sub_type", "flow");
+        button.put("index", "0");
+        ObjectNode action = button.putArray("parameters").addObject().put("type", "action").putObject("action");
+        action.put("flow_token", flowToken);
+        if (!prefill.isEmpty()) {
+            ObjectNode data = action.putObject("flow_action_data");
+            prefill.forEach(data::put);
+        }
+        return post(body);
+    }
+
     private SendResult post(ObjectNode body) {
         if (!isLive()) {
             log.info("WhatsApp ({}): no se envía a Meta: {}", props.getMode(), body);

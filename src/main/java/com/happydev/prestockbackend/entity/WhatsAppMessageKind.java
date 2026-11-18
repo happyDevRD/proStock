@@ -12,7 +12,9 @@ public enum WhatsAppMessageKind {
     WORK_READY("trabajo_listo", "whatsapp.work_ready", "Trabajo listo"),
     WORK_READY_WITH_BALANCE("trabajo_listo_con_saldo", "whatsapp.work_ready", "Trabajo listo (con saldo)"),
     PAYMENT_RECEIVED("pago_recibido", "whatsapp.payment_received", "Pago recibido"),
-    BALANCE_REMINDER("recordatorio_saldo", null, "Recordatorio de saldo");
+    BALANCE_REMINDER("recordatorio_saldo", null, "Recordatorio de saldo"),
+    /** Botón de WhatsApp Flows: {@code buttonParam} es el flow_token de la solicitud. */
+    CUSTOMER_DATA_REQUEST("datos_cliente", "whatsapp.customer_data", "Formulario de datos");
 
     private final String templateName;
     private final String feature;
@@ -34,5 +36,10 @@ public enum WhatsAppMessageKind {
 
     public String label() {
         return label;
+    }
+
+    /** ¿El botón de la plantilla abre un formulario (WhatsApp Flows) en vez de una URL? */
+    public boolean flowButton() {
+        return this == CUSTOMER_DATA_REQUEST;
     }
 }

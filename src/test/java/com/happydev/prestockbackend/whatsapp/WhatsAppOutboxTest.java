@@ -138,4 +138,25 @@ class WhatsAppOutboxTest {
         assertEquals(WhatsAppMessageStatus.SIMULATED, m.getStatus());
         verifyNoInteractions(client);
     }
+
+    @Test
+    void elFormularioDeDatosSaleConBotonDeFlowYNombrePrecargado() {
+        var dataRequests = mock(com.happydev.prestockbackend.repository.CustomerDataRequestRepository.class);
+        given(dataRequests.findNamesByToken("flowtok")).willReturn(java.util.List.<Object[]>of(new Object[]{"Ana", "-"}));
+        outbox.setDataRequests(dataRequests);
+        given(client.sendFlowTemplate(any(), any(), any(), any(), any(), any()))
+                .willReturn(new WhatsAppClient.SendResult(true, "wamid.F", null));
+        WhatsAppMessage m = pending();
+        m.setKind(WhatsAppMessageKind.CUSTOMER_DATA_REQUEST);
+        m.setTemplateName("datos_cliente");
+        m.setBodyParams("[\"Ana\"]");
+        m.setButtonParam("flowtok");
+
+        outbox.send(m);
+
+        verify(client).sendFlowTemplate("18095551234", "datos_cliente", "es", List.of("Ana"), "flowtok",
+                java.util.Map.of("first_name", "Ana", "last_name", ""));
+        verify(client, never()).sendTemplate(any(), any(), any(), any(), any());
+        assertEquals(WhatsAppMessageStatus.SENT, m.getStatus());
+    }
 }

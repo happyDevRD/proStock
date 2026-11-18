@@ -36,6 +36,7 @@ class WhatsAppWebhookServiceTest {
     @Mock private WhatsAppMessageRepository messageRepository;
     @Mock private CustomerRepository customerRepository;
     @Mock private StudioNotifier notifier;
+    @Mock private CustomerDataRequestService dataRequests;
 
     private WhatsAppProperties props;
     private WhatsAppWebhookService service;
@@ -46,6 +47,7 @@ class WhatsAppWebhookServiceTest {
         props.setPhoneNumberId("1357718120763107");
         service = new WhatsAppWebhookService(props, client, inboundRepository, messageRepository,
                 customerRepository, notifier, new ObjectMapper());
+        service.setDataRequests(dataRequests);
         given(inboundRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(customerRepository.findFirstByPhoneDigits(any())).willReturn(Optional.empty());
         given(client.sendText(any(), any())).willReturn(new WhatsAppClient.SendResult(true, "wamid.reply", null));
@@ -179,5 +181,24 @@ class WhatsAppWebhookServiceTest {
     @Test
     void jsonInvalidoNoRevienta() {
         assertDoesNotThrow(() -> service.process("no es json".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void respuestaDelFormularioCompletaLaFichaYAgradeceSinRespuestaAutomatica() {
+        props.setAutoReply("Este número solo envía avisos");
+        given(dataRequests.complete(any(), any())).willReturn(Optional.of("Ana Pérez"));
+
+        service.process(payload("1357718120763107", """
+                "contacts":[{"profile":{"name":"Ana"},"wa_id":"18497639736"}],
+                "messages":[{"context":{"from":"18295468012","id":"wamid.FLOW"},"from":"18497639736","id":"wamid.NFM",
+                 "timestamp":"1761264000","type":"interactive","interactive":{"type":"nfm_reply","nfm_reply":{"name":"flow",
+                 "body":"Sent","response_json":"{\\"flow_token\\":\\"tok\\",\\"first_name\\":\\"Ana\\"}"}}}]"""));
+
+        verify(dataRequests).complete("{\"flow_token\":\"tok\",\"first_name\":\"Ana\"}", "18497639736");
+        verify(client).sendText(eq("18497639736"), contains("Gracias, Ana"));
+        verify(client, never()).sendText(any(), eq("Este número solo envía avisos"));
+        ArgumentCaptor<WhatsAppInboundMessage> saved = ArgumentCaptor.forClass(WhatsAppInboundMessage.class);
+        verify(inboundRepository, atLeastOnce()).save(saved.capture());
+        assertEquals("[Formulario de datos enviado]", saved.getAllValues().get(0).getBody());
     }
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happydev.prestockbackend.entity.*;
+import com.happydev.prestockbackend.repository.CustomerDataRequestRepository;
 import com.happydev.prestockbackend.repository.WhatsAppMessageRepository;
 import com.happydev.prestockbackend.service.FeatureConfigService;
 import org.slf4j.Logger;
@@ -49,6 +50,14 @@ public class WhatsAppOutbox {
     private final FeatureConfigService features;
     private final ObjectMapper mapper;
     private final Clock clock;
+    /** Para precargar nombre y apellido en el formulario de datos (WhatsApp Flows). */
+    @Nullable
+    private CustomerDataRequestRepository dataRequests;
+
+    @Autowired(required = false)
+    void setDataRequests(@Nullable CustomerDataRequestRepository dataRequests) {
+        this.dataRequests = dataRequests;
+    }
 
     @Autowired
     public WhatsAppOutbox(WhatsAppMessageRepository repository, WhatsAppClient client, WhatsAppProperties props,
@@ -145,8 +154,11 @@ public class WhatsAppOutbox {
             return;
         }
 
-        WhatsAppClient.SendResult result = client.sendTemplate(message.getRecipientPhone(), message.getTemplateName(),
-                message.getLanguage(), fromJson(message.getBodyParams()), message.getButtonParam());
+        WhatsAppClient.SendResult result = message.getKind().flowButton()
+                ? client.sendFlowTemplate(message.getRecipientPhone(), message.getTemplateName(), message.getLanguage(),
+                        fromJson(message.getBodyParams()), message.getButtonParam(), prefill(message.getButtonParam()))
+                : client.sendTemplate(message.getRecipientPhone(), message.getTemplateName(),
+                        message.getLanguage(), fromJson(message.getBodyParams()), message.getButtonParam());
         if (result.accepted()) {
             message.setStatus(WhatsAppMessageStatus.SENT);
             message.setWamid(result.wamid());
@@ -161,6 +173,23 @@ public class WhatsAppOutbox {
             message.setStatusDetail(truncate(result.error()));
         }
         repository.save(message);
+    }
+
+    /** Nombre y apellido que el cliente verá ya escritos (los puede corregir). */
+    private java.util.Map<String, String> prefill(@Nullable String flowToken) {
+        java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
+        if (flowToken == null || dataRequests == null) return data;
+        for (Object[] row : dataRequests.findNamesByToken(flowToken)) {
+            data.put("first_name", clean(row[0]));
+            data.put("last_name", clean(row[1]));
+        }
+        return data;
+    }
+
+    /** El alta rápida guarda "-" como apellido cuando no lo hay. */
+    private static String clean(@Nullable Object value) {
+        String text = value == null ? "" : value.toString().trim();
+        return "-".equals(text) ? "" : text;
     }
 
     /** 2, 4, 8, 16 minutos. */

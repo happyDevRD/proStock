@@ -1,0 +1,35 @@
+{
+  "version": "7.3",
+  "screens": [
+    {
+      "id": "DATOS",
+      "title": "Tus datos",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "first_name": {"type": "string", "__example__": "Ana"},
+        "last_name": {"type": "string", "__example__": "Pérez"}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextBody", "text": "Completa tus datos para tu sesión con Iridiscencia. Solo nombre y apellido son obligatorios."},
+          {"type": "TextInput", "name": "first_name", "label": "Nombre", "input-type": "text", "required": true, "init-value": "${data.first_name}"},
+          {"type": "TextInput", "name": "last_name", "label": "Apellido", "input-type": "text", "required": true, "init-value": "${data.last_name}"},
+          {"type": "TextInput", "name": "email", "label": "Correo electrónico", "input-type": "email", "required": false},
+          {"type": "TextInput", "name": "cedula", "label": "Cédula o RNC", "input-type": "text", "required": false, "pattern": "^[0-9-]{9,13}$", "helper-text": "Opcional. Solo números (cédula 11, RNC 9)"},
+          {"type": "TextArea", "name": "address", "label": "Dirección", "required": false, "max-length": 200},
+          {"type": "OptIn", "name": "whatsapp_opt_in", "label": "Acepto recibir avisos de mi sesión por WhatsApp", "required": false},
+          {"type": "Footer", "label": "Enviar", "on-click-action": {"name": "complete", "payload": {
+            "first_name": "${form.first_name}",
+            "last_name": "${form.last_name}",
+            "email": "${form.email}",
+            "cedula": "${form.cedula}",
+            "address": "${form.address}",
+            "whatsapp_opt_in": "${form.whatsapp_opt_in}"
+          }}}
+        ]
+      }
+    }
+  ]
+}
