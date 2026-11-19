@@ -40,4 +40,6 @@ ha pasado la verificación de negocio** (health_status 141010). Pasos para activ
 3. Crear la plantilla `datos_cliente` con el botón FLOW y esperar aprobación.
 4. Encender `whatsapp.customer_data` en el Centro de Módulos.
 
+**2026-11-19:** negocio verificado; Flow **publicado**; plantilla `datos_cliente` creada (id 1804446534100774) y en revisión. Falta solo el paso 4 cuando Meta la apruebe.
+
 Mientras tanto el código está desplegable: con el interruptor apagado el botón no aparece.
