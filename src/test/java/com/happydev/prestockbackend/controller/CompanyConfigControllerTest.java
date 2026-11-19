@@ -75,12 +75,12 @@ class CompanyConfigControllerTest {
     }
 
     @Test
-    void getCompanyConfig_WhenNotExists_ReturnsNotFound() throws Exception {
+    void getCompanyConfig_WhenNotExists_ReturnsNoContent() throws Exception {
         given(companyConfigService.findCompanyConfig()).willReturn(Optional.empty());
 
         mockMvc.perform(get("/api/company-config")
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNoContent());
     }
 
     @Test

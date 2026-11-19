@@ -30,7 +30,7 @@ public class CompanyConfigController {
     public ResponseEntity<CompanyConfig> getCompanyConfig() {
         return companyConfigService.findCompanyConfig()
                 .map(companyConfig -> new ResponseEntity<>(companyConfig, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+                .orElse(ResponseEntity.noContent().build()); // BD nueva: aún sin configurar, no es un error
     }
 
     @PreAuthorize(Authz.COMPANY_CONFIG_EDIT)
