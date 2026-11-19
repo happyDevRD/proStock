@@ -81,7 +81,7 @@ public class SelectionPreviewGenerator {
         try {
             ServiceOrder order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalStateException("La orden no existe."));
-            Path folder = workFolderService.resolve(order.getWorkFolder());
+            Path folder = workFolderService.find(order);
             if (folder == null) throw new IllegalStateException("La orden no tiene carpeta en el NAS.");
             Path camera = folder.resolve(SelectionService.CAMERA);
             Path previews = Files.createDirectories(folder.resolve(SelectionService.PREVIEWS));

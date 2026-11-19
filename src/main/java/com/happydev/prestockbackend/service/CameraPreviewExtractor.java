@@ -93,6 +93,19 @@ public class CameraPreviewExtractor {
         return result;
     }
 
+    /**
+     * exiftool sale con 0, o con 1 si algún archivo dio error (lo esperable: esos quedan
+     * sin previa). 128+ es una señal: el kernel lo mató, casi siempre por memoria. Seguir
+     * con la salida a medias dejaba las previas sin girar (todas horizontales).
+     */
+    static void checkExit(int code) throws IOException {
+        if (code >= 128) {
+            throw new IOException("exiftool se interrumpió (código " + code
+                    + "; probablemente el servidor se quedó sin memoria). Vuelve a pulsar «Generar previas».");
+        }
+        if (code > 1) throw new IOException("exiftool falló (código " + code + ")");
+    }
+
     private String run(List<String> args, Path workDir, String... common) throws IOException {
         // Los argumentos van por archivo (-@): con cientos de fotos la línea de comandos se pasa del límite.
         Path argfile = Files.createTempFile(workDir, ".exiftool-", ".args");
@@ -109,12 +122,17 @@ public class CameraPreviewExtractor {
                 p.destroyForcibly();
                 throw new IOException("exiftool tardó demasiado");
             }
+            checkExit(p.exitValue());
             return new String(out, StandardCharsets.UTF_8);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrumpido", e);
         } catch (IOException e) {
             if (e.getMessage() != null && e.getMessage().contains("error=2")) {
+                // error=2 (ENOENT) también sale si la carpeta de trabajo ya no existe.
+                if (!Files.isDirectory(workDir)) {
+                    throw new IOException("la carpeta de trabajo desapareció (¿se movió la carpeta de la orden?)", e);
+                }
                 throw new IOException("exiftool no está instalado en el servidor", e);
             }
             throw e;

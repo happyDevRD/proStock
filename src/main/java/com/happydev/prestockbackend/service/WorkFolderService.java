@@ -12,6 +12,8 @@ import com.happydev.prestockbackend.repository.ServiceOrderRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -90,6 +92,18 @@ public class WorkFolderService {
         return root != null && Files.isDirectory(root);
     }
 
+    /**
+     * Carpeta actual de la orden: la guardada si existe; si no (la están moviendo o
+     * alguien la movió a mano), la busca por número de orden en las carpetas de etapa.
+     * Null si la función está apagada o no aparece.
+     */
+    @Nullable
+    public Path find(ServiceOrder order) throws IOException {
+        if (!isEnabled()) return null;
+        Path stored = resolve(order.getWorkFolder());
+        return stored != null ? stored : locate(order);
+    }
+
     /** Carpeta absoluta de la orden, o null si la función está apagada o no existe. */
     @Nullable
     public Path resolve(@Nullable String workFolder) {
@@ -149,6 +163,13 @@ public class WorkFolderService {
         return displayPrefix + sep + workFolder.replace("/", sep);
     }
 
+    /**
+     * Primero que cualquier otro oyente del cambio de orden: SelectionAutomation (que va
+     * al final) necesita la carpeta ya movida a su etapa y la ruta nueva guardada. Sin un
+     * orden explícito ambos tenían LOWEST_PRECEDENCE y a veces las previas leían la ruta
+     * vieja mientras la carpeta se movía.
+     */
+    @Order(Ordered.HIGHEST_PRECEDENCE)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onOrderChanged(ServiceOrderChangedEvent event) {

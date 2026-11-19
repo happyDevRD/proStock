@@ -214,4 +214,30 @@ class WorkFolderServiceTest {
         assertEquals(1, counts.get("4 Final"));
         assertNull(service.fileCounts("no/existe"));
     }
+
+    @Test
+    void findFallsBackToOrderNumberWhenStoredPathIsStale() throws Exception {
+        // La orden aún dice "2 En sesion" pero la carpeta ya está en "3 En seleccion"
+        // (pasa mientras se mueve, o si alguien la movió a mano).
+        Path moved = Files.createDirectories(root.resolve("3 En seleccion").resolve("OS-2026-00007 María Pérez"));
+        order.setWorkFolder("2 En sesion/OS-2026-00007 María Pérez");
+
+        assertEquals(moved, service.find(order));
+    }
+
+    @Test
+    void findReturnsNullWhenFolderDoesNotExist() throws Exception {
+        order.setWorkFolder("2 En sesion/OS-2026-00007 María Pérez");
+        assertNull(service.find(order));
+    }
+
+    @Test
+    void folderListenerRunsBeforeSelectionAutomation() throws Exception {
+        // SelectionAutomation (previas) necesita la carpeta ya movida a su etapa.
+        int folders = WorkFolderService.class.getMethod("onOrderChanged", ServiceOrderChangedEvent.class)
+                .getAnnotation(org.springframework.core.annotation.Order.class).value();
+        int selection = SelectionAutomation.class.getMethod("onOrderChanged", ServiceOrderChangedEvent.class)
+                .getAnnotation(org.springframework.core.annotation.Order.class).value();
+        assertTrue(folders < selection);
+    }
 }
