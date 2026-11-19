@@ -168,11 +168,12 @@ public class CustomerServiceImpl implements CustomerService {
         return dto;
     }
 
-    /** Se respeta el tipo elegido (persona/empresa) aunque no haya número; si falta, se deduce: 11 dígitos = cédula, 9 = RNC. */
+    /** Se respeta el tipo elegido aunque no haya número; si falta, se deduce: 11 dígitos = cédula, 9 = RNC, otro = pasaporte. */
     @Nullable
     public static TipoIdentificacion resolveTipo(@Nullable String rncCedula, @Nullable TipoIdentificacion tipo) {
         if (tipo != null) return tipo;
         if (rncCedula == null || rncCedula.isBlank()) return null;
+        if (!rncCedula.matches("\\d+")) return TipoIdentificacion.PASAPORTE_EXTRANJERO;
         return rncCedula.length() == 11 ? TipoIdentificacion.CEDULA : TipoIdentificacion.RNC;
     }
 

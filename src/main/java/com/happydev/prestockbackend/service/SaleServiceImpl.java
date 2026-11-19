@@ -691,7 +691,9 @@ public class SaleServiceImpl implements SaleService {
         String rncEmisor = companyConfigRepository.findFirstByOrderByIdAsc()
                 .map(CompanyConfig::getRnc)
                 .orElse("");
+        // El QR de la DGII solo admite RNC o cédula; un pasaporte no va como RNC del comprador.
         String rncComprador = sale.getCustomer() != null && sale.getCustomer().getRncCedula() != null
+                && sale.getCustomer().getTipoIdentificacion() != TipoIdentificacion.PASAPORTE_EXTRANJERO
                 ? sale.getCustomer().getRncCedula()
                 : "";
         BigDecimal montoTotal = sale.getMontoTotal();

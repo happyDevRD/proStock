@@ -63,4 +63,41 @@ class CustomerOptionalFieldsTest {
         assertThat(CustomerServiceImpl.resolveTipo("131234567", TipoIdentificacion.PASAPORTE_EXTRANJERO))
                 .isEqualTo(TipoIdentificacion.PASAPORTE_EXTRANJERO);
     }
+
+    @Test
+    void pasaporteAlfanumericoSeAceptaSoloConSuTipo() {
+        CustomerDto dto = base();
+        dto.setTipoIdentificacion(TipoIdentificacion.PASAPORTE_EXTRANJERO);
+        dto.setRncCedula(" ab-123 456 ");
+        assertThat(dto.getRncCedula()).isEqualTo("AB123456");
+        assertThat(validator.validate(dto)).isEmpty();
+
+        dto.setRncCedula("A1");
+        assertThat(validator.validate(dto)).as("muy corto").isNotEmpty();
+        dto.setRncCedula("AB12345678901234567890");
+        assertThat(validator.validate(dto)).as("más de 20").isNotEmpty();
+        dto.setRncCedula("AB12#45");
+        assertThat(validator.validate(dto)).as("símbolos").isNotEmpty();
+
+        dto.setTipoIdentificacion(TipoIdentificacion.CEDULA);
+        dto.setRncCedula("AB123456");
+        assertThat(validator.validate(dto)).as("letras con tipo cédula").isNotEmpty();
+    }
+
+    @Test
+    void documentoConLetrasSinTipoSeDeduceComoPasaporte() {
+        assertThat(CustomerServiceImpl.resolveTipo("AB123456", null)).isEqualTo(TipoIdentificacion.PASAPORTE_EXTRANJERO);
+    }
+
+    @Test
+    void laEntidadValidaIgual() {
+        com.happydev.prestockbackend.entity.Customer c = new com.happydev.prestockbackend.entity.Customer();
+        c.setFirstName("John");
+        c.setLastName("Smith");
+        c.setTipoIdentificacion(TipoIdentificacion.PASAPORTE_EXTRANJERO);
+        c.setRncCedula("X1234567");
+        assertThat(validator.validate(c)).isEmpty();
+        c.setTipoIdentificacion(TipoIdentificacion.RNC);
+        assertThat(validator.validate(c)).isNotEmpty();
+    }
 }
