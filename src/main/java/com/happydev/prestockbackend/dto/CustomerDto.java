@@ -1,9 +1,11 @@
 package com.happydev.prestockbackend.dto;
 
 import com.happydev.prestockbackend.entity.TipoIdentificacion;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.happydev.prestockbackend.entity.Customer;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,8 +30,7 @@ public class CustomerDto {
     private String phoneNumber;
     private String address;
 
-    /** Opcional; si viene, 9 (RNC) u 11 (cédula) dígitos. */
-    @Pattern(regexp = "^\\d{9}(\\d{2})?$", message = "RNC/Cedula debe tener 9 u 11 digitos")
+    /** Opcional; 9 (RNC) u 11 (cédula) dígitos, o pasaporte alfanumérico si el tipo es PASAPORTE_EXTRANJERO. */
     private String rncCedula;
 
     /** Opcional; si hay RNC/cédula y no viene, se deduce por la cantidad de dígitos. */
@@ -49,9 +50,15 @@ public class CustomerDto {
         this.email = email == null || email.isBlank() ? null : email.trim();
     }
 
-    /** Vacío = sin identificación; se quitan guiones y espacios. */
+    /** Vacío = sin identificación; se quitan guiones y espacios y se pasa a mayúsculas (pasaportes). */
     public void setRncCedula(String rncCedula) {
-        String digits = rncCedula == null ? "" : rncCedula.replaceAll("[\\s-]", "");
-        this.rncCedula = digits.isEmpty() ? null : digits;
+        String clean = rncCedula == null ? "" : rncCedula.replaceAll("[\\s-]", "").toUpperCase(java.util.Locale.ROOT);
+        this.rncCedula = clean.isEmpty() ? null : clean;
+    }
+
+    @JsonIgnore
+    @AssertTrue(message = "RNC/Cédula debe tener 9 u 11 dígitos; el pasaporte, de 5 a 20 letras o números")
+    public boolean isRncCedulaValid() {
+        return Customer.isValidDocument(rncCedula, tipoIdentificacion);
     }
 }

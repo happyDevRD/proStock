@@ -14,8 +14,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             SELECT a FROM AttendanceRecord a
             JOIN FETCH a.employee
             WHERE a.employee.id = :employeeId
-              AND (:from IS NULL OR a.fecha >= :from)
-              AND (:to IS NULL OR a.fecha <= :to)
+              AND (CAST(:from AS LocalDate) IS NULL OR a.fecha >= :from)
+              AND (CAST(:to AS LocalDate) IS NULL OR a.fecha <= :to)
             ORDER BY a.fecha DESC
             """)
     List<AttendanceRecord> findByEmployee(
@@ -26,8 +26,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     @Query("""
             SELECT a FROM AttendanceRecord a
             JOIN FETCH a.employee
-            WHERE (:from IS NULL OR a.fecha >= :from)
-              AND (:to IS NULL OR a.fecha <= :to)
+            WHERE (CAST(:from AS LocalDate) IS NULL OR a.fecha >= :from)
+              AND (CAST(:to AS LocalDate) IS NULL OR a.fecha <= :to)
             ORDER BY a.fecha DESC, a.employee.nombreCompleto ASC
             """)
     List<AttendanceRecord> findAll(

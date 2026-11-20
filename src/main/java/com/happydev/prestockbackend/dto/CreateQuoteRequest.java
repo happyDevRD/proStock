@@ -1,10 +1,11 @@
 package com.happydev.prestockbackend.dto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
@@ -15,14 +16,18 @@ public record CreateQuoteRequest(
         Long customerId,
         LocalDate expiryDate,
         String notes,
-        @NotEmpty List<QuoteItemRequest> items
+        @NotEmpty List<@Valid QuoteItemRequest> items
 ) {
     public record QuoteItemRequest(
             Long productId,
-            @NotBlank String productName,
-            @NotNull @Positive BigDecimal unitPrice,
-            @Min(1) int quantity,
-            @PositiveOrZero BigDecimal discount,
-            @NotNull @PositiveOrZero BigDecimal itbisRate
+            @NotBlank(message = "Cada línea necesita una descripción") String productName,
+            @NotNull @PositiveOrZero(message = "El precio no puede ser negativo") BigDecimal unitPrice,
+            @Min(value = 1, message = "La cantidad mínima es 1") int quantity,
+            @PositiveOrZero(message = "El descuento no puede ser negativo") BigDecimal discount,
+            /* Fracción (0.18 = 18 %); la columna es NUMERIC(5,4). */
+            @NotNull
+            @PositiveOrZero(message = "La tasa de ITBIS no puede ser negativa")
+            @DecimalMax(value = "1", message = "La tasa de ITBIS va de 0 a 1 (0.18 = 18 %)")
+            BigDecimal itbisRate
     ) {}
 }
