@@ -122,4 +122,15 @@ public class ServiceOrder {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    /** Google Calendar: última vez que el evento quedó igual que la orden (se compara con updatedAt). */
+    @Column(name = "calendar_synced_at")
+    private LocalDateTime calendarSyncedAt;
+
+    /** Google Calendar: último intento fallido (para reintentar con espera). */
+    @Column(name = "calendar_sync_attempt_at")
+    private LocalDateTime calendarSyncAttemptAt;
+
+    @Column(name = "calendar_sync_error", length = 500)
+    private String calendarSyncError;
 }

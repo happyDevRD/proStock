@@ -145,4 +145,38 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, Long
             """)
     List<ServiceOrder> findAssignedTo(@Param("employeeId") Long employeeId,
                                       @Param("closed") List<ServiceOrderStatus> closed);
+
+    /**
+     * Órdenes cuyo evento de Google Calendar está desfasado: cambiaron desde la última sincronización y
+     * tienen cita reciente o futura (o ya tuvieron evento, para borrarlo). Las que fallaron hace poco esperan.
+     */
+    @Query("""
+            SELECT o FROM ServiceOrder o
+            WHERE (o.calendarSyncedAt IS NULL OR o.calendarSyncedAt < o.updatedAt)
+              AND ((o.appointmentDate IS NOT NULL AND o.appointmentDate >= :since) OR o.calendarSyncedAt IS NOT NULL)
+              AND (o.calendarSyncAttemptAt IS NULL OR o.calendarSyncAttemptAt < :retryBefore)
+            ORDER BY o.updatedAt ASC
+            """)
+    List<ServiceOrder> findCalendarPending(@Param("since") LocalDateTime since,
+                                           @Param("retryBefore") LocalDateTime retryBefore,
+                                           org.springframework.data.domain.Pageable page);
+
+    @Query("""
+            SELECT count(o) FROM ServiceOrder o
+            WHERE (o.calendarSyncedAt IS NULL OR o.calendarSyncedAt < o.updatedAt)
+              AND ((o.appointmentDate IS NOT NULL AND o.appointmentDate >= :since) OR o.calendarSyncedAt IS NOT NULL)
+            """)
+    long countCalendarPending(@Param("since") LocalDateTime since);
+
+    /** Marca sincronizada hasta {@code version} (el updatedAt leído): sin pasar por @PreUpdate, que la volvería a ensuciar. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("""
+            UPDATE ServiceOrder o SET o.calendarSyncedAt = :version, o.calendarSyncAttemptAt = NULL, o.calendarSyncError = NULL
+            WHERE o.id = :id
+            """)
+    int markCalendarSynced(@Param("id") Long id, @Param("version") LocalDateTime version);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE ServiceOrder o SET o.calendarSyncAttemptAt = :at, o.calendarSyncError = :error WHERE o.id = :id")
+    int markCalendarFailed(@Param("id") Long id, @Param("at") LocalDateTime at, @Param("error") String error);
 }

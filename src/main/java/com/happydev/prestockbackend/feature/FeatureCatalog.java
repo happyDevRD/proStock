@@ -87,6 +87,11 @@ public final class FeatureCatalog {
                             + "(requiere el formulario publicado y la plantilla datos_cliente aprobada en Meta)",
                     false, Set.of("module.whatsapp")),
 
+            new FeatureDefinition("integration.google_calendar", "SERVICE_ORDERS", "Citas en Google Calendar",
+                    "Copia las citas y los bloqueos de fechas al calendario de Google del estudio (requiere la cuenta de "
+                            + "servicio y el calendario configurados en Configuración → Integraciones → Google Calendar)",
+                    false, Set.of("module.service_orders")),
+
             new FeatureDefinition("module.ai", "AI", "IA aplicada",
                     "Análisis inteligente: asistente en lenguaje natural y detección de anomalías", false, Set.of()),
             new FeatureDefinition("ai.assistant", "AI", "Asistente conversacional",

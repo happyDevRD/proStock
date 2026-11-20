@@ -164,6 +164,14 @@ public class AppointmentScheduleService {
         blockRepository.delete(b);
         auditService.record(actor, "CALENDAR_BLOCK_DELETED", "CalendarBlock", id,
                 "Bloqueo de agenda quitado: " + b.getReason());
+        if (events != null) events.publishEvent(new com.happydev.prestockbackend.calendar.CalendarBlockDeletedEvent(id));
+    }
+
+    private org.springframework.context.ApplicationEventPublisher events;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setEvents(org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
     }
 
     static void checkRange(LocalDate from, LocalDate to) {
