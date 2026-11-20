@@ -19,7 +19,16 @@ public interface WhatsAppInboundMessageRepository extends JpaRepository<WhatsApp
 
     long countBySeenAtIsNull();
 
+    /** No vistos en la bandeja (los archivados no cuentan). */
+    long countBySeenAtIsNullAndArchivedAtIsNull();
+
     List<WhatsAppInboundMessage> findAllByOrderBySentAtDesc(Pageable pageable);
+
+    List<WhatsAppInboundMessage> findByArchivedAtIsNullOrderBySentAtDesc(Pageable pageable);
+
+    List<WhatsAppInboundMessage> findBySavedTrueOrderBySentAtDesc(Pageable pageable);
+
+    List<WhatsAppInboundMessage> findByArchivedAtIsNotNullOrderBySentAtDesc(Pageable pageable);
 
     @Modifying
     @Query("update WhatsAppInboundMessage m set m.seenAt = :at where m.seenAt is null")

@@ -79,7 +79,11 @@ public final class SelectionDtos {
     public record AccessRequest(@NotNull @jakarta.validation.constraints.Size(max = 120) String key) {}
 
     /** Valores sugeridos antes de generar el enlace (cupo según los combos de la orden). */
-    public record SelectionSuggestion(int suggestedQuota, int previewCount, BigDecimal extraUnitPrice) {}
+    /**
+     * Valores sugeridos antes de generar el enlace.
+     * @param quotaSource de dónde sale el cupo («Combo XV Años 1: 5 fotos»); null si ningún combo lo indica
+     */
+    public record SelectionSuggestion(int suggestedQuota, int previewCount, BigDecimal extraUnitPrice, String quotaSource) {}
 
     public record CreateSelectionRequest(
             @NotNull @Min(0) @Max(5000) Integer quota,

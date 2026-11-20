@@ -302,6 +302,27 @@ class ServiceOrderServiceImplTest {
     }
 
     @Test
+    void computeBilling_itbisPorUnidadSinCentimoDeMas() {
+        // Caso real OS-2026-00034: combo RD$9,300 + 2 fotos extra de RD$300 (con ITBIS) = RD$9,900.00, no 9,900.01.
+        Product combo = new Product();
+        combo.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem comboItem = new ServiceOrderItem();
+        comboItem.setProduct(combo);
+        comboItem.setQuantity(1);
+        comboItem.setUnitPrice(new BigDecimal("7881.36"));
+        Product extra = new Product();
+        extra.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
+        ServiceOrderItem extraItem = new ServiceOrderItem();
+        extraItem.setProduct(extra);
+        extraItem.setQuantity(2);
+        extraItem.setUnitPrice(new BigDecimal("254.24"));
+        when(itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(1L)).thenReturn(List.of(comboItem, extraItem));
+        when(saleRepository.findByServiceOrderIdOrderBySaleDateDesc(1L)).thenReturn(List.of());
+
+        assertEquals(0, new BigDecimal("9900.00").compareTo(service.computeBilling(repairOrder).total()));
+    }
+
+    @Test
     void computeBilling_legacyDepositNeverMakesBalanceNegative() {
         Product product = new Product();
         product.setIndicadorFacturacion(IndicadorFacturacion.ITBIS_18);
