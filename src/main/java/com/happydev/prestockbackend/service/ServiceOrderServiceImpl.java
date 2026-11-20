@@ -645,8 +645,11 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
             for (ServiceOrderItem item : items) {
                 IndicadorFacturacion indicador = item.getProduct().getIndicadorFacturacion();
                 BigDecimal rate = indicador == null || indicador.isExento() ? BigDecimal.ZERO : indicador.getRate();
-                BigDecimal base = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-                total = total.add(base.add(base.multiply(rate)).setScale(2, java.math.RoundingMode.HALF_UP));
+                // Precio con ITBIS por unidad (lo que ve el cliente: RD$300) × cantidad. Redondear la línea
+                // entera daba un céntimo de más: 2 × 254.24 × 1,18 = 600.0064 → 600.01 en vez de 600.00.
+                BigDecimal unit = item.getUnitPrice().add(item.getUnitPrice().multiply(rate))
+                        .setScale(2, java.math.RoundingMode.HALF_UP);
+                total = total.add(unit.multiply(BigDecimal.valueOf(item.getQuantity())));
             }
         }
 

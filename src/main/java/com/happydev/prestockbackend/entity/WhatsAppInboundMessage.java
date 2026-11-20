@@ -64,6 +64,14 @@ public class WhatsAppInboundMessage {
     @Column(name = "seen_at")
     private Instant seenAt;
 
+    /** Guardado (destacado) por el estudio: no se archiva ni se pierde entre los demás. */
+    @Column(name = "saved", nullable = false)
+    private boolean saved = false;
+
+    /** Archivado: sale de la bandeja principal pero se conserva. */
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
     /** El mensaje tal como llegó, por si hace falta algo que no se extrajo. */
     @Column(columnDefinition = "TEXT")
     private String raw;

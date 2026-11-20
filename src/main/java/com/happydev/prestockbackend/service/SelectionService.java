@@ -142,7 +142,7 @@ public class SelectionService {
         ServiceOrder order = order(orderId);
         Path folder = workFolderService.resolve(order.getWorkFolder());
         return new SelectionSuggestion(suggestedQuota(orderId), folder == null ? 0 : previews(folder).size(),
-                extraProduct().map(this::inclusivePrice).orElse(null));
+                extraProduct().map(this::inclusivePrice).orElse(null), quotaSource(orderId));
     }
 
     @Transactional(readOnly = true)
@@ -178,7 +178,8 @@ public class SelectionService {
         sel.setCreatedBy(actor);
         SelectionAccessService.Credentials credentials = access.assign(sel);
         ServiceOrderSelection saved = selectionRepository.save(sel);
-        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken(), saved.getUsername()));
+        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken(), saved.getUsername(),
+                access.accessKey(saved)));
         return toAdmin(saved, credentials.password());
     }
 
@@ -455,6 +456,20 @@ public class SelectionService {
 
     // ── Apoyo ───────────────────────────────────────────────────────────────
 
+    /** «Combo XV Años 1: 5 fotos» (y «2 × …» si hay más de uno); null si ningún combo indica fotos. */
+    @Nullable String quotaSource(Long orderId) {
+        List<String> parts = new ArrayList<>();
+        for (ServiceOrderItem item : itemRepository.findByServiceOrderIdOrderByPositionAscCreatedAtAsc(orderId)) {
+            String text = Optional.ofNullable(item.getProduct().getDescription()).orElse("") + " " + item.getProduct().getName();
+            Matcher m = INCLUDED_PHOTOS.matcher(text);
+            if (m.find() && !extraSku.equalsIgnoreCase(item.getProduct().getSku())) {
+                parts.add((item.getQuantity() > 1 ? item.getQuantity() + " × " : "") + item.getProduct().getName()
+                        + ": " + m.group(1) + " fotos");
+            }
+        }
+        return parts.isEmpty() ? null : String.join(" + ", parts);
+    }
+
     /** Fotos incluidas según los combos de la orden: "25 fotos digitales" × cantidad. */
     int suggestedQuota(Long orderId) {
         int total = 0;
@@ -594,7 +609,18 @@ public class SelectionService {
                 order.getOrderNumber(),
                 order.getCustomer() != null
                         ? (order.getCustomer().getFirstName() + " " + Optional.ofNullable(order.getCustomer().getLastName()).orElse("")).trim()
-                        : null);
+                        : null,
+                accessUrl(sel),
+                sel.getLastLoginMethod(),
+                sel.getLastLoginDevice());
+    }
+
+    /** Enlace directo para mandarle al cliente; null si el acceso ya no puede abrirse así. */
+    private @Nullable String accessUrl(ServiceOrderSelection sel) {
+        if (sel.getId() == null || sel.getToken() == null || sel.getPasswordHash() == null || access == null) return null;
+        if (SelectionAccessService.closed(sel.getServiceOrder())) return null;
+        String key = access.accessKey(sel);
+        return publicUrl.isEmpty() ? key : publicUrl + "/" + key;
     }
 
     private ServiceOrder order(Long id) {

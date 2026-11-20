@@ -33,12 +33,13 @@ public class WhatsAppController {
 
     public record InboundView(Long id, String fromPhone, String profileName, Long customerId, String customerName,
                               String type, String body, boolean hasMedia, Instant sentAt, boolean autoReplied,
-                              Instant seenAt) {
+                              Instant seenAt, boolean saved, Instant archivedAt) {
         static InboundView of(WhatsAppInboundMessage m) {
             var c = m.getCustomer();
             return new InboundView(m.getId(), m.getFromPhone(), m.getProfileName(), c == null ? null : c.getId(),
                     c == null ? null : (c.getFirstName() + " " + c.getLastName()).replace(" -", "").trim(),
-                    m.getType(), m.getBody(), m.getMediaId() != null, m.getSentAt(), m.isAutoReplied(), m.getSeenAt());
+                    m.getType(), m.getBody(), m.getMediaId() != null, m.getSentAt(), m.isAutoReplied(), m.getSeenAt(),
+                    m.isSaved(), m.getArchivedAt());
         }
     }
 
@@ -88,13 +89,48 @@ public class WhatsAppController {
                 .map(MessageView::of).toList();
     }
 
-    /** Lo que los clientes escribieron al número de avisos, lo más nuevo primero. */
+    /**
+     * Lo que los clientes escribieron al número de avisos, lo más nuevo primero.
+     * {@code view}: inbox (sin archivar, por defecto), saved (guardados) o archived.
+     */
     @GetMapping("/api/whatsapp/inbox")
     @Transactional(readOnly = true)
-    public InboxView inbox() {
-        return new InboxView(inboundRepository.countBySeenAtIsNull(),
-                inboundRepository.findAllByOrderBySentAtDesc(PageRequest.of(0, 100)).stream()
-                        .map(InboundView::of).toList());
+    public InboxView inbox(@RequestParam(defaultValue = "inbox") String view) {
+        PageRequest page = PageRequest.of(0, 100);
+        List<WhatsAppInboundMessage> list = switch (view) {
+            case "saved" -> inboundRepository.findBySavedTrueOrderBySentAtDesc(page);
+            case "archived" -> inboundRepository.findByArchivedAtIsNotNullOrderBySentAtDesc(page);
+            default -> inboundRepository.findByArchivedAtIsNullOrderBySentAtDesc(page);
+        };
+        return new InboxView(inboundRepository.countBySeenAtIsNullAndArchivedAtIsNull(),
+                list.stream().map(InboundView::of).toList());
+    }
+
+    public record InboxUpdate(Boolean saved, Boolean archived) {}
+
+    /** Guardar / quitar de guardados y archivar / devolver a la bandeja. */
+    @PatchMapping("/api/whatsapp/inbox/{id}")
+    @Transactional
+    public InboundView updateInbound(@PathVariable Long id, @RequestBody InboxUpdate body) {
+        WhatsAppInboundMessage m = inboundRepository.findById(id)
+                .orElseThrow(() -> new com.happydev.prestockbackend.exception.ResourceNotFoundException("Mensaje", "id", id));
+        if (body.saved() != null) m.setSaved(body.saved());
+        if (body.archived() != null) {
+            m.setArchivedAt(body.archived() ? Instant.now() : null);
+            if (body.archived() && m.getSeenAt() == null) m.setSeenAt(Instant.now());
+        }
+        return InboundView.of(inboundRepository.save(m));
+    }
+
+    /** Borra el mensaje de ProStock (en el WhatsApp del cliente sigue existiendo). */
+    @DeleteMapping("/api/whatsapp/inbox/{id}")
+    @Transactional
+    public ResponseEntity<Void> deleteInbound(@PathVariable Long id) {
+        if (!inboundRepository.existsById(id)) {
+            throw new com.happydev.prestockbackend.exception.ResourceNotFoundException("Mensaje", "id", id);
+        }
+        inboundRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/api/whatsapp/inbox/seen")

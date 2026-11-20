@@ -49,7 +49,13 @@ public final class SelectionDtos {
             boolean extrasPayable,
             Long orderId,
             String orderNumber,
-            String customerName
+            String customerName,
+            /** Enlace directo (entra sin contraseña): el que se le manda al cliente */
+            String accessUrl,
+            /** ENLACE · CONTRASENA (cómo entró la última vez) */
+            String lastLoginMethod,
+            /** Dispositivo de la última entrada ("iPhone · Safari") */
+            String lastLoginDevice
     ) {}
 
     /** Avance de la generación automática de previas desde "1 Camara". */
@@ -63,11 +69,21 @@ public final class SelectionDtos {
     public record LoginRequest(@NotNull @jakarta.validation.constraints.Size(max = 80) String username,
                                @NotNull @jakarta.validation.constraints.Size(max = 20) String password) {}
 
-    /** Sesión firmada: va en la ruta de las demás llamadas ({@code /api/seleccion/{session}/...}). */
-    public record LoginResponse(String session) {}
+    /**
+     * Sesión firmada. El portal la recibe en una cookie HttpOnly; {@code session} se mantiene por
+     * compatibilidad con las rutas antiguas ({@code /api/seleccion/{session}/...}).
+     */
+    public record LoginResponse(String session, String username) {}
+
+    /** Entrada con el enlace directo ({@code k_<id>_<firma>}). */
+    public record AccessRequest(@NotNull @jakarta.validation.constraints.Size(max = 120) String key) {}
 
     /** Valores sugeridos antes de generar el enlace (cupo según los combos de la orden). */
-    public record SelectionSuggestion(int suggestedQuota, int previewCount, BigDecimal extraUnitPrice) {}
+    /**
+     * Valores sugeridos antes de generar el enlace.
+     * @param quotaSource de dónde sale el cupo («Combo XV Años 1: 5 fotos»); null si ningún combo lo indica
+     */
+    public record SelectionSuggestion(int suggestedQuota, int previewCount, BigDecimal extraUnitPrice, String quotaSource) {}
 
     public record CreateSelectionRequest(
             @NotNull @Min(0) @Max(5000) Integer quota,
