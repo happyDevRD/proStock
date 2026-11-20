@@ -61,5 +61,6 @@ public class IntegrationCredentialController {
 
     record CredentialResponse(String provider, String key, String value, LocalDateTime updatedAt) {}
 
-    record SetCredentialRequest(@NotBlank @Size(max = 2048) String value) {}
+    /** 8192: una llave JSON de cuenta de servicio de Google mide ~2400 caracteres. */
+    record SetCredentialRequest(@NotBlank @Size(max = 8192) String value) {}
 }
