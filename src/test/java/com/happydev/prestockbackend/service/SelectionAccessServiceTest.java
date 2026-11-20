@@ -55,6 +55,82 @@ class SelectionAccessServiceTest {
         given(repository.findByUsernameIgnoreCase("nathalie13")).willReturn(Optional.of(sel));
         given(repository.findByToken("tok-interno")).willReturn(Optional.of(sel));
         given(repository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        sel.setId(7L);
+        given(repository.findById(7L)).willReturn(Optional.of(sel));
+    }
+
+    // ── Enlace directo ──────────────────────────────────────────────────────
+
+    private static final String IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 "
+            + "(KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1";
+
+    @Test
+    void enlaceDirectoEntraSinContrasenaYRegistraElDispositivo() {
+        String key = access.accessKey(sel);
+        assertTrue(key.startsWith("k_7_"), key);
+        assertTrue(key.length() >= 30, "llave larga: " + key);
+
+        SelectionAccessService.Login login = access.loginWithKey(key, IPHONE);
+
+        assertEquals("tok-interno", access.resolve(login.session()));
+        assertEquals("nathalie13", login.username());
+        assertEquals(SelectionAccessService.METHOD_LINK, sel.getLastLoginMethod());
+        assertEquals("iPhone · Safari", sel.getLastLoginDevice());
+        assertNotNull(sel.getLastLoginAt());
+    }
+
+    @Test
+    void enlaceDirectoAlteradoOAjenoNoEntra() {
+        String key = access.accessKey(sel);
+        String tampered = key.substring(0, key.length() - 1) + (key.endsWith("A") ? "B" : "A");
+        for (String bad : new String[]{tampered, "k_8_" + key.substring(4), "nathalie13", "", "k_", "k_x_abc", null}) {
+            var e = assertThrows(ResponseStatusException.class, () -> access.loginWithKey(bad, IPHONE), String.valueOf(bad));
+            assertEquals(HttpStatus.UNAUTHORIZED, e.getStatusCode());
+        }
+        assertNull(sel.getLastLoginAt(), "un intento fallido no cuenta como entrada");
+    }
+
+    @Test
+    void regenerarElAccesoInvalidaElEnlaceAnterior() {
+        String old = access.accessKey(sel);
+        sel.setToken("tok-nuevo");
+        assertNotEquals(old, access.accessKey(sel));
+        assertThrows(ResponseStatusException.class, () -> access.loginWithKey(old, IPHONE));
+    }
+
+    @Test
+    void enlaceDirectoNoSirveVencidoNiConLaOrdenEntregadaOCancelada() {
+        String key = access.accessKey(sel);
+        sel.setExpiresAt(LocalDateTime.now(clock).minusMinutes(1));
+        assertEquals(HttpStatus.GONE, assertThrows(ResponseStatusException.class, () -> access.loginWithKey(key, IPHONE)).getStatusCode());
+
+        sel.setExpiresAt(LocalDateTime.now(clock).plusDays(1));
+        sel.getServiceOrder().setCurrentStage("DELIVERED");
+        assertEquals(HttpStatus.GONE, assertThrows(ResponseStatusException.class, () -> access.loginWithKey(key, IPHONE)).getStatusCode());
+
+        sel.getServiceOrder().setCurrentStage("SELECTION");
+        sel.getServiceOrder().setStatus(com.happydev.prestockbackend.entity.ServiceOrderStatus.CANCELLED);
+        assertEquals(HttpStatus.GONE, assertThrows(ResponseStatusException.class, () -> access.loginWithKey(key, IPHONE)).getStatusCode());
+    }
+
+    @Test
+    void laPrimeraEntradaAvisaAlEstudioUnaSolaVez() {
+        StudioNotifier notifier = org.mockito.Mockito.mock(StudioNotifier.class);
+        access.setNotifier(notifier);
+        access.loginWithKey(access.accessKey(sel), IPHONE);
+        access.login("nathalie13", password, null);
+        org.mockito.Mockito.verify(notifier, org.mockito.Mockito.times(1))
+                .send(org.mockito.ArgumentMatchers.contains("abrió su selección"));
+        assertEquals(SelectionAccessService.METHOD_PASSWORD, sel.getLastLoginMethod());
+    }
+
+    @Test
+    void describeDispositivos() {
+        assertEquals("Android · Chrome", SelectionAccessService.describeDevice(
+                "Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36"));
+        assertEquals("Windows · Edge", SelectionAccessService.describeDevice(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36 Edg/131.0"));
+        assertNull(SelectionAccessService.describeDevice(null));
     }
 
     @Test

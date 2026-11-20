@@ -152,7 +152,7 @@ public class WhatsAppTriggers {
             enqueueForCustomer(WhatsAppMessageKind.SELECTION_READY, order,
                     List.of(WhatsAppText.firstName(order.getCustomer().getFirstName()),
                             WhatsAppText.param(WhatsAppText.serviceLabel(order.getTitle()), "fotos")),
-                    event.username(), "selection:" + event.token(), null);
+                    event.accessKey(), "selection:" + event.token(), null);
         });
     }
 

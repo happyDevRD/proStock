@@ -143,12 +143,12 @@ class WhatsAppTriggersTest {
     }
 
     @Test
-    void usuarioDelPortalVaEnElBoton() {
-        triggers.onSelectionLink(new SelectionLinkCreatedEvent(42L, "k3f9x2ab", "ana42"));
+    void enlaceDirectoVaEnElBoton() {
+        triggers.onSelectionLink(new SelectionLinkCreatedEvent(42L, "k3f9x2ab", "ana42", "k_7_firma"));
         WhatsAppOutbox.Notice n = captured();
         assertEquals(WhatsAppMessageKind.SELECTION_READY, n.kind());
         assertEquals(List.of("Ana", "Sesión de embarazo"), n.params());
-        assertEquals("ana42", n.buttonParam());
+        assertEquals("k_7_firma", n.buttonParam(), "el botón lleva la llave del enlace directo, no el usuario");
         assertEquals("selection:k3f9x2ab", n.dedupeKey());
     }
 

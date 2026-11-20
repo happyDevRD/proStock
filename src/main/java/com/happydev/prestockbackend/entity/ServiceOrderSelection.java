@@ -63,6 +63,14 @@ public class ServiceOrderSelection {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    /** Cómo entró la última vez: ENLACE (botón del WhatsApp) o CONTRASENA. */
+    @Column(name = "last_login_method", length = 20)
+    private String lastLoginMethod;
+
+    /** Dispositivo de la última entrada, resumido del User-Agent ("iPhone · Safari"). */
+    @Column(name = "last_login_device", length = 80)
+    private String lastLoginDevice;
+
     /** NONE · PENDING (esperan autorización del estudio) · APPROVED · REJECTED */
     @Column(name = "extra_status", nullable = false, length = 20)
     private String extraStatus = "NONE";

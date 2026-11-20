@@ -178,7 +178,8 @@ public class SelectionService {
         sel.setCreatedBy(actor);
         SelectionAccessService.Credentials credentials = access.assign(sel);
         ServiceOrderSelection saved = selectionRepository.save(sel);
-        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken(), saved.getUsername()));
+        events.publishEvent(new SelectionLinkCreatedEvent(orderId, saved.getToken(), saved.getUsername(),
+                access.accessKey(saved)));
         return toAdmin(saved, credentials.password());
     }
 
@@ -594,7 +595,18 @@ public class SelectionService {
                 order.getOrderNumber(),
                 order.getCustomer() != null
                         ? (order.getCustomer().getFirstName() + " " + Optional.ofNullable(order.getCustomer().getLastName()).orElse("")).trim()
-                        : null);
+                        : null,
+                accessUrl(sel),
+                sel.getLastLoginMethod(),
+                sel.getLastLoginDevice());
+    }
+
+    /** Enlace directo para mandarle al cliente; null si el acceso ya no puede abrirse así. */
+    private @Nullable String accessUrl(ServiceOrderSelection sel) {
+        if (sel.getId() == null || sel.getToken() == null || sel.getPasswordHash() == null || access == null) return null;
+        if (SelectionAccessService.closed(sel.getServiceOrder())) return null;
+        String key = access.accessKey(sel);
+        return publicUrl.isEmpty() ? key : publicUrl + "/" + key;
     }
 
     private ServiceOrder order(Long id) {
