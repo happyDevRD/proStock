@@ -72,7 +72,7 @@ public class GoogleCalendarClient {
         Instant now = Instant.now();
         String assertion = Jwts.builder()
                 .issuer(sa.clientEmail())
-                .audience().add(sa.tokenUri()).and()
+                .audience().single(sa.tokenUri())
                 .claim("scope", SCOPE)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(3600)))
@@ -100,7 +100,8 @@ public class GoogleCalendarClient {
 
     /** Nombre del calendario (sirve para comprobar que la cuenta de servicio tiene acceso). */
     public String calendarSummary(String saJson, String calendarId) {
-        HttpResponse<String> res = call(saJson, "GET", "/calendars/" + enc(calendarId), null);
+        // events.list cabe en el permiso «solo eventos» y su respuesta trae el nombre del calendario.
+        HttpResponse<String> res = call(saJson, "GET", "/calendars/" + enc(calendarId) + "/events?maxResults=1", null);
         if (res.statusCode() == 404) {
             throw new CalendarException("No se encontró el calendario o no está compartido con la cuenta de servicio.", false);
         }
