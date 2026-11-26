@@ -253,16 +253,21 @@ public class DgiiReportServiceImpl implements DgiiReportService {
     @Override
     @Transactional(readOnly = true)
     public Dgii607ReportDto build607(@NonNull YearMonth period) {
-        LocalDateTime start = period.atDay(1).atStartOfDay();
-        LocalDateTime end = period.atEndOfMonth().atTime(23, 59, 59);
+        LocalDateTime start = periodStart(period);
+        LocalDateTime end = periodEnd(period);
 
-        List<Sale> sales = saleRepository.findWithNcfByStatusInRange(SaleStatus.COMPLETED, start, end);
+        // Todo comprobante emitido en el período va al 607, esté cobrado o no (abonadas y a crédito
+        // incluidas); las canceladas van al 608.
+        List<Sale> sales = saleRepository.findWithNcfExcludingStatusInRange(SaleStatus.CANCELED, start, end);
         List<CreditNote> creditNotes = creditNoteRepository.findInRangeWithSale(start, end);
 
+        // Solo lo cobrado hasta el cierre del período: un abono posterior no cambia el 607 de un mes
+        // ya cerrado (lo no cobrado al cierre se reporta como venta a crédito).
         Map<Long, List<SalePayment>> paymentsBySale = sales.isEmpty()
                 ? Map.of()
                 : salePaymentRepository.findBySaleIdIn(sales.stream().map(Sale::getId).toList())
                         .stream()
+                        .filter(p -> p.getPaymentDate() == null || !p.getPaymentDate().isAfter(end))
                         .collect(Collectors.groupingBy(p -> p.getSale().getId()));
         // Las notas de crédito restan de los montos vivos de la venta (saldo, ingresos netos), pero en el
         // 607 la factura va con lo que se emitió: se le suma lo revertido por sus notas de crédito.
@@ -299,8 +304,8 @@ public class DgiiReportServiceImpl implements DgiiReportService {
     @Override
     @Transactional(readOnly = true)
     public Dgii608ReportDto build608(@NonNull YearMonth period) {
-        LocalDateTime start = period.atDay(1).atStartOfDay();
-        LocalDateTime end = period.atEndOfMonth().atTime(23, 59, 59);
+        LocalDateTime start = periodStart(period);
+        LocalDateTime end = periodEnd(period);
 
         Dgii608ReportDto report = new Dgii608ReportDto();
         report.setRnc(companyRnc());
@@ -458,6 +463,18 @@ public class DgiiReportServiceImpl implements DgiiReportService {
                 .map(config -> trimToNull(config.getRnc()))
                 .map(rnc -> rnc.replaceAll("[^0-9]", ""))
                 .orElse("");
+    }
+
+    private static LocalDateTime periodStart(YearMonth period) {
+        return period.atDay(1).atStartOfDay();
+    }
+
+    /**
+     * Último instante del período con la precisión de PostgreSQL (microsegundos): con 23:59:59 a
+     * secas, lo registrado en el último segundo del mes (p. ej. 23:59:59.4) no caía en ningún período.
+     */
+    private static LocalDateTime periodEnd(YearMonth period) {
+        return period.atEndOfMonth().atTime(23, 59, 59, 999_999_000);
     }
 
     private static BigDecimal nz(BigDecimal value) {
