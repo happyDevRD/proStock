@@ -1,6 +1,7 @@
 package com.happydev.prestockbackend.controller;
 
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyCalendarResponse;
+import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkAdvanceRequest;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkNoteRequest;
 import com.happydev.prestockbackend.dto.MyWorkDtos.MyWorkResponse;
 import com.happydev.prestockbackend.service.MyWorkService;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.time.LocalDate;
 
-/** "Mis trabajos" para fotógrafos y editores: solo sus órdenes y sus pasos. */
+/** "Mis trabajos" para el personal de producción (técnicos, fotógrafos, editores): solo sus órdenes y sus pasos. */
 @RestController
 @RequestMapping("/api/my-work")
 @PreAuthorize("hasAnyAuthority('ROLE_GESTOR', 'view.my_work')")
@@ -45,9 +46,10 @@ public class MyWorkController {
     @PostMapping("/{orderId}/advance")
     public ResponseEntity<Void> advance(@PathVariable Long orderId,
                                         @RequestParam(required = false) String stage,
+                                        @Valid @RequestBody(required = false) MyWorkAdvanceRequest body,
                                         Principal principal) {
         accessGuard.requireEnabled();
-        myWorkService.advance(orderId, stage, principal.getName());
+        myWorkService.advance(orderId, stage, body != null ? body.note() : null, principal.getName());
         // Sin cuerpo: la carpeta se mueve después del commit y esta petición tiene la orden en caché;
         // el cliente vuelve a pedir la lista.
         return ResponseEntity.noContent().build();

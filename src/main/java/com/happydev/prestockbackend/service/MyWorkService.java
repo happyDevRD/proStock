@@ -25,27 +25,79 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Órdenes asignadas al usuario actual (por su empleado vinculado) y los pasos
- * que puede marcar según su función. Las reglas se validan aquí, no en la interfaz:
+ * que puede marcar según su función. Las reglas se validan aquí, no en la interfaz.
+ *
+ * <p>La asignación se guarda en los campos «fotógrafo» y «editor» de la orden para todos
+ * los tipos; en un taller son el técnico y su apoyo.
  *
  * <ul>
- *   <li>Fotógrafo: Agendada → Sesión ("sesión realizada") y Sesión → Selección ("fotos cargadas").</li>
- *   <li>Editor: Edición → Lista ("edición terminada").</li>
+ *   <li>Fotografía. Fotógrafo: Agendada → Sesión y Sesión → Selección. Editor: Edición → Lista.</li>
+ *   <li>Reparación. Técnico o apoyo, solo etapas técnicas: Recibido → Diagnóstico → Presupuesto
+ *       (con el diagnóstico), Presupuesto → Aprobado solo si el mostrador ya marcó el presupuesto
+ *       como aprobado, Aprobado → En reparación → Calidad (con el trabajo realizado) → Listo.
+ *       Entregar, cobrar y aprobar el presupuesto quedan para el mostrador.</li>
+ *   <li>General. Responsable o apoyo: Recibido → En proceso → Listo.</li>
  * </ul>
  */
 @Service
 public class MyWorkService {
 
-    private record Step(String role, String to, ServiceOrderStatus status, String label) {}
+    static final String TECH = "FOTOGRAFO";
+    static final String SUPPORT = "EDITOR";
 
-    /** Etapa actual → paso que puede dar quien tenga ese rol en la orden. */
-    private static final Map<String, Step> STEPS = Map.of(
-            "SCHEDULED", new Step("FOTOGRAFO", "SESSION", ServiceOrderStatus.IN_PROGRESS, "Sesión realizada"),
-            "SESSION", new Step("FOTOGRAFO", "SELECTION", ServiceOrderStatus.WAITING_CLIENT, "Fotos cargadas: pasar a selección"),
-            "EDITING", new Step("EDITOR", "READY", ServiceOrderStatus.READY, "Edición terminada")
+    /**
+     * Paso que se puede dar desde una etapa.
+     *
+     * @param roles     funciones en la orden que pueden darlo
+     * @param noteLabel si no es null, el paso exige una nota (p. ej. el diagnóstico) con este título
+     * @param when      condición extra de la orden (p. ej. presupuesto ya aprobado)
+     * @param notYet    mensaje si la condición aún no se cumple
+     */
+    private record Step(Set<String> roles, String to, String label, @Nullable String noteLabel,
+                        Predicate<ServiceOrder> when, @Nullable String notYet) {
+        Step(Set<String> roles, String to, String label) {
+            this(roles, to, label, null, o -> true, null);
+        }
+
+        Step(Set<String> roles, String to, String label, String noteLabel) {
+            this(roles, to, label, noteLabel, o -> true, null);
+        }
+    }
+
+    private static final Set<String> BOTH = Set.of(TECH, SUPPORT);
+
+    /** Tipo de orden → etapa actual → paso que puede dar quien tenga ese rol en la orden. */
+    private static final Map<ServiceOrderType, Map<String, Step>> STEPS = Map.of(
+            ServiceOrderType.PHOTOGRAPHY, Map.of(
+                    "SCHEDULED", new Step(Set.of(TECH), "SESSION", "Sesión realizada"),
+                    "SESSION", new Step(Set.of(TECH), "SELECTION", "Fotos cargadas: pasar a selección"),
+                    "EDITING", new Step(Set.of(SUPPORT), "READY", "Edición terminada")
+            ),
+            ServiceOrderType.REPAIR, Map.of(
+                    "RECEIVED", new Step(BOTH, "DIAGNOSIS", "Empezar diagnóstico"),
+                    "DIAGNOSIS", new Step(BOTH, "BUDGET_SENT", "Diagnóstico listo: pasar a presupuesto",
+                            "Diagnóstico"),
+                    "BUDGET_SENT", new Step(BOTH, "APPROVED", "Presupuesto aprobado: continuar",
+                            null, ServiceOrder::isBudgetApproved,
+                            "El cliente todavía no aprobó el presupuesto. Cuando el mostrador lo marque aprobado podrás seguir."),
+                    "APPROVED", new Step(BOTH, "IN_REPAIR", "Empezar reparación"),
+                    "IN_REPAIR", new Step(BOTH, "QUALITY_CHECK", "Reparación terminada: pasar a calidad",
+                            "Trabajo realizado"),
+                    "QUALITY_CHECK", new Step(BOTH, "READY", "Calidad revisada: listo para entregar")
+            ),
+            ServiceOrderType.GENERAL, Map.of(
+                    "RECEIVED", new Step(BOTH, "IN_PROGRESS", "Empezar trabajo"),
+                    "IN_PROGRESS", new Step(BOTH, "READY", "Trabajo terminado: listo para entregar")
+            )
     );
+
+    /** Largo máximo de la nota que acompaña un paso. */
+    static final int MAX_NOTE = 2000;
 
     private static final List<ServiceOrderStatus> CLOSED =
             List.of(ServiceOrderStatus.COMPLETED, ServiceOrderStatus.CANCELLED);
@@ -105,26 +157,54 @@ public class MyWorkService {
                 .map(o -> new MyCalendarItem(o.getId(), o.getOrderNumber(), o.getTitle(), customerName(o.getCustomer()),
                         o.getAppointmentDate(),
                         o.getAppointmentEnd() != null ? o.getAppointmentEnd() : o.getAppointmentDate(),
-                        o.isAppointmentAllDay(), o.getCurrentStage(), o.getStatus().name(), myRoles(o, e)))
+                        o.isAppointmentAllDay(), o.getCurrentStage(), o.getOrderType(), o.getStatus().name(),
+                        myRoles(o, e)))
                 .toList();
         return new MyCalendarResponse(true, items, scheduleService.blocksFor(e.getId(), from, to));
     }
 
     /** Marca el siguiente paso que le corresponde al usuario; falla si no le toca. */
     public void advance(Long orderId, String expectedStage, String username) {
+        advance(orderId, expectedStage, null, username);
+    }
+
+    /**
+     * Igual, con la nota que piden algunos pasos (diagnóstico, trabajo realizado). La nota
+     * queda en las notas internas de la orden para que el mostrador la vea.
+     */
+    @Transactional
+    public void advance(Long orderId, String expectedStage, @Nullable String note, String username) {
         Employee e = employeeOf(username).orElseThrow(() ->
                 new AccessDeniedException("Tu usuario no está vinculado a un empleado."));
         ServiceOrder order = assignedOrder(orderId, e);
         Step step = allowedStep(order, e);
         if (step == null) {
-            throw new IllegalStateException("En esta etapa no te toca avanzar la orden.");
+            Step pending = stepFor(order);
+            throw new IllegalStateException(pending != null && pending.notYet() != null && hasRole(order, e, pending)
+                    ? pending.notYet()
+                    : "En esta etapa no te toca avanzar la orden.");
         }
         // Evita doble clic o pantallas viejas: el paso debe ser el que vio el usuario.
         if (expectedStage != null && !expectedStage.equals(step.to())) {
             throw new IllegalStateException("La orden ya cambió de etapa. Actualiza la pantalla.");
         }
+        String text = note != null ? note.trim() : "";
+        if (step.noteLabel() != null && text.isEmpty()) {
+            throw new IllegalArgumentException("Escribe el " + step.noteLabel().toLowerCase() + " antes de marcar «"
+                    + step.label() + "».");
+        }
+        if (text.length() > MAX_NOTE) {
+            throw new IllegalArgumentException("La nota es muy larga (máximo " + MAX_NOTE + " caracteres).");
+        }
         requireMaterial(order, step);
-        serviceOrderService.advanceStage(orderId, new AdvanceStageRequest(step.to(), step.status(), step.label()), username);
+        ServiceOrderStatus status = ServiceOrderStageCatalog.findStage(order.getOrderType(), step.to())
+                .orElseThrow()
+                .status();
+        serviceOrderService.advanceStage(orderId, new AdvanceStageRequest(step.to(), status, step.label()), username);
+        if (!text.isEmpty()) {
+            String content = step.noteLabel() != null ? step.noteLabel() + ": " + text : text;
+            serviceOrderService.addNote(orderId, new AddNoteRequest(content, true), username);
+        }
     }
 
     public void addNote(Long orderId, String content, String username) {
@@ -140,6 +220,7 @@ public class MyWorkService {
      * Si la orden no tiene carpeta (función apagada) no se valida.
      */
     private void requireMaterial(ServiceOrder order, Step step) {
+        if (order.getOrderType() != ServiceOrderType.PHOTOGRAPHY) return;
         String sub = switch (step.to()) {
             case "SELECTION" -> "1 Camara";
             case "READY" -> "4 Final";
@@ -177,10 +258,19 @@ public class MyWorkService {
     }
 
     @Nullable
+    private static Step stepFor(ServiceOrder o) {
+        return STEPS.getOrDefault(o.getOrderType(), Map.of()).get(o.getCurrentStage());
+    }
+
+    private static boolean hasRole(ServiceOrder o, Employee e, Step step) {
+        return myRoles(o, e).stream().anyMatch(step.roles()::contains);
+    }
+
+    @Nullable
     private static Step allowedStep(ServiceOrder o, Employee e) {
-        Step step = STEPS.get(o.getCurrentStage());
-        if (step == null || o.getOrderType() != ServiceOrderType.PHOTOGRAPHY) return null;
-        return myRoles(o, e).contains(step.role()) ? step : null;
+        Step step = stepFor(o);
+        if (step == null || !step.when().test(o)) return null;
+        return hasRole(o, e, step) ? step : null;
     }
 
     @Nullable
@@ -203,7 +293,7 @@ public class MyWorkService {
                 customerName(c),
                 c != null ? c.getPhoneNumber() : null,
                 o.getAppointmentDate(), o.getAppointmentEnd(), o.isAppointmentAllDay(),
-                o.getEstimatedDelivery(), o.getCurrentStage(),
+                o.getEstimatedDelivery(), o.getCurrentStage(), o.getOrderType(),
                 myRoles(o, e),
                 o.getPhotographer() != null ? o.getPhotographer().getNombreCompleto() : null,
                 o.getEditor() != null ? o.getEditor().getNombreCompleto() : null,
@@ -211,7 +301,7 @@ public class MyWorkService {
                 workFolderService.fileCounts(o.getWorkFolder()),
                 o.getInternalNotes(),
                 services, notes,
-                step != null ? new MyWorkAction(step.to(), step.label()) : null
+                step != null ? new MyWorkAction(step.to(), step.label(), step.noteLabel()) : null
         );
     }
 }
