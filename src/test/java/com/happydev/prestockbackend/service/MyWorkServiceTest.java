@@ -275,7 +275,8 @@ class MyWorkServiceTest {
     @Test
     void technicianCannotApproveTheBudgetForTheClient() {
         repair("BUDGET_SENT");
-        assertThrows(IllegalStateException.class, () -> service.advance(10L, "APPROVED", "juan"));
+        var e = assertThrows(IllegalStateException.class, () -> service.advance(10L, "APPROVED", "juan"));
+        assertTrue(e.getMessage().contains("no aprobó el presupuesto"));
         verify(serviceOrderService, never()).advanceStage(anyLong(), any(), any());
     }
 

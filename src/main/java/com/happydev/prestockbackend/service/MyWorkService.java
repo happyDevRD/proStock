@@ -56,11 +56,16 @@ public class MyWorkService {
      * @param roles     funciones en la orden que pueden darlo
      * @param noteLabel si no es null, el paso exige una nota (p. ej. el diagnóstico) con este título
      * @param when      condición extra de la orden (p. ej. presupuesto ya aprobado)
+     * @param notYet    mensaje si la condición aún no se cumple
      */
     private record Step(Set<String> roles, String to, String label, @Nullable String noteLabel,
-                        Predicate<ServiceOrder> when) {
+                        Predicate<ServiceOrder> when, @Nullable String notYet) {
         Step(Set<String> roles, String to, String label) {
-            this(roles, to, label, null, o -> true);
+            this(roles, to, label, null, o -> true, null);
+        }
+
+        Step(Set<String> roles, String to, String label, String noteLabel) {
+            this(roles, to, label, noteLabel, o -> true, null);
         }
     }
 
@@ -76,12 +81,13 @@ public class MyWorkService {
             ServiceOrderType.REPAIR, Map.of(
                     "RECEIVED", new Step(BOTH, "DIAGNOSIS", "Empezar diagnóstico"),
                     "DIAGNOSIS", new Step(BOTH, "BUDGET_SENT", "Diagnóstico listo: pasar a presupuesto",
-                            "Diagnóstico", o -> true),
+                            "Diagnóstico"),
                     "BUDGET_SENT", new Step(BOTH, "APPROVED", "Presupuesto aprobado: continuar",
-                            null, ServiceOrder::isBudgetApproved),
+                            null, ServiceOrder::isBudgetApproved,
+                            "El cliente todavía no aprobó el presupuesto. Cuando el mostrador lo marque aprobado podrás seguir."),
                     "APPROVED", new Step(BOTH, "IN_REPAIR", "Empezar reparación"),
                     "IN_REPAIR", new Step(BOTH, "QUALITY_CHECK", "Reparación terminada: pasar a calidad",
-                            "Trabajo realizado", o -> true),
+                            "Trabajo realizado"),
                     "QUALITY_CHECK", new Step(BOTH, "READY", "Calidad revisada: listo para entregar")
             ),
             ServiceOrderType.GENERAL, Map.of(
@@ -173,7 +179,10 @@ public class MyWorkService {
         ServiceOrder order = assignedOrder(orderId, e);
         Step step = allowedStep(order, e);
         if (step == null) {
-            throw new IllegalStateException("En esta etapa no te toca avanzar la orden.");
+            Step pending = stepFor(order);
+            throw new IllegalStateException(pending != null && pending.notYet() != null && hasRole(order, e, pending)
+                    ? pending.notYet()
+                    : "En esta etapa no te toca avanzar la orden.");
         }
         // Evita doble clic o pantallas viejas: el paso debe ser el que vio el usuario.
         if (expectedStage != null && !expectedStage.equals(step.to())) {
@@ -249,10 +258,19 @@ public class MyWorkService {
     }
 
     @Nullable
+    private static Step stepFor(ServiceOrder o) {
+        return STEPS.getOrDefault(o.getOrderType(), Map.of()).get(o.getCurrentStage());
+    }
+
+    private static boolean hasRole(ServiceOrder o, Employee e, Step step) {
+        return myRoles(o, e).stream().anyMatch(step.roles()::contains);
+    }
+
+    @Nullable
     private static Step allowedStep(ServiceOrder o, Employee e) {
-        Step step = STEPS.getOrDefault(o.getOrderType(), Map.of()).get(o.getCurrentStage());
+        Step step = stepFor(o);
         if (step == null || !step.when().test(o)) return null;
-        return myRoles(o, e).stream().anyMatch(step.roles()::contains) ? step : null;
+        return hasRole(o, e, step) ? step : null;
     }
 
     @Nullable
